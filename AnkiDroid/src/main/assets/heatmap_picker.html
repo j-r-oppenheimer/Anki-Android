@@ -207,10 +207,15 @@
     height: 28px;
     background: transparent;
   }
+  /* --fill 은 JS 가 값에 맞춰 갱신합니다. 지나온 구간은 강조색, 남은 구간은 회색. */
   input[type=range]::-webkit-slider-runnable-track {
     height: 4px;
     border-radius: 2px;
-    background: var(--line);
+    background: linear-gradient(
+      to right,
+      var(--accent) 0 var(--fill, 0%),
+      var(--line) var(--fill, 0%) 100%
+    );
   }
   input[type=range]::-webkit-slider-thumb {
     -webkit-appearance: none;
@@ -820,7 +825,21 @@ function midHandle(p, max) {
 
 /* ------------------------------------------------------------------ 그리기 */
 
+/* 슬라이더의 채워진 만큼을 --fill 에 넣어 트랙 그라디언트를 갱신합니다. */
+function paintRanges() {
+  var ranges = document.querySelectorAll("input[type=range]");
+  for (var i = 0; i < ranges.length; i++) {
+    var input = ranges[i];
+    var min = parseFloat(input.min) || 0;
+    var max = parseFloat(input.max) || 100;
+    var value = parseFloat(input.value) || 0;
+    var percent = max > min ? ((value - min) / (max - min)) * 100 : 0;
+    input.style.setProperty("--fill", percent.toFixed(1) + "%");
+  }
+}
+
 function redraw() {
+  paintRanges();
   document.documentElement.style.setProperty("--accent", S.base);
   el("cornerOut").textContent = S.corner + "%";
   el("gapOut").textContent = (100 - S.gap) + "%";
@@ -966,6 +985,7 @@ el("hex").addEventListener("blur", function () { this.value = S[active]; });
 function bindRange(id, field) {
   el(id).addEventListener("input", function () {
     S[field] = parseInt(this.value, 10);
+    paintRanges();
     redraw();
   });
 }
