@@ -48,18 +48,13 @@
     line-height: 1.45;
   }
 
-  /* 설정 화면 위에 이미 앱바가 있으므로 제목은 한 줄 설명만 둡니다. */
-  header { padding: 14px 4px 4px; }
-  header h1 { display: none; }
-  header p { margin: 0; font-size: 13.5px; color: var(--muted); }
-
   /* 넓은 화면에서는 왼쪽에 미리보기를 고정하고 오른쪽에서 조작합니다. */
   .layout { display: block; }
 
   .stage {
     border-radius: 22px;
     padding: 16px;
-    margin-top: 14px;
+    margin-top: 16px;
     background: radial-gradient(120% 100% at 15% 0%, var(--stage-1) 0%, var(--stage-2) 45%, var(--stage-3) 100%);
   }
   #preview { display: block; width: 100%; }
@@ -261,8 +256,7 @@
       align-items: start;
     }
     .pane-preview { position: sticky; top: 16px; }
-    .pane-controls section:first-child { margin-top: 14px; }
-    footer { padding-left: 24px; padding-right: 24px; }
+      footer { padding-left: 24px; padding-right: 24px; }
     #save { flex: none; width: 220px; margin-left: auto; }
     #cancel { order: -1; }
   }
@@ -270,10 +264,6 @@
 </head>
 <body>
 
-<header>
-  <h1 data-i18n="title"></h1>
-  <p data-i18n="subtitle"></p>
-</header>
 
 <div class="layout">
 <div class="pane-preview">
@@ -908,7 +898,6 @@ var STRINGS = {
   section_color: "Colour",
   section_curve: "Intensity curve",
   section_shape: "Cell shape",
-  subtitle: "Pick one colour. Days you studied more show up darker.",
   target_base: "Base",
   target_empty: "Empty day",
   title: "Heatmap widget"

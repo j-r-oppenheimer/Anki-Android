@@ -22,7 +22,6 @@
     <string name="heatmap_ui_section_color" translatable="false">색</string>
     <string name="heatmap_ui_section_curve" translatable="false">진하기 곡선</string>
     <string name="heatmap_ui_section_shape" translatable="false">칸 모양</string>
-    <string name="heatmap_ui_subtitle" translatable="false">색 하나를 정하면 그날 공부한 양에 따라 진하기가 달라집니다.</string>
     <string name="heatmap_ui_target_base" translatable="false">기준색</string>
     <string name="heatmap_ui_target_empty" translatable="false">빈 칸</string>
     <string name="heatmap_ui_title" translatable="false">히트맵 위젯</string>

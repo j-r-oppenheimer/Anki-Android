@@ -58,7 +58,6 @@ private val UI_STRINGS =
         "section_color" to R.string.heatmap_ui_section_color,
         "section_curve" to R.string.heatmap_ui_section_curve,
         "section_shape" to R.string.heatmap_ui_section_shape,
-        "subtitle" to R.string.heatmap_ui_subtitle,
         "target_base" to R.string.heatmap_ui_target_base,
         "target_empty" to R.string.heatmap_ui_target_empty,
         "title" to R.string.heatmap_ui_title,

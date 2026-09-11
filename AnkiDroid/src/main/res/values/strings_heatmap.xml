@@ -2,7 +2,7 @@
 <!--
   저장할 위치: AnkiDroid/src/main/res/values/strings_heatmap.xml
 
-  위젯 설정 화면(assets/heatmap_picker.html)이 쓰는 문자열입니다.
+  위젯 설정 화면(assets/heatmap_picker.html)과 그 앱바가 쓰는 문자열입니다.
   HTML 에 글자를 직접 넣지 않고 여기서 읽어 넘기므로
   AnkiDroid 의 언어 설정을 그대로 따라갑니다.
 -->
@@ -26,7 +26,6 @@
     <string name="heatmap_ui_section_color" translatable="false">Colour</string>
     <string name="heatmap_ui_section_curve" translatable="false">Intensity curve</string>
     <string name="heatmap_ui_section_shape" translatable="false">Cell shape</string>
-    <string name="heatmap_ui_subtitle" translatable="false">Pick one colour. Days you studied more show up darker.</string>
     <string name="heatmap_ui_target_base" translatable="false">Base</string>
     <string name="heatmap_ui_target_empty" translatable="false">Empty day</string>
     <string name="heatmap_ui_title" translatable="false">Heatmap widget</string>
