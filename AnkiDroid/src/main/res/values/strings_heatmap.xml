@@ -5,7 +5,6 @@
   위젯 설정 화면(assets/heatmap_picker.html)이 쓰는 문자열입니다.
   HTML 에 글자를 직접 넣지 않고 여기서 읽어 넘기므로
   AnkiDroid 의 언어 설정을 그대로 따라갑니다.
-  기본값은 영어이고, 한국어는 values-ko/ 에 있습니다.
 -->
 <resources>
     <string name="heatmap_ui_axis_color" translatable="false">Colour</string>
@@ -15,9 +14,6 @@
     <string name="heatmap_ui_cell_size" translatable="false">Cell size</string>
     <string name="heatmap_ui_corner" translatable="false">Corner</string>
     <string name="heatmap_ui_count_n" translatable="false">%d</string>
-    <string name="heatmap_ui_empty_auto" translatable="false">Automatic</string>
-    <string name="heatmap_ui_empty_cell_color" translatable="false">Empty day colour</string>
-    <string name="heatmap_ui_empty_custom" translatable="false">Choose</string>
     <string name="heatmap_ui_empty_opacity" translatable="false">Empty days</string>
     <string name="heatmap_ui_hex_label" translatable="false">Hex colour code</string>
     <string name="heatmap_ui_loading" translatable="false">Loading study history\u2026</string>
@@ -27,6 +23,7 @@
     <string name="heatmap_ui_opacity" translatable="false">Opacity</string>
     <string name="heatmap_ui_padding" translatable="false">Padding</string>
     <string name="heatmap_ui_peak_n" translatable="false">Peak %d/day</string>
+    <string name="heatmap_ui_peak_opacity" translatable="false">Busiest day</string>
     <string name="heatmap_ui_save" translatable="false">Save</string>
     <string name="heatmap_ui_section_background" translatable="false">Background</string>
     <string name="heatmap_ui_section_color" translatable="false">Colour</string>

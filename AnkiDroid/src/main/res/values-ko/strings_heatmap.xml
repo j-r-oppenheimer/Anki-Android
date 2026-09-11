@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   저장할 위치: AnkiDroid/src/main/res/values-ko/strings_heatmap.xml
-
-  AnkiDroid 언어를 한국어로 설정했을 때만 쓰입니다.
 -->
 <resources>
     <string name="heatmap_ui_axis_color" translatable="false">색</string>
@@ -12,10 +10,7 @@
     <string name="heatmap_ui_cell_size" translatable="false">칸 크기</string>
     <string name="heatmap_ui_corner" translatable="false">모서리</string>
     <string name="heatmap_ui_count_n" translatable="false">%d개</string>
-    <string name="heatmap_ui_empty_auto" translatable="false">자동</string>
-    <string name="heatmap_ui_empty_cell_color" translatable="false">빈 칸 색</string>
-    <string name="heatmap_ui_empty_custom" translatable="false">직접 지정</string>
-    <string name="heatmap_ui_empty_opacity" translatable="false">빈 칸</string>
+    <string name="heatmap_ui_empty_opacity" translatable="false">빈 칸 진하기</string>
     <string name="heatmap_ui_hex_label" translatable="false">16진수 색상 코드</string>
     <string name="heatmap_ui_loading" translatable="false">학습 기록 불러오는 중\u2026</string>
     <string name="heatmap_ui_mode_dark" translatable="false">다크</string>
@@ -24,6 +19,7 @@
     <string name="heatmap_ui_opacity" translatable="false">불투명도</string>
     <string name="heatmap_ui_padding" translatable="false">가장자리 여백</string>
     <string name="heatmap_ui_peak_n" translatable="false">최고 %d개/일</string>
+    <string name="heatmap_ui_peak_opacity" translatable="false">가장 진한 칸</string>
     <string name="heatmap_ui_save" translatable="false">저장</string>
     <string name="heatmap_ui_section_background" translatable="false">배경</string>
     <string name="heatmap_ui_section_color" translatable="false">색</string>

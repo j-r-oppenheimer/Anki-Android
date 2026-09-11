@@ -264,11 +264,6 @@
 <section>
   <div class="label"><h2 data-i18n="section_color"></h2><span class="hint" id="targetHint"></span></div>
   <div class="card">
-    <span class="rowcap" style="margin-top:0" data-i18n="empty_cell_color"></span>
-    <div class="segmented" id="emptyToggle">
-      <button type="button" id="emptyAuto" data-i18n="empty_auto"></button>
-      <button type="button" id="emptyCustom" data-i18n="empty_custom"></button>
-    </div>
     <div class="targets" id="targets"></div>
     <canvas id="sv"></canvas>
     <canvas id="hue"></canvas>
@@ -306,8 +301,13 @@
     </div>
     <div class="row">
       <label data-i18n="empty_opacity"></label>
-      <input type="range" id="emptyAlpha" min="0" max="160" step="1">
-      <span class="val" id="emptyAlphaOut"></span>
+      <input type="range" id="emptyPct" min="0" max="100" step="1">
+      <span class="val" id="emptyPctOut"></span>
+    </div>
+    <div class="row">
+      <label data-i18n="peak_opacity"></label>
+      <input type="range" id="peakPct" min="10" max="100" step="1">
+      <span class="val" id="peakPctOut"></span>
     </div>
   </div>
 </section>
@@ -342,10 +342,10 @@ var DEFAULTS = {
   base: "#2F81F7",
   dark: true,
   bgAlpha: 128,
-  emptyAlpha: 38,
+  emptyPct: 15,
+  peakPct: 100,
   padding: 8,
-  customEmpty: false,
-  emptyColor: "#808080",
+  emptyColor: "#000000",
   corner: 25,
   gap: 18,
   curveX: 50,
@@ -457,12 +457,10 @@ function rgba(hex, alpha) {
    정작 고른 색이 화면에 제대로 드러나지 않습니다. */
 function colorForIntensity(intensity) {
   var mix = INTENSITY_FLOOR + (1 - INTENSITY_FLOOR) * intensity;
-  return rgba(S.base, (S.emptyAlpha + (255 - S.emptyAlpha) * mix) / 255);
+  return rgba(S.base, (S.emptyPct + (S.peakPct - S.emptyPct) * mix) / 100);
 }
 
-function emptyBaseHex() { return S.customEmpty ? S.emptyColor : toneHex(); }
-
-function emptyStyle() { return rgba(emptyBaseHex(), S.emptyAlpha / 255); }
+function emptyStyle() { return rgba(S.emptyColor, S.emptyPct / 100); }
 
 function colorForCount(count) {
   if (count <= 0) { return emptyStyle(); }
@@ -634,7 +632,8 @@ function recomputeAxisTop() {
     return;
   }
   // 축은 학습 기록만 보고 정합니다. 최대 개수를 끌어 바꿔도 눈금이 따라
-  // 움직이면 기준이 흔들려서, 여기에는 S.maxCount 를 넣지 않습니다.
+  // 움직이면 손잡이가 손가락을 피해 달아나므로, 여기에는 S.maxCount 를 넣지 않습니다.
+  // 축 위쪽에 여유가 있어야 최대 개수를 위로 끌어올릴 자리가 생깁니다.
   var wanted = Math.max(STATS.auto * 2, 20);
   var step = wanted > 300 ? 50 : (wanted > 100 ? 20 : 10);
   axisTop = Math.ceil(wanted / step) * step;
@@ -807,7 +806,8 @@ function redraw() {
   el("gapOut").textContent = (100 - S.gap) + "%";
   el("paddingOut").textContent = S.padding + "dp";
   el("bgAlphaOut").textContent = Math.round((S.bgAlpha / 255) * 100) + "%";
-  el("emptyAlphaOut").textContent = Math.round((S.emptyAlpha / 255) * 100) + "%";
+  el("emptyPctOut").textContent = S.emptyPct + "%";
+  el("peakPctOut").textContent = S.peakPct + "%";
   el("modeDark").setAttribute("aria-pressed", S.dark ? "true" : "false");
   el("modeLight").setAttribute("aria-pressed", S.dark ? "false" : "true");
 
@@ -848,28 +848,14 @@ function syncInputs() {
   el("gap").value = 100 - S.gap;
   el("padding").value = S.padding;
   el("bgAlpha").value = S.bgAlpha;
-  el("emptyAlpha").value = S.emptyAlpha;
+  el("emptyPct").value = S.emptyPct;
+  el("peakPct").value = S.peakPct;
 }
 
 function selectTarget(key) {
   active = key;
   HSV = rgbToHsv(parseHex(S[key]));
   redraw();
-}
-
-/* 빈 칸 색을 직접 고를 때만 대상 탭을 내보냅니다.
-   자동일 때는 밝기 모드가 정한 흰색이나 검정을 씁니다. */
-function updateEmptyMode() {
-  el("targets").hidden = !S.customEmpty;
-  el("emptyAuto").setAttribute("aria-pressed", S.customEmpty ? "false" : "true");
-  el("emptyCustom").setAttribute("aria-pressed", S.customEmpty ? "true" : "false");
-  if (!S.customEmpty && active !== "base") { selectTarget("base"); }
-}
-
-function setCustomEmpty(on) {
-  S.customEmpty = on;
-  updateEmptyMode();
-  if (on) { selectTarget("emptyColor"); } else { redraw(); }
 }
 
 /* --------------------------------------------------------------- 문자열 */
@@ -885,9 +871,6 @@ var STRINGS = {
   cell_size: "Cell size",
   corner: "Corner",
   count_n: "%d",
-  empty_auto: "Automatic",
-  empty_cell_color: "Empty day colour",
-  empty_custom: "Choose",
   empty_opacity: "Empty days",
   hex_label: "Hex colour code",
   loading: "Loading study history\u2026",
@@ -897,6 +880,7 @@ var STRINGS = {
   opacity: "Opacity",
   padding: "Padding",
   peak_n: "Peak %d/day",
+  peak_opacity: "Busiest day",
   save: "Save",
   section_background: "Background",
   section_color: "Colour",
@@ -994,17 +978,19 @@ el("gap").addEventListener("input", function () {
   redraw();
 });
 bindRange("bgAlpha", "bgAlpha");
-bindRange("emptyAlpha", "emptyAlpha");
+bindRange("emptyPct", "emptyPct");
+bindRange("peakPct", "peakPct");
 
 /* 밝기 모드. 색을 고르는 게 아니라 위젯이 밝은 배경 위인지 어두운 배경 위인지만 정합니다. */
 function setMode(dark) {
+  /* 빈 칸 색을 따로 고르지 않은 상태(검정이나 흰색 그대로)면 모드를 따라가게 합니다.
+     직접 다른 색을 골랐다면 건드리지 않습니다. */
+  var untouched = S.emptyColor === "#000000" || S.emptyColor === "#FFFFFF";
   S.dark = dark;
+  if (untouched) { S.emptyColor = toneHex(); }
   syncInputs();
-  redraw();
+  if (active === "emptyColor") { selectTarget("emptyColor"); } else { redraw(); }
 }
-el("emptyAuto").addEventListener("click", function () { setCustomEmpty(false); });
-el("emptyCustom").addEventListener("click", function () { setCustomEmpty(true); });
-
 el("modeDark").addEventListener("click", function () { setMode(true); });
 el("modeLight").addEventListener("click", function () { setMode(false); });
 
@@ -1086,9 +1072,9 @@ el("save").addEventListener("click", function () {
     base: S.base,
     dark: S.dark,
     bgAlpha: S.bgAlpha,
-    emptyAlpha: S.emptyAlpha,
+    emptyPct: S.emptyPct,
+    peakPct: S.peakPct,
     padding: S.padding,
-    customEmpty: S.customEmpty,
     emptyColor: S.emptyColor,
     corner: S.corner,
     gap: S.gap,
@@ -1134,7 +1120,6 @@ window.addEventListener("resize", redraw);
 
   syncInputs();
   recomputeAxisTop();
-  updateEmptyMode();
   /* 기록 요청을 먼저 보냅니다. 그리기 쪽에서 문제가 생기더라도
      학습 기록은 도착하도록 순서를 이렇게 둡니다. */
   if (window.AnkiHeatmap && AnkiHeatmap.requestStats) {

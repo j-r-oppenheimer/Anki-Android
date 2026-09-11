@@ -62,10 +62,11 @@ class HeatmapSettings(
     val darkMode: Boolean,
     /** 위젯 배경 틴트의 진하기. 1~254 여야 삼성 블러가 켜집니다. */
     val backgroundAlpha: Int,
-    /** 복습이 없던 칸의 진하기. 0 이면 아예 투명합니다. */
-    val emptyAlpha: Int,
-    /** true 면 빈 칸 색을 [emptyColor] 로 직접 지정합니다. */
-    val customEmpty: Boolean,
+    /** 복습이 없던 칸의 불투명도(%). 0 이면 아예 투명합니다. */
+    val emptyOpacity: Int,
+    /** 가장 많이 한 날의 불투명도(%). 여기까지 서서히 진해집니다. */
+    val peakOpacity: Int,
+    /** 복습이 없던 칸의 색. */
     val emptyColor: Int,
     /** 위젯 가장자리 여백(dp). 격자가 위젯 안에서 얼마나 안쪽으로 들어갈지. */
     val paddingDp: Int,
@@ -83,16 +84,22 @@ class HeatmapSettings(
      */
     val tone: Int get() = if (darkMode) Color.BLACK else Color.WHITE
 
+    /** 백분율을 0~255 알파로. 설정 화면도 같은 식을 씁니다. */
+    fun toAlpha(percent: Int): Int = (percent.coerceIn(0, 100) * 255 / 100)
+
     /** 위젯 루트에 칠할 배경. 색은 고르지 않고 모드와 투명도로만 정합니다. */
     val background: Int
         get() = Color.argb(backgroundAlpha, Color.red(tone), Color.green(tone), Color.blue(tone))
 
     /** 복습이 없던 칸. 반투명이라 뒤의 배경화면이 비칩니다. */
     val empty: Int
-        get() {
-            val tint = if (customEmpty) emptyColor else tone
-            return Color.argb(emptyAlpha, Color.red(tint), Color.green(tint), Color.blue(tint))
-        }
+        get() =
+            Color.argb(
+                toAlpha(emptyOpacity),
+                Color.red(emptyColor),
+                Color.green(emptyColor),
+                Color.blue(emptyColor),
+            )
 }
 
 /** 위젯별로 SharedPreferences에 저장합니다. */
@@ -102,8 +109,15 @@ object HeatmapPrefs {
     /** 안드로이드 11 이하, 또는 시스템 색을 못 읽을 때 쓰는 값. */
     private const val FALLBACK_BASE = 0xFF2F81F7.toInt()
     private const val DEFAULT_BACKGROUND_ALPHA = 128
-    private const val DEFAULT_EMPTY_ALPHA = 38
-    private const val DEFAULT_EMPTY_COLOR = 0xFF808080.toInt()
+    private const val DEFAULT_EMPTY_OPACITY = 15
+    private const val DEFAULT_PEAK_OPACITY = 100
+
+    /** 빈 칸 색의 기본값은 밝기 모드를 따릅니다. 다크는 검정, 라이트는 흰색. */
+    private fun defaultEmptyColor(
+        prefs: android.content.SharedPreferences,
+        appWidgetId: Int,
+    ): Int = if (prefs.getBoolean(key("dark", appWidgetId), true)) Color.BLACK else Color.WHITE
+
     private const val DEFAULT_PADDING_DP = 8
     private const val DEFAULT_CORNER = 25
     private const val DEFAULT_GAP = 18
@@ -138,9 +152,9 @@ object HeatmapPrefs {
             darkMode = prefs.getBoolean(key("dark", appWidgetId), true),
             backgroundAlpha =
                 prefs.getInt(key("bgAlpha", appWidgetId), DEFAULT_BACKGROUND_ALPHA).coerceIn(1, 254),
-            emptyAlpha = prefs.getInt(key("emptyAlpha", appWidgetId), DEFAULT_EMPTY_ALPHA).coerceIn(0, 255),
-            customEmpty = prefs.getBoolean(key("customEmpty", appWidgetId), false),
-            emptyColor = prefs.getInt(key("emptyColor", appWidgetId), DEFAULT_EMPTY_COLOR),
+            emptyOpacity = prefs.getInt(key("emptyPct", appWidgetId), DEFAULT_EMPTY_OPACITY).coerceIn(0, 100),
+            peakOpacity = prefs.getInt(key("peakPct", appWidgetId), DEFAULT_PEAK_OPACITY).coerceIn(10, 100),
+            emptyColor = prefs.getInt(key("emptyColor", appWidgetId), defaultEmptyColor(prefs, appWidgetId)),
             paddingDp = prefs.getInt(key("padding", appWidgetId), DEFAULT_PADDING_DP).coerceIn(0, 24),
             cornerRatio = prefs.getInt(key("corner", appWidgetId), DEFAULT_CORNER) / 100f,
             gapRatio = prefs.getInt(key("gap", appWidgetId), DEFAULT_GAP) / 100f,
@@ -160,8 +174,8 @@ object HeatmapPrefs {
             .put("base", hex(s.base))
             .put("dark", s.darkMode)
             .put("bgAlpha", s.backgroundAlpha)
-            .put("emptyAlpha", s.emptyAlpha)
-            .put("customEmpty", s.customEmpty)
+            .put("emptyPct", s.emptyOpacity)
+            .put("peakPct", s.peakOpacity)
             .put("emptyColor", hex(s.emptyColor))
             .put("padding", s.paddingDp)
             .put("corner", (s.cornerRatio * 100).roundToInt())
@@ -187,12 +201,14 @@ object HeatmapPrefs {
                 key("bgAlpha", appWidgetId),
                 json.optInt("bgAlpha", DEFAULT_BACKGROUND_ALPHA).coerceIn(1, 254),
             ).putInt(
-                key("emptyAlpha", appWidgetId),
-                json.optInt("emptyAlpha", DEFAULT_EMPTY_ALPHA).coerceIn(0, 255),
-            ).putBoolean(key("customEmpty", appWidgetId), json.optBoolean("customEmpty", false))
-            .putInt(
+                key("emptyPct", appWidgetId),
+                json.optInt("emptyPct", DEFAULT_EMPTY_OPACITY).coerceIn(0, 100),
+            ).putInt(
+                key("peakPct", appWidgetId),
+                json.optInt("peakPct", DEFAULT_PEAK_OPACITY).coerceIn(10, 100),
+            ).putInt(
                 key("emptyColor", appWidgetId),
-                Color.parseColor(json.optString("emptyColor", "#808080")),
+                Color.parseColor(json.optString("emptyColor", "#000000")),
             ).putInt(
                 key("padding", appWidgetId),
                 json.optInt("padding", DEFAULT_PADDING_DP).coerceIn(0, 24),
@@ -213,8 +229,8 @@ object HeatmapPrefs {
             "base",
             "dark",
             "bgAlpha",
-            "emptyAlpha",
-            "customEmpty",
+            "emptyPct",
+            "peakPct",
             "emptyColor",
             "padding",
             "corner",
@@ -448,9 +464,10 @@ internal fun colorForCount(
     val mix = INTENSITY_FLOOR + (1.0 - INTENSITY_FLOOR) * intensity
 
     // 색은 고른 기준색 그대로 두고 투명도만 움직입니다.
-    // 색과 투명도를 같이 조절하면 적게 한 날이 두 번 흐려져서
-    // 정작 고른 색이 화면에 제대로 드러나지 않습니다.
-    val alpha = (settings.emptyAlpha + (255 - settings.emptyAlpha) * mix).roundToInt().coerceIn(0, 255)
+    // 빈 칸의 불투명도에서 시작해 가장 진한 칸의 불투명도까지 서서히 옮겨갑니다.
+    val from = settings.toAlpha(settings.emptyOpacity)
+    val to = settings.toAlpha(settings.peakOpacity)
+    val alpha = (from + (to - from) * mix).roundToInt().coerceIn(0, 255)
     return Color.argb(alpha, Color.red(settings.base), Color.green(settings.base), Color.blue(settings.base))
 }
 

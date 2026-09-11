@@ -2600,6 +2600,10 @@ class NoteEditorFragment :
     private fun currentNotetypeIsImageOcclusion() = currentlySelectedNotetype?.isImageOcclusion == true
 
     private fun setupImageOcclusionEditor(imagePath: String = "") {
+        // 클립보드나 일부 앱이 넘긴 파일은 occlusion_123.bin 처럼 형식과 무관한
+        // 확장자로 들어옵니다. 카드 화면은 WebView 가 내용을 보고 그려서 멀쩡하지만,
+        // 가리기 편집은 확장자로 이미지를 찾기 때문에 다시 열면 비어 있습니다.
+        val usablePath = if (imagePath.isEmpty()) imagePath else ensureImageExtension(imagePath)
         val args =
             if (addNote) {
                 // if opened from an intent, the selected note type may not be suitable for IO
@@ -2611,7 +2615,7 @@ class NoteEditorFragment :
                     }
                 ImageOcclusionArgs.Add(
                     noteTypeId = noteTypeId,
-                    imagePath = imagePath,
+                    imagePath = usablePath,
                     originalDeckId = deckId,
                 )
             } else {
