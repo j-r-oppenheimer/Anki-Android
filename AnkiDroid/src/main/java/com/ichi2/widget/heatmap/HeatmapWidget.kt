@@ -52,9 +52,6 @@ private const val MAX_BITMAP_PIXELS = 250_000
 /** 53주 x 7일. 그리드 최대치와 자동 최대 개수 계산에 함께 쓰입니다. */
 internal const val HISTORY_DAYS = 371
 
-/** 위젯 레이아웃의 사방 여백(dp). widget_heatmap.xml 의 padding 과 같아야 합니다. */
-private const val WIDGET_PADDING_DP = 8
-
 /** 복습이 1개라도 있으면 최소 이만큼은 기준색 쪽으로 섞습니다. */
 private const val INTENSITY_FLOOR = 0.18
 
@@ -67,6 +64,11 @@ class HeatmapSettings(
     val backgroundAlpha: Int,
     /** 복습이 없던 칸의 진하기. 0 이면 아예 투명합니다. */
     val emptyAlpha: Int,
+    /** true 면 빈 칸 색을 [emptyColor] 로 직접 지정합니다. */
+    val customEmpty: Boolean,
+    val emptyColor: Int,
+    /** 위젯 가장자리 여백(dp). 격자가 위젯 안에서 얼마나 안쪽으로 들어갈지. */
+    val paddingDp: Int,
     val cornerRatio: Float,
     val gapRatio: Float,
     val curveX: Int,
@@ -74,22 +76,23 @@ class HeatmapSettings(
     /** 0 이면 학습 기록에서 자동으로 정합니다. */
     val maxCount: Int,
 ) {
-    /** 격자와 배경이 쓰는 무채색. 밝은 배경에서는 검정, 어두운 배경에서는 흰색. */
-    val neutral: Int get() = if (darkMode) Color.WHITE else Color.BLACK
+    /**
+     * 배경과 빈 칸이 함께 쓰는 무채색.
+     * 다크는 검정, 라이트는 흰색입니다. 배경과 같은 쪽이라 빈 칸이 튀지 않고
+     * 바탕의 연장처럼 보입니다.
+     */
+    val tone: Int get() = if (darkMode) Color.BLACK else Color.WHITE
 
     /** 위젯 루트에 칠할 배경. 색은 고르지 않고 모드와 투명도로만 정합니다. */
     val background: Int
-        get() =
-            Color.argb(
-                backgroundAlpha,
-                Color.red(neutral).inv() and 0xFF,
-                Color.green(neutral).inv() and 0xFF,
-                Color.blue(neutral).inv() and 0xFF,
-            )
+        get() = Color.argb(backgroundAlpha, Color.red(tone), Color.green(tone), Color.blue(tone))
 
     /** 복습이 없던 칸. 반투명이라 뒤의 배경화면이 비칩니다. */
     val empty: Int
-        get() = Color.argb(emptyAlpha, Color.red(neutral), Color.green(neutral), Color.blue(neutral))
+        get() {
+            val tint = if (customEmpty) emptyColor else tone
+            return Color.argb(emptyAlpha, Color.red(tint), Color.green(tint), Color.blue(tint))
+        }
 }
 
 /** 위젯별로 SharedPreferences에 저장합니다. */
@@ -98,8 +101,10 @@ object HeatmapPrefs {
 
     /** 안드로이드 11 이하, 또는 시스템 색을 못 읽을 때 쓰는 값. */
     private const val FALLBACK_BASE = 0xFF2F81F7.toInt()
-    private const val DEFAULT_BACKGROUND_ALPHA = 102
+    private const val DEFAULT_BACKGROUND_ALPHA = 128
     private const val DEFAULT_EMPTY_ALPHA = 38
+    private const val DEFAULT_EMPTY_COLOR = 0xFF808080.toInt()
+    private const val DEFAULT_PADDING_DP = 8
     private const val DEFAULT_CORNER = 25
     private const val DEFAULT_GAP = 18
     private const val DEFAULT_CURVE = 50
@@ -121,21 +126,6 @@ object HeatmapPrefs {
             FALLBACK_BASE
         }
 
-    /**
-     * 설정 화면에 보여줄 "배경화면 색" 견본.
-     * 안드로이드 11 이하에서는 빈 목록이고, 그러면 그 줄이 아예 숨겨집니다.
-     */
-    private fun themeColors(context: Context): List<Int> {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return emptyList()
-        return listOf(
-            android.R.color.system_accent1_300,
-            android.R.color.system_accent1_400,
-            android.R.color.system_accent1_600,
-            android.R.color.system_accent2_400,
-            android.R.color.system_accent3_400,
-        ).map { context.getColor(it) }
-    }
-
     fun get(
         context: Context,
         appWidgetId: Int,
@@ -149,6 +139,9 @@ object HeatmapPrefs {
             backgroundAlpha =
                 prefs.getInt(key("bgAlpha", appWidgetId), DEFAULT_BACKGROUND_ALPHA).coerceIn(1, 254),
             emptyAlpha = prefs.getInt(key("emptyAlpha", appWidgetId), DEFAULT_EMPTY_ALPHA).coerceIn(0, 255),
+            customEmpty = prefs.getBoolean(key("customEmpty", appWidgetId), false),
+            emptyColor = prefs.getInt(key("emptyColor", appWidgetId), DEFAULT_EMPTY_COLOR),
+            paddingDp = prefs.getInt(key("padding", appWidgetId), DEFAULT_PADDING_DP).coerceIn(0, 24),
             cornerRatio = prefs.getInt(key("corner", appWidgetId), DEFAULT_CORNER) / 100f,
             gapRatio = prefs.getInt(key("gap", appWidgetId), DEFAULT_GAP) / 100f,
             curveX = prefs.getInt(key("curveX", appWidgetId), DEFAULT_CURVE),
@@ -163,15 +156,14 @@ object HeatmapPrefs {
         appWidgetId: Int,
     ): String {
         val s = get(context, appWidgetId)
-        val theme = JSONArray()
-        themeColors(context).forEach { theme.put(hex(it)) }
-
         return JSONObject()
-            .put("themeColors", theme)
             .put("base", hex(s.base))
             .put("dark", s.darkMode)
             .put("bgAlpha", s.backgroundAlpha)
             .put("emptyAlpha", s.emptyAlpha)
+            .put("customEmpty", s.customEmpty)
+            .put("emptyColor", hex(s.emptyColor))
+            .put("padding", s.paddingDp)
             .put("corner", (s.cornerRatio * 100).roundToInt())
             .put("gap", (s.gapRatio * 100).roundToInt())
             .put("curveX", s.curveX)
@@ -197,6 +189,13 @@ object HeatmapPrefs {
             ).putInt(
                 key("emptyAlpha", appWidgetId),
                 json.optInt("emptyAlpha", DEFAULT_EMPTY_ALPHA).coerceIn(0, 255),
+            ).putBoolean(key("customEmpty", appWidgetId), json.optBoolean("customEmpty", false))
+            .putInt(
+                key("emptyColor", appWidgetId),
+                Color.parseColor(json.optString("emptyColor", "#808080")),
+            ).putInt(
+                key("padding", appWidgetId),
+                json.optInt("padding", DEFAULT_PADDING_DP).coerceIn(0, 24),
             ).putInt(key("corner", appWidgetId), json.optInt("corner", DEFAULT_CORNER).coerceIn(0, 50))
             .putInt(key("gap", appWidgetId), json.optInt("gap", DEFAULT_GAP).coerceIn(0, 35))
             .putInt(key("curveX", appWidgetId), json.optInt("curveX", DEFAULT_CURVE).coerceIn(4, 96))
@@ -215,6 +214,9 @@ object HeatmapPrefs {
             "dark",
             "bgAlpha",
             "emptyAlpha",
+            "customEmpty",
+            "emptyColor",
+            "padding",
             "corner",
             "gap",
             "curveX",
@@ -316,6 +318,10 @@ class HeatmapWidget : AppWidgetProvider() {
 
                 val views = RemoteViews(context.packageName, R.layout.widget_heatmap)
                 views.setInt(android.R.id.background, "setBackgroundColor", settings.background)
+
+                // 레이아웃의 고정 여백 대신 설정값을 씁니다.
+                val padding = (settings.paddingDp * context.resources.displayMetrics.density).roundToInt()
+                views.setViewPadding(android.R.id.background, padding, padding, padding, padding)
                 views.setImageViewBitmap(R.id.heatmap_image, bitmap)
                 views.setOnClickPendingIntent(android.R.id.background, openAnkiDroid(context))
 
@@ -441,72 +447,11 @@ internal fun colorForCount(
     val intensity = ratio.pow(gammaOf(settings.curveX, settings.curveY))
     val mix = INTENSITY_FLOOR + (1.0 - INTENSITY_FLOOR) * intensity
 
-    // 색은 무채색에서 기준색으로, 투명도는 빈 칸에서 불투명으로 같이 옮겨갑니다.
-    // 그래야 적게 한 날도 배경이 비쳐 보입니다.
-    val rgb = mixOklab(settings.neutral, settings.base, mix)
+    // 색은 고른 기준색 그대로 두고 투명도만 움직입니다.
+    // 색과 투명도를 같이 조절하면 적게 한 날이 두 번 흐려져서
+    // 정작 고른 색이 화면에 제대로 드러나지 않습니다.
     val alpha = (settings.emptyAlpha + (255 - settings.emptyAlpha) * mix).roundToInt().coerceIn(0, 255)
-    return Color.argb(alpha, Color.red(rgb), Color.green(rgb), Color.blue(rgb))
-}
-
-// ------------------------------------------------------------------ OkLab
-// sRGB를 그대로 섞으면 중간색이 탁해지므로 인지적으로 균등한 OkLab에서 섞습니다.
-// 설정 화면(heatmap_picker.html)에 같은 계산이 들어 있어 미리보기와 결과가 일치합니다.
-
-private fun srgbToLinear(channel: Double): Double = if (channel <= 0.04045) channel / 12.92 else ((channel + 0.055) / 1.055).pow(2.4)
-
-private fun linearToSrgb(channel: Double): Double = if (channel <= 0.0031308) 12.92 * channel else 1.055 * channel.pow(1.0 / 2.4) - 0.055
-
-private fun toOklab(color: Int): DoubleArray {
-    val r = srgbToLinear(Color.red(color) / 255.0)
-    val g = srgbToLinear(Color.green(color) / 255.0)
-    val b = srgbToLinear(Color.blue(color) / 255.0)
-
-    val l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b)
-    val m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b)
-    val s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b)
-
-    return doubleArrayOf(
-        0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s,
-        1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
-        0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s,
-    )
-}
-
-private fun fromOklab(lab: DoubleArray): Int {
-    val lp = lab[0] + 0.3963377774 * lab[1] + 0.2158037573 * lab[2]
-    val mp = lab[0] - 0.1055613458 * lab[1] - 0.0638541728 * lab[2]
-    val sp = lab[0] - 0.0894841775 * lab[1] - 1.2914855480 * lab[2]
-
-    val l = lp * lp * lp
-    val m = mp * mp * mp
-    val s = sp * sp * sp
-
-    val r = linearToSrgb(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s)
-    val g = linearToSrgb(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s)
-    val b = linearToSrgb(-0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s)
-
-    return Color.rgb(
-        (r * 255).roundToInt().coerceIn(0, 255),
-        (g * 255).roundToInt().coerceIn(0, 255),
-        (b * 255).roundToInt().coerceIn(0, 255),
-    )
-}
-
-private fun mixOklab(
-    from: Int,
-    to: Int,
-    amount: Double,
-): Int {
-    val t = amount.coerceIn(0.0, 1.0)
-    val a = toOklab(from)
-    val b = toOklab(to)
-    return fromOklab(
-        doubleArrayOf(
-            a[0] + (b[0] - a[0]) * t,
-            a[1] + (b[1] - a[1]) * t,
-            a[2] + (b[2] - a[2]) * t,
-        ),
-    )
+    return Color.argb(alpha, Color.red(settings.base), Color.green(settings.base), Color.blue(settings.base))
 }
 
 // ------------------------------------------------------------------ 그리기
@@ -533,7 +478,7 @@ private fun drawHeatmap(
     settings: HeatmapSettings,
 ): Bitmap {
     val density = context.resources.displayMetrics.density
-    val inset = WIDGET_PADDING_DP * 2
+    val inset = settings.paddingDp * 2
 
     var availableWidth = ((widthDp - inset) * density).roundToInt().coerceAtLeast(80)
     var availableHeight = ((heightDp - inset) * density).roundToInt().coerceAtLeast(56)

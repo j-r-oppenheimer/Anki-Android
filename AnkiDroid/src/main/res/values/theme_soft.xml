@@ -79,8 +79,8 @@
         <item name="incrementerButtonBackground">@color/sand_accent</item>
         <!-- 노트 편집기의 태그/카드 박스가 쓰는 색입니다.
              원본은 테마와 무관한 회색이라 여기서 테마 톤으로 맞춥니다. -->
-        <item name="buttonForegroundColor">#E9E5DF</item>
-        <item name="buttonShadowColor">#D1CDC6</item>
+        <item name="buttonForegroundColor">#D9D4CE</item>
+        <item name="buttonShadowColor">#B9B4AE</item>
         <item name="buttonRippleColor">@color/sand_accent</item>
         <item name="clozeColor">#7A6A50</item>
         <item name="editTextHighlightColor">#E0D6C8</item>
@@ -192,8 +192,8 @@
         <item name="incrementerButtonBackground">@color/sage_accent</item>
         <!-- 노트 편집기의 태그/카드 박스가 쓰는 색입니다.
              원본은 테마와 무관한 회색이라 여기서 테마 톤으로 맞춥니다. -->
-        <item name="buttonForegroundColor">#E3E8E6</item>
-        <item name="buttonShadowColor">#CAD0CD</item>
+        <item name="buttonForegroundColor">#D2D7D5</item>
+        <item name="buttonShadowColor">#B1B7B4</item>
         <item name="buttonRippleColor">@color/sage_accent</item>
         <item name="clozeColor">#4F6E62</item>
         <item name="editTextHighlightColor">#D3E0DA</item>
@@ -305,8 +305,8 @@
         <item name="incrementerButtonBackground">@color/mist_accent</item>
         <!-- 노트 편집기의 태그/카드 박스가 쓰는 색입니다.
              원본은 테마와 무관한 회색이라 여기서 테마 톤으로 맞춥니다. -->
-        <item name="buttonForegroundColor">#E4E7EA</item>
-        <item name="buttonShadowColor">#CBCED2</item>
+        <item name="buttonForegroundColor">#D3D5D9</item>
+        <item name="buttonShadowColor">#B1B5BA</item>
         <item name="buttonRippleColor">@color/mist_accent</item>
         <item name="clozeColor">#4F6580</item>
         <item name="editTextHighlightColor">#D4DCE6</item>
@@ -420,8 +420,8 @@
         <item name="incrementerButtonBackground">@color/sandnight_accent</item>
         <!-- 노트 편집기의 태그/카드 박스가 쓰는 색입니다.
              원본은 테마와 무관한 회색이라 여기서 테마 톤으로 맞춥니다. -->
-        <item name="buttonForegroundColor">#2F2C28</item>
-        <item name="buttonShadowColor">#4A4641</item>
+        <item name="buttonForegroundColor">#64605A</item>
+        <item name="buttonShadowColor">#9B968E</item>
         <item name="buttonRippleColor">@color/sandnight_accent</item>
         <item name="clozeColor">#C8B394</item>
         <item name="editTextHighlightColor">#4A4034</item>
@@ -535,8 +535,8 @@
         <item name="incrementerButtonBackground">@color/sagenight_accent</item>
         <!-- 노트 편집기의 태그/카드 박스가 쓰는 색입니다.
              원본은 테마와 무관한 회색이라 여기서 테마 톤으로 맞춥니다. -->
-        <item name="buttonForegroundColor">#282F2C</item>
-        <item name="buttonShadowColor">#424946</item>
+        <item name="buttonForegroundColor">#5B6360</item>
+        <item name="buttonShadowColor">#919A95</item>
         <item name="buttonRippleColor">@color/sagenight_accent</item>
         <item name="clozeColor">#9CC0AF</item>
         <item name="editTextHighlightColor">#34443C</item>
@@ -650,8 +650,8 @@
         <item name="incrementerButtonBackground">@color/mistnight_accent</item>
         <!-- 노트 편집기의 태그/카드 박스가 쓰는 색입니다.
              원본은 테마와 무관한 회색이라 여기서 테마 톤으로 맞춥니다. -->
-        <item name="buttonForegroundColor">#292C31</item>
-        <item name="buttonShadowColor">#43464C</item>
+        <item name="buttonForegroundColor">#5D6066</item>
+        <item name="buttonShadowColor">#92979D</item>
         <item name="buttonRippleColor">@color/mistnight_accent</item>
         <item name="clozeColor">#A3B6CE</item>
         <item name="editTextHighlightColor">#38414F</item>

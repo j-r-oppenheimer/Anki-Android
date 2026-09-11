@@ -11,7 +11,8 @@
     오른쪽 끝 손잡이를 위아래로 끌면 "색이 가장 진해지는 개수"가 정해집니다.
     가운데 손잡이를 끌면 곡선이 휩니다.
 
-  색 계산은 HeatmapWidget.kt 와 같은 식입니다 (OkLab 보간, 강도 = 개수비^gamma).
+  색 계산은 HeatmapWidget.kt 와 같은 식입니다.
+  기준색은 그대로 두고 투명도만 움직입니다 (강도 = 개수비^gamma).
 -->
 <!DOCTYPE html>
 <html lang="ko">
@@ -263,20 +264,18 @@
 <section>
   <div class="label"><h2 data-i18n="section_color"></h2><span class="hint" id="targetHint"></span></div>
   <div class="card">
+    <span class="rowcap" style="margin-top:0" data-i18n="empty_cell_color"></span>
+    <div class="segmented" id="emptyToggle">
+      <button type="button" id="emptyAuto" data-i18n="empty_auto"></button>
+      <button type="button" id="emptyCustom" data-i18n="empty_custom"></button>
+    </div>
     <div class="targets" id="targets"></div>
     <canvas id="sv"></canvas>
     <canvas id="hue"></canvas>
     <div class="hexrow">
       <input type="text" id="hex" maxlength="7" spellcheck="false" autocapitalize="characters"
              inputmode="text" data-i18n-aria="hex_label">
-      <span data-i18n="hex_hint"></span>
     </div>
-    <div id="themeRow" hidden>
-      <span class="rowcap" data-i18n="wallpaper_colors"></span>
-      <div class="presets" id="themeColors"></div>
-    </div>
-    <span class="rowcap" data-i18n="basic_colors"></span>
-    <div class="presets" id="presets"></div>
   </div>
 </section>
 
@@ -284,11 +283,6 @@
   <div class="label"><h2 data-i18n="section_curve"></h2><span class="hint" id="peakHint"></span></div>
   <div class="card">
     <canvas id="curve"></canvas>
-    <p class="curve-note" id="curveNote"></p>
-    <div class="chips">
-      <button id="straight" data-i18n="straight"></button>
-      <button id="autoMax" data-i18n="auto_max"></button>
-    </div>
   </div>
 </section>
 
@@ -301,9 +295,14 @@
       <span class="val" id="cornerOut"></span>
     </div>
     <div class="row">
-      <label data-i18n="gap"></label>
-      <input type="range" id="gap" min="0" max="35" step="1">
+      <label data-i18n="cell_size"></label>
+      <input type="range" id="gap" min="65" max="100" step="1">
       <span class="val" id="gapOut"></span>
+    </div>
+    <div class="row">
+      <label data-i18n="padding"></label>
+      <input type="range" id="padding" min="0" max="24" step="1">
+      <span class="val" id="paddingOut"></span>
     </div>
     <div class="row">
       <label data-i18n="empty_opacity"></label>
@@ -325,7 +324,6 @@
       <input type="range" id="bgAlpha" min="1" max="254" step="1">
       <span class="val" id="bgAlphaOut"></span>
     </div>
-    <p class="curve-note" data-i18n="background_note"></p>
   </div>
 </section>
 
@@ -343,8 +341,11 @@
 var DEFAULTS = {
   base: "#2F81F7",
   dark: true,
-  bgAlpha: 102,
+  bgAlpha: 128,
   emptyAlpha: 38,
+  padding: 8,
+  customEmpty: false,
+  emptyColor: "#808080",
   corner: 25,
   gap: 18,
   curveX: 50,
@@ -352,18 +353,11 @@ var DEFAULTS = {
   maxCount: 0
 };
 
-var PRESETS = [
-  "#2F81F7", "#58A6FF", "#4FC3E8", "#39D353", "#3FB950",
-  "#A371F7", "#DB61A2", "#F0883E", "#E3B341"
-];
-
-/** 배경화면에서 뽑아낸 시스템 색. 안드로이드 12 이상에서만 채워집니다. */
-var THEME_COLORS = [];
-
-/* 고르는 색은 기준색 하나뿐입니다. 빈 칸과 배경은 색이 아니라
-   밝기 모드와 투명도로 정하므로 여기 들어가지 않습니다. */
+/* 배경은 색이 아니라 밝기 모드와 투명도로만 정하므로 여기 없습니다.
+   빈 칸은 기본적으로 밝기 모드가 정해주고, 직접 지정을 켤 때만 고를 수 있습니다. */
 var TARGETS = [
-  { key: "base", label: "target_base", hint: "target_base_hint" }
+  { key: "base", label: "target_base", hint: "target_base_hint" },
+  { key: "emptyColor", label: "target_empty", hint: "target_empty_hint" }
 ];
 
 var INTENSITY_FLOOR = 0.18;
@@ -425,62 +419,6 @@ function hsvCss(h, s, v) {
   return "rgb(" + Math.round(rgb[0]) + "," + Math.round(rgb[1]) + "," + Math.round(rgb[2]) + ")";
 }
 
-/* ------------------------------------------------------------------ OkLab */
-
-function srgbToLinear(c) {
-  return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
-}
-
-function linearToSrgb(c) {
-  return c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 / 2.4) - 0.055;
-}
-
-function toOklab(hex) {
-  var rgb = parseHex(hex);
-  var r = srgbToLinear(rgb[0] / 255);
-  var g = srgbToLinear(rgb[1] / 255);
-  var b = srgbToLinear(rgb[2] / 255);
-
-  var l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
-  var m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
-  var s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
-
-  return [
-    0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s,
-    1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
-    0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s
-  ];
-}
-
-function fromOklab(lab) {
-  var lp = lab[0] + 0.3963377774 * lab[1] + 0.2158037573 * lab[2];
-  var mp = lab[0] - 0.1055613458 * lab[1] - 0.0638541728 * lab[2];
-  var sp = lab[0] - 0.0894841775 * lab[1] - 1.2914855480 * lab[2];
-
-  var l = lp * lp * lp;
-  var m = mp * mp * mp;
-  var s = sp * sp * sp;
-
-  return "rgb(" +
-    channel(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s) + "," +
-    channel(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s) + "," +
-    channel(-0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s) + ")";
-}
-
-function channel(linear) {
-  return clamp(Math.round(linearToSrgb(linear) * 255), 0, 255);
-}
-
-function mixOklab(fromHex, toHex_, amount) {
-  var t = clamp(amount, 0, 1);
-  var a = toOklab(fromHex);
-  var b = toOklab(toHex_);
-  return fromOklab([
-    a[0] + (b[0] - a[0]) * t,
-    a[1] + (b[1] - a[1]) * t,
-    a[2] + (b[2] - a[2]) * t
-  ]);
-}
 
 /* ------------------------------------------------------------------ 색 계산 */
 
@@ -505,22 +443,26 @@ function countRatioAt(intensity) {
   return Math.pow(clamp(intensity, 0, 1), 1 / gamma());
 }
 
-/* 격자와 배경이 쓰는 무채색. 위젯 코드의 neutral 과 같은 규칙입니다. */
-function neutralHex() { return S.dark ? "#FFFFFF" : "#000000"; }
+/* 배경과 빈 칸이 함께 쓰는 무채색. 위젯 코드의 tone 과 같은 규칙입니다.
+   다크는 검정, 라이트는 흰색이라 빈 칸이 바탕의 연장처럼 보입니다. */
+function toneHex() { return S.dark ? "#000000" : "#FFFFFF"; }
 
 function rgba(hex, alpha) {
   var c = parseHex(hex);
   return "rgba(" + c[0] + "," + c[1] + "," + c[2] + "," + alpha.toFixed(3) + ")";
 }
 
-/* 색은 무채색에서 기준색으로, 투명도는 빈 칸에서 불투명으로 함께 옮겨갑니다. */
+/* 색은 고른 기준색 그대로 두고 투명도만 움직입니다.
+   색과 투명도를 같이 조절하면 적게 한 날이 두 번 흐려져서
+   정작 고른 색이 화면에 제대로 드러나지 않습니다. */
 function colorForIntensity(intensity) {
   var mix = INTENSITY_FLOOR + (1 - INTENSITY_FLOOR) * intensity;
-  var alpha = (S.emptyAlpha + (255 - S.emptyAlpha) * mix) / 255;
-  return rgba(mixOklab(neutralHex(), S.base, mix), alpha);
+  return rgba(S.base, (S.emptyAlpha + (255 - S.emptyAlpha) * mix) / 255);
 }
 
-function emptyStyle() { return rgba(neutralHex(), S.emptyAlpha / 255); }
+function emptyBaseHex() { return S.customEmpty ? S.emptyColor : toneHex(); }
+
+function emptyStyle() { return rgba(emptyBaseHex(), S.emptyAlpha / 255); }
 
 function colorForCount(count) {
   if (count <= 0) { return emptyStyle(); }
@@ -802,9 +744,11 @@ function drawCurve() {
   ctx.textAlign = "right";
   ctx.textBaseline = "middle";
   if (STATS.ready) {
-    for (var t = 0; t <= 2; t++) {
-      var value = Math.round((axisTop * t) / 2);
-      ctx.fillText(String(value), p.x - 8, p.y + p.h - (p.h * t) / 2);
+    /* 번역 함수 t() 와 이름이 겹치지 않도록 tick 을 씁니다.
+       var 는 함수 전체를 가리므로, 여기서 t 를 쓰면 아래 t("axis_light") 가 깨집니다. */
+    for (var tick = 0; tick <= 2; tick++) {
+      var value = Math.round((axisTop * tick) / 2);
+      ctx.fillText(String(value), p.x - 8, p.y + p.h - (p.h * tick) / 2);
     }
   } else {
     ctx.fillText("…", p.x - 8, p.y + p.h / 2);
@@ -854,27 +798,19 @@ function midHandle(p, max) {
   };
 }
 
-function describeCurve() {
-  var g = gamma();
-  if (g < 0.8) { return t("curve_fast"); }
-  if (g > 1.25) { return t("curve_slow"); }
-  return t("curve_linear");
-}
 
 /* ------------------------------------------------------------------ 그리기 */
 
 function redraw() {
   document.documentElement.style.setProperty("--accent", S.base);
   el("cornerOut").textContent = S.corner + "%";
-  el("gapOut").textContent = S.gap + "%";
+  el("gapOut").textContent = (100 - S.gap) + "%";
+  el("paddingOut").textContent = S.padding + "dp";
   el("bgAlphaOut").textContent = Math.round((S.bgAlpha / 255) * 100) + "%";
   el("emptyAlphaOut").textContent = Math.round((S.emptyAlpha / 255) * 100) + "%";
   el("modeDark").setAttribute("aria-pressed", S.dark ? "true" : "false");
   el("modeLight").setAttribute("aria-pressed", S.dark ? "false" : "true");
 
-  el("curveNote").innerHTML = describeCurve();
-  el("straight").disabled = S.curveX === S.curveY;
-  el("autoMax").disabled = S.maxCount === 0;
 
   if (STATS.ready) {
     el("peakHint").textContent = STATS.peak > 0
@@ -909,7 +845,8 @@ function redraw() {
 
 function syncInputs() {
   el("corner").value = S.corner;
-  el("gap").value = S.gap;
+  el("gap").value = 100 - S.gap;
+  el("padding").value = S.padding;
   el("bgAlpha").value = S.bgAlpha;
   el("emptyAlpha").value = S.emptyAlpha;
 }
@@ -920,44 +857,57 @@ function selectTarget(key) {
   redraw();
 }
 
+/* 빈 칸 색을 직접 고를 때만 대상 탭을 내보냅니다.
+   자동일 때는 밝기 모드가 정한 흰색이나 검정을 씁니다. */
+function updateEmptyMode() {
+  el("targets").hidden = !S.customEmpty;
+  el("emptyAuto").setAttribute("aria-pressed", S.customEmpty ? "false" : "true");
+  el("emptyCustom").setAttribute("aria-pressed", S.customEmpty ? "true" : "false");
+  if (!S.customEmpty && active !== "base") { selectTarget("base"); }
+}
+
+function setCustomEmpty(on) {
+  S.customEmpty = on;
+  updateEmptyMode();
+  if (on) { selectTarget("emptyColor"); } else { redraw(); }
+}
+
 /* --------------------------------------------------------------- 문자열 */
 
 /* 화면에 나오는 모든 문구는 Kotlin이 안드로이드 문자열 리소스에서 읽어
    넘겨줍니다. 따라서 AnkiDroid의 언어 설정을 그대로 따라갑니다.
    여기 적힌 값은 문자열을 못 받았을 때만 쓰이는 영어 대체값입니다. */
 var STRINGS = {
-  title: "Heatmap widget",
-  subtitle: "Pick one colour. Days you studied more show up darker.",
-  section_color: "Colour",
+  axis_color: "Colour",
+  axis_dark: "Dark",
+  axis_light: "Light",
+  cancel: "Cancel",
+  cell_size: "Cell size",
+  corner: "Corner",
+  count_n: "%d",
+  empty_auto: "Automatic",
+  empty_cell_color: "Empty day colour",
+  empty_custom: "Choose",
+  empty_opacity: "Empty days",
   hex_label: "Hex colour code",
-  hex_hint: "You can type it in",
-  wallpaper_colors: "From your wallpaper",
-  basic_colors: "Basic colours",
+  loading: "Loading study history\u2026",
+  mode_dark: "Dark",
+  mode_light: "Light",
+  no_history: "No review history yet",
+  opacity: "Opacity",
+  padding: "Padding",
+  peak_n: "Peak %d/day",
+  save: "Save",
+  section_background: "Background",
+  section_color: "Colour",
   section_curve: "Intensity curve",
   section_shape: "Cell shape",
-  straight: "Straight",
-  auto_max: "Auto maximum",
-  corner: "Corner",
-  gap: "Spacing",
-  opacity: "Opacity",
-  cancel: "Cancel",
-  save: "Save",
+  subtitle: "Pick one colour. Days you studied more show up darker.",
   target_base: "Base",
-  target_empty: "Empty day",
-  target_background: "Background",
   target_base_hint: "Colour of your busiest day",
+  target_empty: "Empty day",
   target_empty_hint: "Colour of a day with no reviews",
-  target_background_hint: "Widget background tint",
-  axis_light: "Light",
-  axis_dark: "Dark",
-  axis_color: "Colour",
-  count_n: "%d",
-  peak_n: "Peak %d/day",
-  no_history: "No review history yet",
-  loading: "Loading study history\u2026",
-  curve_fast: "Gets dark <b>quickly</b>, even on light days.",
-  curve_slow: "Only your <b>heaviest</b> days stand out.",
-  curve_linear: "Darkens <b>in proportion</b> to reviews."
+  title: "Heatmap widget"
 };
 
 function t(key) { return STRINGS[key] !== undefined ? STRINGS[key] : key; }
@@ -1002,7 +952,6 @@ function applyTheme(theme) {
 
 (function buildTargets() {
   var host = el("targets");
-  if (TARGETS.length < 2) { el("targets").hidden = true; }
   TARGETS.forEach(function (target) {
     var button = document.createElement("button");
     button.dataset.key = target.key;
@@ -1015,22 +964,7 @@ function applyTheme(theme) {
   });
 })();
 
-function fillSwatches(host, colors) {
-  host.innerHTML = "";
-  colors.forEach(function (color) {
-    var button = document.createElement("button");
-    button.style.background = color;
-    button.setAttribute("aria-label", color);
-    button.addEventListener("click", function () {
-      S[active] = color;
-      HSV = rgbToHsv(parseHex(color));
-      redraw();
-    });
-    host.appendChild(button);
-  });
-}
 
-fillSwatches(el("presets"), PRESETS);
 
 el("hex").addEventListener("input", function () {
   var text = this.value.trim().toUpperCase();
@@ -1052,7 +986,13 @@ function bindRange(id, field) {
 }
 
 bindRange("corner", "corner");
-bindRange("gap", "gap");
+bindRange("padding", "padding");
+/* 격자 간격이 고정이라 칸이 커지면 그만큼 사이가 좁아집니다.
+   보이는 값은 칸 크기로 두고, 저장은 기존대로 간격으로 합니다. */
+el("gap").addEventListener("input", function () {
+  S.gap = 100 - parseInt(this.value, 10);
+  redraw();
+});
 bindRange("bgAlpha", "bgAlpha");
 bindRange("emptyAlpha", "emptyAlpha");
 
@@ -1062,19 +1002,12 @@ function setMode(dark) {
   syncInputs();
   redraw();
 }
+el("emptyAuto").addEventListener("click", function () { setCustomEmpty(false); });
+el("emptyCustom").addEventListener("click", function () { setCustomEmpty(true); });
+
 el("modeDark").addEventListener("click", function () { setMode(true); });
 el("modeLight").addEventListener("click", function () { setMode(false); });
 
-el("straight").addEventListener("click", function () {
-  S.curveX = 50;
-  S.curveY = 50;
-  redraw();
-});
-
-el("autoMax").addEventListener("click", function () {
-  S.maxCount = 0;
-  redraw();
-});
 
 /** 캔버스에 끌기 동작을 붙입니다. handler(x, y, view) 는 CSS 픽셀 좌표를 받습니다. */
 function draggable(canvas, handler) {
@@ -1154,6 +1087,9 @@ el("save").addEventListener("click", function () {
     dark: S.dark,
     bgAlpha: S.bgAlpha,
     emptyAlpha: S.emptyAlpha,
+    padding: S.padding,
+    customEmpty: S.customEmpty,
+    emptyColor: S.emptyColor,
     corner: S.corner,
     gap: S.gap,
     curveX: S.curveX,
@@ -1196,19 +1132,16 @@ window.addEventListener("resize", redraw);
 
   S = Object.assign({}, DEFAULTS, loaded);
 
-  if (Array.isArray(loaded.themeColors) && loaded.themeColors.length) {
-    THEME_COLORS = loaded.themeColors;
-    fillSwatches(el("themeColors"), THEME_COLORS);
-    el("themeRow").hidden = false;
-  }
-
   syncInputs();
   recomputeAxisTop();
-  selectTarget("base");
-
+  updateEmptyMode();
+  /* 기록 요청을 먼저 보냅니다. 그리기 쪽에서 문제가 생기더라도
+     학습 기록은 도착하도록 순서를 이렇게 둡니다. */
   if (window.AnkiHeatmap && AnkiHeatmap.requestStats) {
     AnkiHeatmap.requestStats();
   }
+
+  selectTarget("base");
 })();
 </script>
 </body>

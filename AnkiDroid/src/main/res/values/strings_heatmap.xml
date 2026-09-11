@@ -3,43 +3,40 @@
   저장할 위치: AnkiDroid/src/main/res/values/strings_heatmap.xml
 
   위젯 설정 화면(assets/heatmap_picker.html)이 쓰는 문자열입니다.
-  HTML에 글자를 직접 넣지 않고 여기서 읽어 넘기므로
-  AnkiDroid의 언어 설정을 그대로 따라갑니다.
+  HTML 에 글자를 직접 넣지 않고 여기서 읽어 넘기므로
+  AnkiDroid 의 언어 설정을 그대로 따라갑니다.
   기본값은 영어이고, 한국어는 values-ko/ 에 있습니다.
 -->
 <resources>
-    <string name="heatmap_ui_title" translatable="false">Heatmap widget</string>
-    <string name="heatmap_ui_subtitle" translatable="false">Pick one colour. Days you studied more show up darker.</string>
-    <string name="heatmap_ui_section_color" translatable="false">Colour</string>
-    <string name="heatmap_ui_hex_label" translatable="false">Hex colour code</string>
-    <string name="heatmap_ui_hex_hint" translatable="false">You can type it in</string>
-    <string name="heatmap_ui_wallpaper_colors" translatable="false">From your wallpaper</string>
-    <string name="heatmap_ui_basic_colors" translatable="false">Basic colours</string>
-    <string name="heatmap_ui_section_curve" translatable="false">Intensity curve</string>
-    <string name="heatmap_ui_section_shape" translatable="false">Cell shape</string>
-    <string name="heatmap_ui_straight" translatable="false">Straight</string>
-    <string name="heatmap_ui_auto_max" translatable="false">Auto maximum</string>
-    <string name="heatmap_ui_corner" translatable="false">Corner</string>
-    <string name="heatmap_ui_gap" translatable="false">Spacing</string>
-    <string name="heatmap_ui_opacity" translatable="false">Opacity</string>
-    <string name="heatmap_ui_cancel" translatable="false">Cancel</string>
-    <string name="heatmap_ui_save" translatable="false">Save</string>
-    <string name="heatmap_ui_target_base" translatable="false">Base</string>
-    <string name="heatmap_ui_target_base_hint" translatable="false">Colour of your busiest day</string>
-    <string name="heatmap_ui_axis_light" translatable="false">Light</string>
-    <string name="heatmap_ui_axis_dark" translatable="false">Dark</string>
     <string name="heatmap_ui_axis_color" translatable="false">Colour</string>
+    <string name="heatmap_ui_axis_dark" translatable="false">Dark</string>
+    <string name="heatmap_ui_axis_light" translatable="false">Light</string>
+    <string name="heatmap_ui_cancel" translatable="false">Cancel</string>
+    <string name="heatmap_ui_cell_size" translatable="false">Cell size</string>
+    <string name="heatmap_ui_corner" translatable="false">Corner</string>
     <string name="heatmap_ui_count_n" translatable="false">%d</string>
-    <string name="heatmap_ui_peak_n" translatable="false">Peak %d/day</string>
-    <string name="heatmap_ui_no_history" translatable="false">No review history yet</string>
+    <string name="heatmap_ui_empty_auto" translatable="false">Automatic</string>
+    <string name="heatmap_ui_empty_cell_color" translatable="false">Empty day colour</string>
+    <string name="heatmap_ui_empty_custom" translatable="false">Choose</string>
+    <string name="heatmap_ui_empty_opacity" translatable="false">Empty days</string>
+    <string name="heatmap_ui_hex_label" translatable="false">Hex colour code</string>
     <string name="heatmap_ui_loading" translatable="false">Loading study history\u2026</string>
-    <string name="heatmap_ui_curve_fast" translatable="false">Gets dark <b>quickly</b>, even on light days.</string>
-    <string name="heatmap_ui_curve_slow" translatable="false">Only your <b>heaviest</b> days stand out.</string>
-    <string name="heatmap_ui_curve_linear" translatable="false">Darkens <b>in proportion</b> to reviews.</string>
-    <string name="heatmap_widget_description" translatable="false">Shows how much you studied, day by day</string>
-    <string name="heatmap_ui_section_background" translatable="false">Background</string>
     <string name="heatmap_ui_mode_dark" translatable="false">Dark</string>
     <string name="heatmap_ui_mode_light" translatable="false">Light</string>
-    <string name="heatmap_ui_empty_opacity" translatable="false">Empty days</string>
-    <string name="heatmap_ui_background_note" translatable="false">A partly transparent background lets the wallpaper show through, and One UI blurs it.</string>
+    <string name="heatmap_ui_no_history" translatable="false">No review history yet</string>
+    <string name="heatmap_ui_opacity" translatable="false">Opacity</string>
+    <string name="heatmap_ui_padding" translatable="false">Padding</string>
+    <string name="heatmap_ui_peak_n" translatable="false">Peak %d/day</string>
+    <string name="heatmap_ui_save" translatable="false">Save</string>
+    <string name="heatmap_ui_section_background" translatable="false">Background</string>
+    <string name="heatmap_ui_section_color" translatable="false">Colour</string>
+    <string name="heatmap_ui_section_curve" translatable="false">Intensity curve</string>
+    <string name="heatmap_ui_section_shape" translatable="false">Cell shape</string>
+    <string name="heatmap_ui_subtitle" translatable="false">Pick one colour. Days you studied more show up darker.</string>
+    <string name="heatmap_ui_target_base" translatable="false">Base</string>
+    <string name="heatmap_ui_target_base_hint" translatable="false">Colour of your busiest day</string>
+    <string name="heatmap_ui_target_empty" translatable="false">Empty day</string>
+    <string name="heatmap_ui_target_empty_hint" translatable="false">Colour of a day with no reviews</string>
+    <string name="heatmap_ui_title" translatable="false">Heatmap widget</string>
+    <string name="heatmap_widget_description" translatable="false">Shows how much you studied, day by day</string>
 </resources>
