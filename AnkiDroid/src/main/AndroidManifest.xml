@@ -724,6 +724,37 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/filepaths" />
         </provider>
+        <receiver
+            android:name="com.ichi2.widget.heatmap.HeatmapWidget"
+            android:exported="false"
+            android:label="AnkiDroid Heatmap">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_provider_heatmap" />
+        </receiver>
+
+        <activity
+            android:name="com.ichi2.widget.heatmap.HeatmapWidgetConfig"
+            android:exported="true"
+            android:excludeFromRecents="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name="com.ichi2.anki.customfont.CustomFontActivity"
+            android:exported="true"
+            android:label="@string/custom_font_title">
+            <intent-filter>
+                <action android:name="com.ichi2.anki.CUSTOM_FONT_SETTINGS" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
     </application>
 
 </manifest>

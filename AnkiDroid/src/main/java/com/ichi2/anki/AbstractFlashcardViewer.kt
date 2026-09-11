@@ -109,11 +109,13 @@ import com.ichi2.anki.common.utils.android.getResFromAttr
 import com.ichi2.anki.common.utils.android.showThemedToast
 import com.ichi2.anki.compat.CompatHelper.Companion.resolveActivityCompat
 import com.ichi2.anki.compat.ResolveInfoFlagsCompat
+import com.ichi2.anki.customfont.CustomFont
 import com.ichi2.anki.dialogs.TtsPlaybackErrorDialog
 import com.ichi2.anki.dialogs.TtsVoicesDialogFragment
 import com.ichi2.anki.dialogs.tags.TagsDialog
 import com.ichi2.anki.dialogs.tags.TagsDialogFactory
 import com.ichi2.anki.dialogs.tags.TagsDialogListener
+import com.ichi2.anki.imagesave.CardImageSaver
 import com.ichi2.anki.libanki.Card
 import com.ichi2.anki.libanki.CardId
 import com.ichi2.anki.libanki.Collection
@@ -1050,6 +1052,12 @@ abstract class AbstractFlashcardViewer :
                 isScrollbarFadingEnabled = true
                 // Set transparent color to prevent flashing white when night mode enabled
                 setBackgroundColor(Color.argb(1, 0, 0, 0))
+                setOnLongClickListener { longPressedView ->
+                    CardImageSaver.handleLongPress(
+                        this@AbstractFlashcardViewer,
+                        longPressedView as WebView,
+                    )
+                }
                 CardViewerWebClient(resourceHandler, this@AbstractFlashcardViewer).apply {
                     webViewClient = this
                     this@AbstractFlashcardViewer.webViewClient = this
@@ -2402,6 +2410,7 @@ abstract class AbstractFlashcardViewer :
             view: WebView,
             request: WebResourceRequest,
         ): WebResourceResponse? {
+            CustomFont.interceptFontRequest(request)?.let { return it }
             resourceHandler.shouldInterceptRequest(request)?.let { return it }
             return null
         }

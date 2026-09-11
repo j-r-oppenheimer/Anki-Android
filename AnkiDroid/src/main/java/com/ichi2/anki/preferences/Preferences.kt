@@ -54,7 +54,12 @@ class PreferencesFragment :
      * If so, the left side contains the list of all preference categories, and the right side contains the category currently opened.
      * Otherwise, the same view is used to show the list of categories first, and then one specific category.
      */
-    private val settingsIsSplit get() = !resources.isWindowCompact()
+    // 2단 여부를 두 곳에서 따로 판단하던 것을 한 곳으로 모읍니다.
+    // 레이아웃은 layout-sw720dp 폴더로 갈리는데 이 값은 600dp 를 기준으로 삼고 있어서,
+    // 그 사이 너비에서는 화면은 단일인데 코드만 2단이라 믿습니다. 그러면 좌측 목록이
+    // 들어갈 자리가 없는 채로 첫 항목의 세부 화면만 뜨고 목록을 볼 수 없게 됩니다.
+    // 좌측 목록 자리가 실제로 있는지를 보면 둘이 어긋날 수 없습니다.
+    private val settingsIsSplit get() = view?.findViewById<View>(R.id.lateral_nav_container) != null
 
     private val childFragmentOnBackPressedCallback =
         object : OnBackPressedCallback(enabled = false) {

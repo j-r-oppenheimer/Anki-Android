@@ -84,6 +84,25 @@ class BrowserColumnSelectionFragment : DialogFragment(R.layout.dialog_browser_co
         setStyle(STYLE_NO_TITLE, R.style.ThemeOverlay_AnkiDroid_AlertDialog_FullScreen)
     }
 
+    /**
+     * 전체 화면 다이얼로그라 안드로이드 15 에서는 상태바 아래까지 그려집니다.
+     * 앱바 배경이 상태바 뒤까지 이어지도록 루트가 아니라 앱바에 위쪽 여백을 줍니다.
+     * 루트에 주면 상태바 자리에 창 배경색이 깔려서, 밝은 테마에서는 흰 바탕에
+     * 흰 아이콘이 됩니다.
+     */
+    private fun applySystemBarInsets(view: View) {
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(view) { _, insets ->
+            val bars =
+                insets.getInsets(
+                    androidx.core.view.WindowInsetsCompat.Type.systemBars() or
+                        androidx.core.view.WindowInsetsCompat.Type.displayCutout(),
+                )
+            binding.toolbar.setPadding(bars.left, bars.top, bars.right, 0)
+            binding.recyclerView.setPadding(bars.left, 0, bars.right, bars.bottom)
+            insets
+        }
+    }
+
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putParcelableArrayList(STATE_ACTIVE, columnAdapter.displayed.toCollection(ArrayList()))
@@ -95,6 +114,8 @@ class BrowserColumnSelectionFragment : DialogFragment(R.layout.dialog_browser_co
         savedInstanceState: Bundle?,
     ) {
         super.onViewCreated(view, savedInstanceState)
+
+        applySystemBarInsets(view)
 
         if (savedInstanceState == null) {
             launchCatchingTask {

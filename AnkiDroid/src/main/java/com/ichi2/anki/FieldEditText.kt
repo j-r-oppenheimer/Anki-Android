@@ -146,12 +146,54 @@ class FieldEditText :
         // The current function is called both by Ctrl+V and pasting from the context menu
         // It does not deal with drag and drop
         if (id == android.R.id.paste) {
+            // 앱에 따라 이미지 URI 가 첫 항목이 아니거나, 클립보드 설명의 MIME 타입이
+            // 미디어로 표시되지 않습니다. 그러면 원본은 아무 일도 안 하거나 텍스트만
+            // 붙여넣습니다. 항목을 전부 훑어 실제 타입을 확인한 뒤 판단합니다.
+            firstMediaItem()?.let { (uri, description) -> return onPaste(uri, description) }
             if (hasMedia(clipboard)) {
                 return onPaste(getUri(clipboard), getDescription(clipboard))
             }
             return pastePlainText()
         }
         return super.onTextContextMenuItem(id)
+    }
+
+    /**
+     * 클립보드에서 붙여넣을 미디어와 그에 맞는 설명을 찾습니다.
+     *
+     * 원본은 첫 항목만 보고, 그것도 클립보드 설명에 적힌 MIME 타입만 믿습니다.
+     * 이미지를 뒤쪽 항목에 넣거나 타입을 알려주지 않는 앱에서는 붙여넣기가
+     * 아무 일도 하지 않습니다.
+     *
+     * 항목을 전부 훑어 실제 타입을 물어보고, 타입을 끝내 못 알아내더라도 URI 가
+     * 있으면 이미지로 보고 시도합니다. 가리기 붙여넣기에서 이 폴백을 넣었더니
+     * 동작했으므로, 타입을 알려주지 않는 게 원인입니다.
+     */
+    private fun firstMediaItem(): Pair<Uri, ClipDescription>? {
+        val clip = clipboard?.primaryClip ?: return null
+        val resolver = context?.contentResolver ?: return null
+        val label = clip.description?.label ?: ""
+        var fallback: Uri? = null
+
+        for (index in 0 until clip.itemCount) {
+            val uri = clip.getItemAt(index).uri ?: continue
+            if (fallback == null) {
+                fallback = uri
+            }
+            val type =
+                try {
+                    resolver.getType(uri)
+                } catch (e: Exception) {
+                    Timber.w(e, "could not read the type of a clipboard item")
+                    null
+                } ?: continue
+            if (type.startsWith("image/") || type.startsWith("audio/") || type.startsWith("video/")) {
+                return uri to ClipDescription(label, arrayOf(type))
+            }
+        }
+
+        // 타입은 못 알아냈지만 URI 는 있는 경우. 이미지로 보고 시도합니다.
+        return fallback?.let { it to ClipDescription(label, arrayOf("image/*")) }
     }
 
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)

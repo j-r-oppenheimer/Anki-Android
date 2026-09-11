@@ -12,7 +12,7 @@
         android:text="@string/show_answer"
         android:textSize="@dimen/reviewer_answer_button_textSize"
         app:cornerRadius="12dp"
-        android:textColor="@color/white"
+        android:textColor="?attr/answerButtonTextColor"
         tools:layout_height="48dp"
         android:backgroundTint="?showAnswerButtonBackground" />
 

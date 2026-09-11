@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  저장할 위치: AnkiDroid/src/main/res/values-ko/strings_customfont.xml
+-->
+<resources>
+    <string name="custom_font_category" maxLength="41" translatable="false">커스텀 폰트</string>
+    <string name="custom_font_title" translatable="false">커스텀 폰트</string>
+    <string name="custom_font_pick" maxLength="41" translatable="false">폰트 파일 고르기</string>
+    <string name="custom_font_pick_summary" translatable="false">기기에 있는 TTF 또는 OTF 파일을 씁니다</string>
+    <string name="custom_font_apply_app" maxLength="41" translatable="false">앱 화면에 적용</string>
+    <string name="custom_font_apply_app_summary" translatable="false">덱 목록, 학습 화면, 설정 등의 글씨</string>
+    <string name="custom_font_apply_cards" maxLength="41" translatable="false">카드에도 적용</string>
+    <string name="custom_font_apply_cards_summary" translatable="false">노트 유형에 지정한 폰트를 덮어씁니다</string>
+    <string name="custom_font_choose" translatable="false">폰트 파일 선택</string>
+    <string name="custom_font_remove" translatable="false">폰트 제거</string>
+    <string name="custom_font_none" translatable="false">선택된 폰트가 없습니다</string>
+    <string name="custom_font_unnamed" translatable="false">이름 없는 폰트</string>
+    <string name="custom_font_error" translatable="false">이 파일은 폰트로 읽을 수 없습니다</string>
+    <string name="custom_font_sample" translatable="false">다람쥐 헌 쳇바퀴에 타고파\nThe quick brown fox 0123456789</string>
+    <string name="custom_font_note" translatable="false">파일을 고른 뒤 토글을 켜면 적용됩니다. 앱 화면은 화면을 다시 열 때, 카드는 다음 카드부터 바뀝니다.</string>
+</resources>

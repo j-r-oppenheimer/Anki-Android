@@ -17,6 +17,7 @@ package com.ichi2.utils
 
 import android.content.ContentResolver
 import android.database.sqlite.SQLiteException
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.provider.MediaStore
 import android.webkit.MimeTypeMap
@@ -45,8 +46,41 @@ object ContentResolverUtil {
         if (filename != null) {
             return filename
         }
+
+        // 파일 이름도 MIME 타입도 알려주지 않는 콘텐츠 제공자가 있습니다.
+        // 일부 앱이 클립보드에 넣는 URI 가 그렇습니다. 원본은 여기서 예외를 던지고,
+        // 그게 붙여넣기 실패와 오류 보고서로 이어집니다.
+        // 마지막 수단으로 내용을 조금 읽어 이미지 종류를 알아냅니다.
+        val sniffed = getExtensionBySniffing(contentResolver, uri)
+        if (sniffed != null) {
+            Timber.i("determined the type from the content: %s", sniffed)
+            return "image.$sniffed"
+        }
         throw IllegalStateException("Unable to obtain valid filename from uri: $uri")
     }
+
+    /**
+     * 내용의 머리 부분만 읽어 이미지 종류를 알아냅니다.
+     *
+     * inJustDecodeBounds 를 켜면 픽셀을 실제로 읽지 않고 형식만 확인합니다.
+     * 이름과 타입을 모두 알려주지 않는 제공자를 위한 마지막 수단입니다.
+     */
+    @CheckResult
+    private fun getExtensionBySniffing(
+        contentResolver: ContentResolver,
+        uri: Uri,
+    ): String? =
+        try {
+            val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            contentResolver.openInputStream(uri).use { stream ->
+                if (stream == null) return null
+                BitmapFactory.decodeStream(stream, null, options)
+            }
+            options.outMimeType?.let { MimeTypeMap.getSingleton().getExtensionFromMimeType(it) }
+        } catch (e: Exception) {
+            Timber.w(e, "could not detect the image type from its content")
+            null
+        }
 
     @CheckResult
     private fun getFilenameViaMimeType(

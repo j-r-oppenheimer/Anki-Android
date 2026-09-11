@@ -1,0 +1,674 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  저장할 위치: AnkiDroid/src/main/res/values/theme_soft.xml
+
+  채도를 낮춘 테마 6종.
+    라이트 : Sand / Sage / Mist
+    다크   : Sand Night / Sage Night / Mist Night
+
+  설계 원칙
+    - 앱바는 진한 색, 그 위 글자는 밝게 (AnkiDroid 기본 배치와 동일)
+    - 본문 배경과 넓은 면적은 차분하게
+    - 답변 버튼은 기본과 반대로 배경을 연하게, 글자를 진하게
+    - 좌측 패널 상단의 Anki 문양 대신 단색 (nav_drawer_solid)
+
+  상태색도 테마 온도에 맞춰 따로 잡았습니다.
+  테마 하나를 통째로 바꾸려면 해당 테마의 <color> 블록만 고치면 됩니다.
+-->
+<resources>
+
+    <!-- ========================= Sand: 따뜻한 베이지 ========================= -->
+    <color name="sand_appbar">#7E7062</color>
+    <color name="sand_appbar_dark">#6B5F51</color>
+    <color name="sand_fab">#94816A</color>
+    <color name="sand_fab_pressed">#82705B</color>
+    <color name="sand_accent">#8C7A63</color>
+    <color name="sand_bg">#F6F2EC</color>
+    <color name="sand_text">#3E3730</color>
+
+    <color name="sand_again_text">#8A4A3C</color>
+    <color name="sand_again_bg">#EBD8D2</color>
+    <color name="sand_hard_text">#8A6A3C</color>
+    <color name="sand_hard_bg">#EFE2CE</color>
+    <color name="sand_good_text">#55694C</color>
+    <color name="sand_good_bg">#DEE4D6</color>
+    <color name="sand_easy_text">#4F6470</color>
+    <color name="sand_easy_bg">#DBE1E5</color>
+
+    <color name="sand_count_new">#5F6C87</color>
+    <color name="sand_count_learn">#A8705C</color>
+    <color name="sand_count_review">#6B8266</color>
+    <color name="sand_show_bg">#DCD0BE</color>
+
+    <style name="Base.Theme.Light.Sand">
+        <item name="colorPrimary">@color/sand_appbar</item>
+        <item name="colorPrimaryDark">@color/sand_appbar_dark</item>
+        <item name="colorAccent">@color/sand_accent</item>
+        <item name="appBarColor">@color/sand_appbar</item>
+        <item name="android:statusBarColor">@color/sand_appbar</item>
+        <item name="android:windowLightStatusBar">false</item>
+
+        <item name="android:colorBackground">@color/sand_bg</item>
+        <item name="android:windowBackground">@color/sand_bg</item>
+        <item name="alternativeBackgroundColor">#F1ECE3</item>
+        <item name="currentDeckBackgroundColor">#EDE6DA</item>
+        <item name="focusedRowBackgroundColor">#EDE6DA</item>
+        <item name="colorSurfaceContainerHigh">#F3EEE6</item>
+        <item name="colorSurfaceContainer">#F3EEE6</item>
+        <item name="colorSecondaryContainer">#EAE2D6</item>
+        <item name="toolbarBackgroundColor">#E6DED2</item>
+        <item name="topBarColor">@color/sand_bg</item>
+
+        <!-- 앱바는 진하게, 그 위 글자는 밝게 (AnkiDroid 기본 배치 유지) -->
+        <item name="actionBarTextColor">@color/white</item>
+        <item name="actionBarPopupTextColor">@color/sand_text</item>
+        <item name="actionModeBackground">@color/sand_appbar</item>
+        <item name="tabLayoutBackgroundColor">@color/sand_appbar</item>
+        <item name="tabActiveIconColor">@color/white</item>
+        <item name="customTabNavBarColor">@color/sand_appbar</item>
+
+        <!-- 좌측 패널 상단: Anki 문양 대신 단색 -->
+        <item name="navDrawerImage">@drawable/nav_drawer_solid</item>
+
+        <item name="preferenceCategoryTitleTextColor">@color/sand_accent</item>
+        <item name="widgetColorActivated">@color/sand_accent</item>
+        <item name="fab_normal">@color/sand_fab</item>
+        <item name="fab_pressed">@color/sand_fab_pressed</item>
+        <item name="progressDialogButtonTextColor">@color/sand_accent</item>
+        <item name="snackbarButtonTextColor">@color/sand_accent</item>
+        <item name="incrementerButtonBackground">@color/sand_accent</item>
+        <item name="clozeColor">#7A6A50</item>
+        <item name="editTextHighlightColor">#E0D6C8</item>
+
+        <item name="newCountColor">@color/sand_count_new</item>
+        <item name="learnCountColor">@color/sand_count_learn</item>
+        <item name="reviewCountColor">@color/sand_count_review</item>
+
+        <!-- 답변 버튼: 기본과 반대로 배경을 연하게, 글자를 진하게 -->
+        <item name="againButtonBackground">@color/sand_again_bg</item>
+        <item name="hardButtonBackground">@color/sand_hard_bg</item>
+        <item name="goodButtonBackground">@color/sand_good_bg</item>
+        <item name="easyButtonBackground">@color/sand_easy_bg</item>
+        <item name="againButtonRef">@drawable/footer_button_ripple</item>
+        <item name="hardButtonRef">@drawable/footer_button_ripple</item>
+        <item name="goodButtonRef">@drawable/footer_button_ripple</item>
+        <item name="easyButtonRef">@drawable/footer_button_ripple</item>
+        <item name="againButtonTextColor">@color/sand_again_text</item>
+        <item name="hardButtonTextColor">@color/sand_hard_text</item>
+        <item name="goodButtonTextColor">@color/sand_good_text</item>
+        <item name="easyButtonTextColor">@color/sand_easy_text</item>
+        <item name="answerButtonTextColor">@color/sand_text</item>
+        <item name="showAnswerButtonBackground">@color/sand_show_bg</item>
+        <item name="showAnswerColor">@color/sand_show_bg</item>
+
+        <item name="againBackgroundColor">@color/sand_again_bg</item>
+        <item name="hardBackgroundColor">@color/sand_hard_bg</item>
+        <item name="goodBackgroundColor">@color/sand_good_bg</item>
+        <item name="easyBackgroundColor">@color/sand_easy_bg</item>
+        <item name="againTextColor">@color/sand_again_text</item>
+        <item name="hardTextColor">@color/sand_hard_text</item>
+        <item name="goodTextColor">@color/sand_good_text</item>
+        <item name="easyTextColor">@color/sand_easy_text</item>
+        <item name="maxTimerColor">#B0705F</item>
+
+        <item name="suspendedColor">#F0E6C6</item>
+        <item name="buriedColor">#E9D7BD</item>
+        <item name="selectedColor">#E2DACF</item>
+        <item name="markedColor">#DECDE2</item>
+        <item name="dynDeckColor">#5F6B91</item>
+        <item name="duplicateColor">#EBD3D3</item>
+        <item name="badgeErrorColor">#B5624B</item>
+        <item name="badgeWarningColor">#BE8A4E</item>
+        <item name="reminderTroubleshootingOk">#617F62</item>
+        <item name="reminderTroubleshootingWarning">#B08A50</item>
+    </style>
+
+    <style name="Theme_Light_Sand" parent="Base.Theme.Light.Sand"/>
+
+    <!-- ========================= Sage: 차분한 청록빛 회색 ========================= -->
+    <color name="sage_appbar">#5D7669</color>
+    <color name="sage_appbar_dark">#4E6459</color>
+    <color name="sage_fab">#6D8A7D</color>
+    <color name="sage_fab_pressed">#5D7A6C</color>
+    <color name="sage_accent">#5F7A6E</color>
+    <color name="sage_bg">#F1F5F3</color>
+    <color name="sage_text">#2F3A35</color>
+
+    <color name="sage_again_text">#85493F</color>
+    <color name="sage_again_bg">#E8DAD6</color>
+    <color name="sage_hard_text">#816A45</color>
+    <color name="sage_hard_bg">#E9E3D4</color>
+    <color name="sage_good_text">#47604F</color>
+    <color name="sage_good_bg">#D7E3DA</color>
+    <color name="sage_easy_text">#46606B</color>
+    <color name="sage_easy_bg">#D6E0E3</color>
+
+    <color name="sage_count_new">#566B85</color>
+    <color name="sage_count_learn">#96685E</color>
+    <color name="sage_count_review">#567A66</color>
+    <color name="sage_show_bg">#C9D8D1</color>
+
+    <style name="Base.Theme.Light.Sage">
+        <item name="colorPrimary">@color/sage_appbar</item>
+        <item name="colorPrimaryDark">@color/sage_appbar_dark</item>
+        <item name="colorAccent">@color/sage_accent</item>
+        <item name="appBarColor">@color/sage_appbar</item>
+        <item name="android:statusBarColor">@color/sage_appbar</item>
+        <item name="android:windowLightStatusBar">false</item>
+
+        <item name="android:colorBackground">@color/sage_bg</item>
+        <item name="android:windowBackground">@color/sage_bg</item>
+        <item name="alternativeBackgroundColor">#EBF1EE</item>
+        <item name="currentDeckBackgroundColor">#E1E9E5</item>
+        <item name="focusedRowBackgroundColor">#E1E9E5</item>
+        <item name="colorSurfaceContainerHigh">#EAF0ED</item>
+        <item name="colorSurfaceContainer">#EAF0ED</item>
+        <item name="colorSecondaryContainer">#DCE6E1</item>
+        <item name="toolbarBackgroundColor">#DCE5E1</item>
+        <item name="topBarColor">@color/sage_bg</item>
+
+        <!-- 앱바는 진하게, 그 위 글자는 밝게 (AnkiDroid 기본 배치 유지) -->
+        <item name="actionBarTextColor">@color/white</item>
+        <item name="actionBarPopupTextColor">@color/sage_text</item>
+        <item name="actionModeBackground">@color/sage_appbar</item>
+        <item name="tabLayoutBackgroundColor">@color/sage_appbar</item>
+        <item name="tabActiveIconColor">@color/white</item>
+        <item name="customTabNavBarColor">@color/sage_appbar</item>
+
+        <!-- 좌측 패널 상단: Anki 문양 대신 단색 -->
+        <item name="navDrawerImage">@drawable/nav_drawer_solid</item>
+
+        <item name="preferenceCategoryTitleTextColor">@color/sage_accent</item>
+        <item name="widgetColorActivated">@color/sage_accent</item>
+        <item name="fab_normal">@color/sage_fab</item>
+        <item name="fab_pressed">@color/sage_fab_pressed</item>
+        <item name="progressDialogButtonTextColor">@color/sage_accent</item>
+        <item name="snackbarButtonTextColor">@color/sage_accent</item>
+        <item name="incrementerButtonBackground">@color/sage_accent</item>
+        <item name="clozeColor">#4F6E62</item>
+        <item name="editTextHighlightColor">#D3E0DA</item>
+
+        <item name="newCountColor">@color/sage_count_new</item>
+        <item name="learnCountColor">@color/sage_count_learn</item>
+        <item name="reviewCountColor">@color/sage_count_review</item>
+
+        <!-- 답변 버튼: 기본과 반대로 배경을 연하게, 글자를 진하게 -->
+        <item name="againButtonBackground">@color/sage_again_bg</item>
+        <item name="hardButtonBackground">@color/sage_hard_bg</item>
+        <item name="goodButtonBackground">@color/sage_good_bg</item>
+        <item name="easyButtonBackground">@color/sage_easy_bg</item>
+        <item name="againButtonRef">@drawable/footer_button_ripple</item>
+        <item name="hardButtonRef">@drawable/footer_button_ripple</item>
+        <item name="goodButtonRef">@drawable/footer_button_ripple</item>
+        <item name="easyButtonRef">@drawable/footer_button_ripple</item>
+        <item name="againButtonTextColor">@color/sage_again_text</item>
+        <item name="hardButtonTextColor">@color/sage_hard_text</item>
+        <item name="goodButtonTextColor">@color/sage_good_text</item>
+        <item name="easyButtonTextColor">@color/sage_easy_text</item>
+        <item name="answerButtonTextColor">@color/sage_text</item>
+        <item name="showAnswerButtonBackground">@color/sage_show_bg</item>
+        <item name="showAnswerColor">@color/sage_show_bg</item>
+
+        <item name="againBackgroundColor">@color/sage_again_bg</item>
+        <item name="hardBackgroundColor">@color/sage_hard_bg</item>
+        <item name="goodBackgroundColor">@color/sage_good_bg</item>
+        <item name="easyBackgroundColor">@color/sage_easy_bg</item>
+        <item name="againTextColor">@color/sage_again_text</item>
+        <item name="hardTextColor">@color/sage_hard_text</item>
+        <item name="goodTextColor">@color/sage_good_text</item>
+        <item name="easyTextColor">@color/sage_easy_text</item>
+        <item name="maxTimerColor">#A6685C</item>
+
+        <item name="suspendedColor">#E9E7C6</item>
+        <item name="buriedColor">#E3DABB</item>
+        <item name="selectedColor">#D8E0D9</item>
+        <item name="markedColor">#D6CDE0</item>
+        <item name="dynDeckColor">#4F6C7E</item>
+        <item name="duplicateColor">#E8D6D4</item>
+        <item name="badgeErrorColor">#AC6050</item>
+        <item name="badgeWarningColor">#B5884F</item>
+        <item name="reminderTroubleshootingOk">#5E7F63</item>
+        <item name="reminderTroubleshootingWarning">#A98750</item>
+    </style>
+
+    <style name="Theme_Light_Sage" parent="Base.Theme.Light.Sage"/>
+
+    <!-- ========================= Mist: 서늘한 회청색 ========================= -->
+    <color name="mist_appbar">#647388</color>
+    <color name="mist_appbar_dark">#546174</color>
+    <color name="mist_fab">#6D8099</color>
+    <color name="mist_fab_pressed">#5C6F87</color>
+    <color name="mist_accent">#5F7086</color>
+    <color name="mist_bg">#F2F4F7</color>
+    <color name="mist_text">#2E353D</color>
+
+    <color name="mist_again_text">#834A48</color>
+    <color name="mist_again_bg">#E7DADB</color>
+    <color name="mist_hard_text">#7E6A4C</color>
+    <color name="mist_hard_bg">#E7E2D6</color>
+    <color name="mist_good_text">#47604F</color>
+    <color name="mist_good_bg">#D8E3DB</color>
+    <color name="mist_easy_text">#42586D</color>
+    <color name="mist_easy_bg">#D6DEE8</color>
+
+    <color name="mist_count_new">#56688A</color>
+    <color name="mist_count_learn">#8E6660</color>
+    <color name="mist_count_review">#5A7563</color>
+    <color name="mist_show_bg">#CBD5E0</color>
+
+    <style name="Base.Theme.Light.Mist">
+        <item name="colorPrimary">@color/mist_appbar</item>
+        <item name="colorPrimaryDark">@color/mist_appbar_dark</item>
+        <item name="colorAccent">@color/mist_accent</item>
+        <item name="appBarColor">@color/mist_appbar</item>
+        <item name="android:statusBarColor">@color/mist_appbar</item>
+        <item name="android:windowLightStatusBar">false</item>
+
+        <item name="android:colorBackground">@color/mist_bg</item>
+        <item name="android:windowBackground">@color/mist_bg</item>
+        <item name="alternativeBackgroundColor">#ECEFF4</item>
+        <item name="currentDeckBackgroundColor">#E2E7ED</item>
+        <item name="focusedRowBackgroundColor">#E2E7ED</item>
+        <item name="colorSurfaceContainerHigh">#EAEEF3</item>
+        <item name="colorSurfaceContainer">#EAEEF3</item>
+        <item name="colorSecondaryContainer">#DDE3EA</item>
+        <item name="toolbarBackgroundColor">#DDE2E9</item>
+        <item name="topBarColor">@color/mist_bg</item>
+
+        <!-- 앱바는 진하게, 그 위 글자는 밝게 (AnkiDroid 기본 배치 유지) -->
+        <item name="actionBarTextColor">@color/white</item>
+        <item name="actionBarPopupTextColor">@color/mist_text</item>
+        <item name="actionModeBackground">@color/mist_appbar</item>
+        <item name="tabLayoutBackgroundColor">@color/mist_appbar</item>
+        <item name="tabActiveIconColor">@color/white</item>
+        <item name="customTabNavBarColor">@color/mist_appbar</item>
+
+        <!-- 좌측 패널 상단: Anki 문양 대신 단색 -->
+        <item name="navDrawerImage">@drawable/nav_drawer_solid</item>
+
+        <item name="preferenceCategoryTitleTextColor">@color/mist_accent</item>
+        <item name="widgetColorActivated">@color/mist_accent</item>
+        <item name="fab_normal">@color/mist_fab</item>
+        <item name="fab_pressed">@color/mist_fab_pressed</item>
+        <item name="progressDialogButtonTextColor">@color/mist_accent</item>
+        <item name="snackbarButtonTextColor">@color/mist_accent</item>
+        <item name="incrementerButtonBackground">@color/mist_accent</item>
+        <item name="clozeColor">#4F6580</item>
+        <item name="editTextHighlightColor">#D4DCE6</item>
+
+        <item name="newCountColor">@color/mist_count_new</item>
+        <item name="learnCountColor">@color/mist_count_learn</item>
+        <item name="reviewCountColor">@color/mist_count_review</item>
+
+        <!-- 답변 버튼: 기본과 반대로 배경을 연하게, 글자를 진하게 -->
+        <item name="againButtonBackground">@color/mist_again_bg</item>
+        <item name="hardButtonBackground">@color/mist_hard_bg</item>
+        <item name="goodButtonBackground">@color/mist_good_bg</item>
+        <item name="easyButtonBackground">@color/mist_easy_bg</item>
+        <item name="againButtonRef">@drawable/footer_button_ripple</item>
+        <item name="hardButtonRef">@drawable/footer_button_ripple</item>
+        <item name="goodButtonRef">@drawable/footer_button_ripple</item>
+        <item name="easyButtonRef">@drawable/footer_button_ripple</item>
+        <item name="againButtonTextColor">@color/mist_again_text</item>
+        <item name="hardButtonTextColor">@color/mist_hard_text</item>
+        <item name="goodButtonTextColor">@color/mist_good_text</item>
+        <item name="easyButtonTextColor">@color/mist_easy_text</item>
+        <item name="answerButtonTextColor">@color/mist_text</item>
+        <item name="showAnswerButtonBackground">@color/mist_show_bg</item>
+        <item name="showAnswerColor">@color/mist_show_bg</item>
+
+        <item name="againBackgroundColor">@color/mist_again_bg</item>
+        <item name="hardBackgroundColor">@color/mist_hard_bg</item>
+        <item name="goodBackgroundColor">@color/mist_good_bg</item>
+        <item name="easyBackgroundColor">@color/mist_easy_bg</item>
+        <item name="againTextColor">@color/mist_again_text</item>
+        <item name="hardTextColor">@color/mist_hard_text</item>
+        <item name="goodTextColor">@color/mist_good_text</item>
+        <item name="easyTextColor">@color/mist_easy_text</item>
+        <item name="maxTimerColor">#A5645F</item>
+
+        <item name="suspendedColor">#EAE6C9</item>
+        <item name="buriedColor">#E2DBC1</item>
+        <item name="selectedColor">#D9DEE5</item>
+        <item name="markedColor">#D5CDE2</item>
+        <item name="dynDeckColor">#556A94</item>
+        <item name="duplicateColor">#E7D5D8</item>
+        <item name="badgeErrorColor">#A85F52</item>
+        <item name="badgeWarningColor">#B0864F</item>
+        <item name="reminderTroubleshootingOk">#5B7A63</item>
+        <item name="reminderTroubleshootingWarning">#A6844F</item>
+    </style>
+
+    <style name="Theme_Light_Mist" parent="Base.Theme.Light.Mist"/>
+
+    <!-- ========================= Sand Night: 따뜻한 어두운 갈색 ========================= -->
+    <color name="sandnight_appbar">#2E2924</color>
+    <color name="sandnight_appbar_dark">#1A1714</color>
+    <color name="sandnight_accent">#C8B394</color>
+    <color name="sandnight_bg">#211E1A</color>
+    <color name="sandnight_text">#EDE6DC</color>
+
+    <color name="sandnight_again_text">#E0A99A</color>
+    <color name="sandnight_again_bg">#4A302A</color>
+    <color name="sandnight_hard_text">#DEBE94</color>
+    <color name="sandnight_hard_bg">#4A3D28</color>
+    <color name="sandnight_good_text">#AEC7A6</color>
+    <color name="sandnight_good_bg">#2F3B2C</color>
+    <color name="sandnight_easy_text">#A8BECC</color>
+    <color name="sandnight_easy_bg">#2B3841</color>
+
+    <color name="sandnight_count_new">#9FB0CE</color>
+    <color name="sandnight_count_learn">#D9A18C</color>
+    <color name="sandnight_count_review">#A3C0A6</color>
+    <color name="sandnight_show_bg">#332E27</color>
+
+    <style name="Base.Theme.Dark.SandNight">
+        <!-- 다크 테마에서 colorPrimary 는 밝은 쪽이어야 합니다.
+             ?attr/colorPrimary 를 글자색으로 쓰는 항목이 있어서,
+             앱바 색(어두움)을 여기 넣으면 어두운 배경에 어두운 글씨가 됩니다.
+             앱바는 아래 appBarColor 가 따로 담당합니다. -->
+        <item name="colorPrimary">@color/sandnight_accent</item>
+        <item name="colorPrimaryDark">@color/sandnight_appbar_dark</item>
+        <item name="colorAccent">@color/sandnight_accent</item>
+        <item name="appBarColor">@color/sandnight_appbar</item>
+        <item name="android:statusBarColor">@color/sandnight_appbar</item>
+        <item name="android:windowLightStatusBar">false</item>
+
+        <item name="android:colorBackground">@color/sandnight_bg</item>
+        <item name="android:windowBackground">@color/sandnight_bg</item>
+        <item name="alternativeBackgroundColor">#282420</item>
+        <item name="currentDeckBackgroundColor">#332E27</item>
+        <item name="focusedRowBackgroundColor">#332E27</item>
+        <item name="colorSurfaceContainerHigh">#3A342C</item>
+        <item name="colorSurfaceContainer">#3A342C</item>
+        <item name="colorSecondaryContainer">#4A4034</item>
+        <item name="toolbarBackgroundColor">#3A342C</item>
+        <item name="topBarColor">@color/sandnight_bg</item>
+
+        <!-- 앱바는 진하게, 그 위 글자는 밝게 (AnkiDroid 기본 배치 유지) -->
+        <item name="actionBarTextColor">@color/white</item>
+        <item name="actionBarPopupTextColor">@color/sandnight_text</item>
+        <item name="actionModeBackground">@color/sandnight_appbar</item>
+        <item name="tabLayoutBackgroundColor">@color/sandnight_appbar</item>
+        <item name="tabActiveIconColor">@color/white</item>
+        <item name="customTabNavBarColor">@color/sandnight_appbar</item>
+
+        <!-- 좌측 패널 상단: Anki 문양 대신 단색 -->
+        <item name="navDrawerImage">@drawable/nav_drawer_solid</item>
+
+        <item name="preferenceCategoryTitleTextColor">@color/sandnight_accent</item>
+        <item name="widgetColorActivated">@color/sandnight_accent</item>
+        <item name="fab_normal">@color/sandnight_accent</item>
+        <item name="fab_pressed">#8C7A63</item>
+        <item name="progressDialogButtonTextColor">@color/sandnight_accent</item>
+        <item name="snackbarButtonTextColor">@color/sandnight_accent</item>
+        <item name="incrementerButtonBackground">@color/sandnight_accent</item>
+        <item name="clozeColor">#C8B394</item>
+        <item name="editTextHighlightColor">#4A4034</item>
+
+        <item name="newCountColor">@color/sandnight_count_new</item>
+        <item name="learnCountColor">@color/sandnight_count_learn</item>
+        <item name="reviewCountColor">@color/sandnight_count_review</item>
+
+        <!-- 답변 버튼: 기본과 반대로 배경을 연하게, 글자를 진하게 -->
+        <item name="againButtonBackground">@color/sandnight_again_bg</item>
+        <item name="hardButtonBackground">@color/sandnight_hard_bg</item>
+        <item name="goodButtonBackground">@color/sandnight_good_bg</item>
+        <item name="easyButtonBackground">@color/sandnight_easy_bg</item>
+        <item name="againButtonRef">@drawable/footer_button_ripple</item>
+        <item name="hardButtonRef">@drawable/footer_button_ripple</item>
+        <item name="goodButtonRef">@drawable/footer_button_ripple</item>
+        <item name="easyButtonRef">@drawable/footer_button_ripple</item>
+        <item name="againButtonTextColor">@color/sandnight_again_text</item>
+        <item name="hardButtonTextColor">@color/sandnight_hard_text</item>
+        <item name="goodButtonTextColor">@color/sandnight_good_text</item>
+        <item name="easyButtonTextColor">@color/sandnight_easy_text</item>
+        <item name="answerButtonTextColor">@color/sandnight_text</item>
+        <item name="showAnswerButtonBackground">@color/sandnight_show_bg</item>
+        <item name="showAnswerColor">@color/sandnight_show_bg</item>
+
+        <item name="againBackgroundColor">@color/sandnight_again_bg</item>
+        <item name="hardBackgroundColor">@color/sandnight_hard_bg</item>
+        <item name="goodBackgroundColor">@color/sandnight_good_bg</item>
+        <item name="easyBackgroundColor">@color/sandnight_easy_bg</item>
+        <item name="againTextColor">@color/sandnight_again_text</item>
+        <item name="hardTextColor">@color/sandnight_hard_text</item>
+        <item name="goodTextColor">@color/sandnight_good_text</item>
+        <item name="easyTextColor">@color/sandnight_easy_text</item>
+        <item name="maxTimerColor">#D08A78</item>
+
+        <item name="suspendedColor">#4A452F</item>
+        <item name="buriedColor">#4A3A26</item>
+        <item name="selectedColor">#3A342C</item>
+        <item name="markedColor">#463A52</item>
+        <item name="dynDeckColor">#9FB0CE</item>
+        <item name="duplicateColor">#4A302A</item>
+        <item name="badgeErrorColor">#D08A78</item>
+        <item name="badgeWarningColor">#D0A86E</item>
+        <item name="reminderTroubleshootingOk">#8FBF95</item>
+        <item name="reminderTroubleshootingWarning">#D0B070</item>
+    </style>
+
+    <style name="Theme_Dark_SandNight" parent="Base.Theme.Dark.SandNight"/>
+
+    <!-- ========================= Sage Night: 차분한 어두운 청록 ========================= -->
+    <color name="sagenight_appbar">#242E29</color>
+    <color name="sagenight_appbar_dark">#141A17</color>
+    <color name="sagenight_accent">#9CC0AF</color>
+    <color name="sagenight_bg">#1A211E</color>
+    <color name="sagenight_text">#E0EAE5</color>
+
+    <color name="sagenight_again_text">#DDA79B</color>
+    <color name="sagenight_again_bg">#452E2A</color>
+    <color name="sagenight_hard_text">#D6BC96</color>
+    <color name="sagenight_hard_bg">#453B29</color>
+    <color name="sagenight_good_text">#A8C9AE</color>
+    <color name="sagenight_good_bg">#2A3A2F</color>
+    <color name="sagenight_easy_text">#A2BECB</color>
+    <color name="sagenight_easy_bg">#293840</color>
+
+    <color name="sagenight_count_new">#9CAFCB</color>
+    <color name="sagenight_count_learn">#D19E8D</color>
+    <color name="sagenight_count_review">#9CC0AF</color>
+    <color name="sagenight_show_bg">#28332E</color>
+
+    <style name="Base.Theme.Dark.SageNight">
+        <!-- 다크 테마에서 colorPrimary 는 밝은 쪽이어야 합니다.
+             ?attr/colorPrimary 를 글자색으로 쓰는 항목이 있어서,
+             앱바 색(어두움)을 여기 넣으면 어두운 배경에 어두운 글씨가 됩니다.
+             앱바는 아래 appBarColor 가 따로 담당합니다. -->
+        <item name="colorPrimary">@color/sagenight_accent</item>
+        <item name="colorPrimaryDark">@color/sagenight_appbar_dark</item>
+        <item name="colorAccent">@color/sagenight_accent</item>
+        <item name="appBarColor">@color/sagenight_appbar</item>
+        <item name="android:statusBarColor">@color/sagenight_appbar</item>
+        <item name="android:windowLightStatusBar">false</item>
+
+        <item name="android:colorBackground">@color/sagenight_bg</item>
+        <item name="android:windowBackground">@color/sagenight_bg</item>
+        <item name="alternativeBackgroundColor">#202823</item>
+        <item name="currentDeckBackgroundColor">#28332E</item>
+        <item name="focusedRowBackgroundColor">#28332E</item>
+        <item name="colorSurfaceContainerHigh">#2E3A34</item>
+        <item name="colorSurfaceContainer">#2E3A34</item>
+        <item name="colorSecondaryContainer">#344A40</item>
+        <item name="toolbarBackgroundColor">#2E3A34</item>
+        <item name="topBarColor">@color/sagenight_bg</item>
+
+        <!-- 앱바는 진하게, 그 위 글자는 밝게 (AnkiDroid 기본 배치 유지) -->
+        <item name="actionBarTextColor">@color/white</item>
+        <item name="actionBarPopupTextColor">@color/sagenight_text</item>
+        <item name="actionModeBackground">@color/sagenight_appbar</item>
+        <item name="tabLayoutBackgroundColor">@color/sagenight_appbar</item>
+        <item name="tabActiveIconColor">@color/white</item>
+        <item name="customTabNavBarColor">@color/sagenight_appbar</item>
+
+        <!-- 좌측 패널 상단: Anki 문양 대신 단색 -->
+        <item name="navDrawerImage">@drawable/nav_drawer_solid</item>
+
+        <item name="preferenceCategoryTitleTextColor">@color/sagenight_accent</item>
+        <item name="widgetColorActivated">@color/sagenight_accent</item>
+        <item name="fab_normal">@color/sagenight_accent</item>
+        <item name="fab_pressed">#5F7A6E</item>
+        <item name="progressDialogButtonTextColor">@color/sagenight_accent</item>
+        <item name="snackbarButtonTextColor">@color/sagenight_accent</item>
+        <item name="incrementerButtonBackground">@color/sagenight_accent</item>
+        <item name="clozeColor">#9CC0AF</item>
+        <item name="editTextHighlightColor">#34443C</item>
+
+        <item name="newCountColor">@color/sagenight_count_new</item>
+        <item name="learnCountColor">@color/sagenight_count_learn</item>
+        <item name="reviewCountColor">@color/sagenight_count_review</item>
+
+        <!-- 답변 버튼: 기본과 반대로 배경을 연하게, 글자를 진하게 -->
+        <item name="againButtonBackground">@color/sagenight_again_bg</item>
+        <item name="hardButtonBackground">@color/sagenight_hard_bg</item>
+        <item name="goodButtonBackground">@color/sagenight_good_bg</item>
+        <item name="easyButtonBackground">@color/sagenight_easy_bg</item>
+        <item name="againButtonRef">@drawable/footer_button_ripple</item>
+        <item name="hardButtonRef">@drawable/footer_button_ripple</item>
+        <item name="goodButtonRef">@drawable/footer_button_ripple</item>
+        <item name="easyButtonRef">@drawable/footer_button_ripple</item>
+        <item name="againButtonTextColor">@color/sagenight_again_text</item>
+        <item name="hardButtonTextColor">@color/sagenight_hard_text</item>
+        <item name="goodButtonTextColor">@color/sagenight_good_text</item>
+        <item name="easyButtonTextColor">@color/sagenight_easy_text</item>
+        <item name="answerButtonTextColor">@color/sagenight_text</item>
+        <item name="showAnswerButtonBackground">@color/sagenight_show_bg</item>
+        <item name="showAnswerColor">@color/sagenight_show_bg</item>
+
+        <item name="againBackgroundColor">@color/sagenight_again_bg</item>
+        <item name="hardBackgroundColor">@color/sagenight_hard_bg</item>
+        <item name="goodBackgroundColor">@color/sagenight_good_bg</item>
+        <item name="easyBackgroundColor">@color/sagenight_easy_bg</item>
+        <item name="againTextColor">@color/sagenight_again_text</item>
+        <item name="hardTextColor">@color/sagenight_hard_text</item>
+        <item name="goodTextColor">@color/sagenight_good_text</item>
+        <item name="easyTextColor">@color/sagenight_easy_text</item>
+        <item name="maxTimerColor">#CC8878</item>
+
+        <item name="suspendedColor">#454630</item>
+        <item name="buriedColor">#453926</item>
+        <item name="selectedColor">#2E3A34</item>
+        <item name="markedColor">#42394F</item>
+        <item name="dynDeckColor">#9CAFCB</item>
+        <item name="duplicateColor">#452E2A</item>
+        <item name="badgeErrorColor">#CC8878</item>
+        <item name="badgeWarningColor">#CBA46C</item>
+        <item name="reminderTroubleshootingOk">#8CBC94</item>
+        <item name="reminderTroubleshootingWarning">#CBAC6E</item>
+    </style>
+
+    <style name="Theme_Dark_SageNight" parent="Base.Theme.Dark.SageNight"/>
+
+    <!-- ========================= Mist Night: 서늘한 어두운 회청 ========================= -->
+    <color name="mistnight_appbar">#252B33</color>
+    <color name="mistnight_appbar_dark">#14171B</color>
+    <color name="mistnight_accent">#A3B6CE</color>
+    <color name="mistnight_bg">#1B1E23</color>
+    <color name="mistnight_text">#E2E7EE</color>
+
+    <color name="mistnight_again_text">#DBA5A3</color>
+    <color name="mistnight_again_bg">#452C2C</color>
+    <color name="mistnight_hard_text">#D2BB9B</color>
+    <color name="mistnight_hard_bg">#43392A</color>
+    <color name="mistnight_good_text">#A9C7B0</color>
+    <color name="mistnight_good_bg">#2B3A31</color>
+    <color name="mistnight_easy_text">#A5BDD2</color>
+    <color name="mistnight_easy_bg">#283743</color>
+
+    <color name="mistnight_count_new">#A0B2D2</color>
+    <color name="mistnight_count_learn">#CE9C95</color>
+    <color name="mistnight_count_review">#9EC0A7</color>
+    <color name="mistnight_show_bg">#2A2F38</color>
+
+    <style name="Base.Theme.Dark.MistNight">
+        <!-- 다크 테마에서 colorPrimary 는 밝은 쪽이어야 합니다.
+             ?attr/colorPrimary 를 글자색으로 쓰는 항목이 있어서,
+             앱바 색(어두움)을 여기 넣으면 어두운 배경에 어두운 글씨가 됩니다.
+             앱바는 아래 appBarColor 가 따로 담당합니다. -->
+        <item name="colorPrimary">@color/mistnight_accent</item>
+        <item name="colorPrimaryDark">@color/mistnight_appbar_dark</item>
+        <item name="colorAccent">@color/mistnight_accent</item>
+        <item name="appBarColor">@color/mistnight_appbar</item>
+        <item name="android:statusBarColor">@color/mistnight_appbar</item>
+        <item name="android:windowLightStatusBar">false</item>
+
+        <item name="android:colorBackground">@color/mistnight_bg</item>
+        <item name="android:windowBackground">@color/mistnight_bg</item>
+        <item name="alternativeBackgroundColor">#212530</item>
+        <item name="currentDeckBackgroundColor">#2A2F38</item>
+        <item name="focusedRowBackgroundColor">#2A2F38</item>
+        <item name="colorSurfaceContainerHigh">#313742</item>
+        <item name="colorSurfaceContainer">#313742</item>
+        <item name="colorSecondaryContainer">#3A4454</item>
+        <item name="toolbarBackgroundColor">#313742</item>
+        <item name="topBarColor">@color/mistnight_bg</item>
+
+        <!-- 앱바는 진하게, 그 위 글자는 밝게 (AnkiDroid 기본 배치 유지) -->
+        <item name="actionBarTextColor">@color/white</item>
+        <item name="actionBarPopupTextColor">@color/mistnight_text</item>
+        <item name="actionModeBackground">@color/mistnight_appbar</item>
+        <item name="tabLayoutBackgroundColor">@color/mistnight_appbar</item>
+        <item name="tabActiveIconColor">@color/white</item>
+        <item name="customTabNavBarColor">@color/mistnight_appbar</item>
+
+        <!-- 좌측 패널 상단: Anki 문양 대신 단색 -->
+        <item name="navDrawerImage">@drawable/nav_drawer_solid</item>
+
+        <item name="preferenceCategoryTitleTextColor">@color/mistnight_accent</item>
+        <item name="widgetColorActivated">@color/mistnight_accent</item>
+        <item name="fab_normal">@color/mistnight_accent</item>
+        <item name="fab_pressed">#5F7086</item>
+        <item name="progressDialogButtonTextColor">@color/mistnight_accent</item>
+        <item name="snackbarButtonTextColor">@color/mistnight_accent</item>
+        <item name="incrementerButtonBackground">@color/mistnight_accent</item>
+        <item name="clozeColor">#A3B6CE</item>
+        <item name="editTextHighlightColor">#38414F</item>
+
+        <item name="newCountColor">@color/mistnight_count_new</item>
+        <item name="learnCountColor">@color/mistnight_count_learn</item>
+        <item name="reviewCountColor">@color/mistnight_count_review</item>
+
+        <!-- 답변 버튼: 기본과 반대로 배경을 연하게, 글자를 진하게 -->
+        <item name="againButtonBackground">@color/mistnight_again_bg</item>
+        <item name="hardButtonBackground">@color/mistnight_hard_bg</item>
+        <item name="goodButtonBackground">@color/mistnight_good_bg</item>
+        <item name="easyButtonBackground">@color/mistnight_easy_bg</item>
+        <item name="againButtonRef">@drawable/footer_button_ripple</item>
+        <item name="hardButtonRef">@drawable/footer_button_ripple</item>
+        <item name="goodButtonRef">@drawable/footer_button_ripple</item>
+        <item name="easyButtonRef">@drawable/footer_button_ripple</item>
+        <item name="againButtonTextColor">@color/mistnight_again_text</item>
+        <item name="hardButtonTextColor">@color/mistnight_hard_text</item>
+        <item name="goodButtonTextColor">@color/mistnight_good_text</item>
+        <item name="easyButtonTextColor">@color/mistnight_easy_text</item>
+        <item name="answerButtonTextColor">@color/mistnight_text</item>
+        <item name="showAnswerButtonBackground">@color/mistnight_show_bg</item>
+        <item name="showAnswerColor">@color/mistnight_show_bg</item>
+
+        <item name="againBackgroundColor">@color/mistnight_again_bg</item>
+        <item name="hardBackgroundColor">@color/mistnight_hard_bg</item>
+        <item name="goodBackgroundColor">@color/mistnight_good_bg</item>
+        <item name="easyBackgroundColor">@color/mistnight_easy_bg</item>
+        <item name="againTextColor">@color/mistnight_again_text</item>
+        <item name="hardTextColor">@color/mistnight_hard_text</item>
+        <item name="goodTextColor">@color/mistnight_good_text</item>
+        <item name="easyTextColor">@color/mistnight_easy_text</item>
+        <item name="maxTimerColor">#C98A84</item>
+
+        <item name="suspendedColor">#44452F</item>
+        <item name="buriedColor">#443826</item>
+        <item name="selectedColor">#313742</item>
+        <item name="markedColor">#3F394F</item>
+        <item name="dynDeckColor">#A0B2D2</item>
+        <item name="duplicateColor">#452C2C</item>
+        <item name="badgeErrorColor">#C98A84</item>
+        <item name="badgeWarningColor">#C7A470</item>
+        <item name="reminderTroubleshootingOk">#8ABB96</item>
+        <item name="reminderTroubleshootingWarning">#C7AC72</item>
+    </style>
+
+    <style name="Theme_Dark_MistNight" parent="Base.Theme.Dark.MistNight"/>
+
+</resources>

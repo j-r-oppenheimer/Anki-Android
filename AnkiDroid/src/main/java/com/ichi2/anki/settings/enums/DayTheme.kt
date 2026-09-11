@@ -19,4 +19,7 @@ enum class DayTheme(
     LIGHT(R.string.theme_light_value, R.style.Theme_Light),
     PLAIN(R.string.theme_plain_value, R.style.Theme_Light_Plain),
     EINK(R.string.theme_eink_scheme_value, R.style.Theme_Light_Eink),
+    SAND(R.string.theme_sand_value, R.style.Theme_Light_Sand),
+    SAGE(R.string.theme_sage_value, R.style.Theme_Light_Sage),
+    MIST(R.string.theme_mist_value, R.style.Theme_Light_Mist),
 }

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 저장할 위치: AnkiDroid/src/main/res/values-ko/strings_extra.xml -->
+<resources>
+    <string name="nav_statistics" translatable="false">통계</string>
+
+    <string name="card_theme_category" maxLength="41" translatable="false">카드 표시</string>
+    <string name="card_theme_background" maxLength="41" translatable="false">카드 배경에 앱 테마 색 사용</string>
+    <string name="card_theme_background_summary" translatable="false">노트 타입이 정한 배경색과 글자색을 덮어씁니다.</string>
+</resources>

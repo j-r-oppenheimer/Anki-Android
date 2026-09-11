@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  저장할 위치: AnkiDroid/src/main/res/layout/widget_heatmap_preview.xml
+
+  위젯 선택 화면(안드로이드 12 이상)에서 보여주는 미리보기 전용 레이아웃입니다.
+  실제 위젯 동작과는 무관합니다. 루트를 FrameLayout으로 두면
+  lint 의 MergeRootFrame(release 에서 fatal)에 걸리므로 ImageView 를 바로 씁니다.
+-->
+<ImageView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:adjustViewBounds="true"
+    android:contentDescription="@null"
+    android:src="@drawable/heatmap_widget_preview" />

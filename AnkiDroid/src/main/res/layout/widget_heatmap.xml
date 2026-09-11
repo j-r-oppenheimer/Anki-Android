@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  저장할 위치: AnkiDroid/src/main/res/layout/widget_heatmap.xml
+
+  중요: 루트의 android:id="@android:id/background" 는 삼성 블러의 핵심입니다.
+  One UI Home이 이 ID를 가진 뷰를 찾아서 그 배경의 알파값을 읽습니다.
+  알파가 0(완전투명)이거나 255(완전불투명)이면 블러가 꺼집니다.
+  실제 배경색은 코드에서 setBackgroundColor로 덮어씁니다.
+
+  padding 은 HeatmapWidget.kt 의 WIDGET_PADDING_DP 와 같아야 합니다.
+  비트맵이 남는 공간 없이 그려지므로 여백은 이 padding 만큼 사방이 같습니다.
+-->
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#66000000"
+    android:padding="8dp">
+
+    <ImageView
+        android:id="@+id/heatmap_image"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:adjustViewBounds="true"
+        android:contentDescription="@null"
+        android:scaleType="fitCenter" />
+
+</FrameLayout>

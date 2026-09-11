@@ -15,7 +15,6 @@ package com.ichi2.anki
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
-import android.content.res.Configuration
 import android.database.SQLException
 import android.graphics.Color
 import android.graphics.PixelFormat
@@ -281,9 +280,7 @@ open class DeckPicker :
         get() = deckPickerBinding.floatingActionButton
 
     override var fragmented: Boolean
-        get() =
-            resources.configuration.screenLayout and Configuration.SCREENLAYOUT_SIZE_MASK ==
-                Configuration.SCREENLAYOUT_SIZE_XLARGE
+        get() = resources.configuration.smallestScreenWidthDp >= 720
         set(_) = throw UnsupportedOperationException()
 
     // Short animation duration from system

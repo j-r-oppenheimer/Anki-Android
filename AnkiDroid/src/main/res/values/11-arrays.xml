@@ -27,10 +27,16 @@
     <string name="day_theme_light">Light</string>
     <string name="day_theme_plain">Plain</string>
     <string name="day_theme_eink">E-Ink</string>
+    <string name="day_theme_sand">Sand</string>
+    <string name="day_theme_sage">Sage</string>
+    <string name="day_theme_mist">Mist</string>
 
     <!-- night_theme_labels -->
     <string name="night_theme_black">Black</string>
     <string name="night_theme_dark">Dark</string>
+    <string name="night_theme_sand">Sand Night</string>
+    <string name="night_theme_sage">Sage Night</string>
+    <string name="night_theme_mist">Mist Night</string>
 
     <!-- html_size_code_labels -->
     <string name="html_size_code_xx_small">xx-small</string>

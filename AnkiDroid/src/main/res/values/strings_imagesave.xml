@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  저장할 위치: AnkiDroid/src/main/res/values/strings_imagesave.xml
+
+  카드 이미지를 길게 눌렀을 때 뜨는 대화상자와 안내 문구입니다.
+  기본은 영어이고 한국어는 values-ko/ 에 있습니다.
+-->
+<resources>
+    <string name="image_action_title" translatable="false">Image</string>
+    <string name="image_action_save" translatable="false">Save to gallery</string>
+    <string name="image_action_share" translatable="false">Share</string>
+    <string name="image_saved" translatable="false">Saved to gallery</string>
+    <string name="image_save_failed" translatable="false">Could not save the image</string>
+    <string name="image_share_failed" translatable="false">Could not share the image</string>
+    <string name="image_save_needs_android_10" translatable="false">Saving needs Android 10 or newer</string>
+</resources>

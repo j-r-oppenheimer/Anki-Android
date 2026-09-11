@@ -16,6 +16,8 @@
 
 package com.ichi2.anki.reviewer
 
+import com.ichi2.anki.customfont.CustomFont
+
 class ReviewerCustomFonts {
     /**
      * The CSS used to set the theme font.
@@ -25,5 +27,8 @@ class ReviewerCustomFonts {
 
     fun updateCssStyle(cssStyle: StringBuilder) {
         cssStyle.append(customStyle)
+        // 커스텀 폰트를 카드에도 적용하도록 켜 두면 @font-face 를 덧붙입니다.
+        CustomFont.appendCardCss(cssStyle)
+        CustomFont.appendCardThemeCss(cssStyle)
     }
 }

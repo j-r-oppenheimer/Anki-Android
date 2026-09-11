@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  저장할 위치: AnkiDroid/src/main/res/values/attrs_samsung_widget.xml
+
+  삼성 One UI Home이 위젯에 배경화면 블러를 적용할지 판단할 때 읽는 속성입니다.
+  삼성이 공식 문서화한 값은 아니지만 One UI 7.0 이상에서 동작합니다.
+  삼성이 아닌 런처에서는 그냥 무시되므로 넣어도 안전합니다.
+-->
+<resources>
+    <attr name="widgetStyle" format="integer">
+        <flag name="colorful" value="0x1" />
+        <flag name="monotone" value="0x2" />
+    </attr>
+
+    <attr name="widgetSize" format="integer">
+        <flag name="tiny" value="0x1" />
+        <flag name="small" value="0x2" />
+        <flag name="wideSmall" value="0x4" />
+        <flag name="medium" value="0x8" />
+        <flag name="large" value="0x10" />
+        <flag name="extraLarge" value="0x20" />
+        <flag name="extraLargeLong" value="0x40" />
+    </attr>
+</resources>

@@ -160,7 +160,7 @@
             android:focusable="true"
             android:background="?attr/hardButtonRef"
             tools:visibility="visible"
-            android:theme="@style/HardButton">
+            android:theme="@style/ShowAnswerButton">
 
             <com.ichi2.ui.FixedTextView
                 android:layout_width="wrap_content"
