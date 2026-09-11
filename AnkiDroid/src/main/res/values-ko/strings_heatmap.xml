@@ -12,13 +12,10 @@
     <string name="heatmap_ui_count_n" translatable="false">%d개</string>
     <string name="heatmap_ui_empty_opacity" translatable="false">빈 칸 진하기</string>
     <string name="heatmap_ui_hex_label" translatable="false">16진수 색상 코드</string>
-    <string name="heatmap_ui_loading" translatable="false">학습 기록 불러오는 중\u2026</string>
     <string name="heatmap_ui_mode_dark" translatable="false">다크</string>
     <string name="heatmap_ui_mode_light" translatable="false">라이트</string>
-    <string name="heatmap_ui_no_history" translatable="false">아직 복습 기록이 없습니다</string>
     <string name="heatmap_ui_opacity" translatable="false">불투명도</string>
     <string name="heatmap_ui_padding" translatable="false">가장자리 여백</string>
-    <string name="heatmap_ui_peak_n" translatable="false">최고 %d개/일</string>
     <string name="heatmap_ui_peak_opacity" translatable="false">가장 진한 칸</string>
     <string name="heatmap_ui_save" translatable="false">저장</string>
     <string name="heatmap_ui_section_background" translatable="false">배경</string>
@@ -27,9 +24,7 @@
     <string name="heatmap_ui_section_shape" translatable="false">칸 모양</string>
     <string name="heatmap_ui_subtitle" translatable="false">색 하나를 정하면 그날 공부한 양에 따라 진하기가 달라집니다.</string>
     <string name="heatmap_ui_target_base" translatable="false">기준색</string>
-    <string name="heatmap_ui_target_base_hint" translatable="false">가장 많이 한 날의 색</string>
     <string name="heatmap_ui_target_empty" translatable="false">빈 칸</string>
-    <string name="heatmap_ui_target_empty_hint" translatable="false">복습이 없던 날의 색</string>
     <string name="heatmap_ui_title" translatable="false">히트맵 위젯</string>
     <string name="heatmap_widget_description" translatable="false">공부한 양을 날짜별 색으로 보여줍니다</string>
 </resources>

@@ -48,13 +48,10 @@ private val UI_STRINGS =
         "count_n" to R.string.heatmap_ui_count_n,
         "empty_opacity" to R.string.heatmap_ui_empty_opacity,
         "hex_label" to R.string.heatmap_ui_hex_label,
-        "loading" to R.string.heatmap_ui_loading,
         "mode_dark" to R.string.heatmap_ui_mode_dark,
         "mode_light" to R.string.heatmap_ui_mode_light,
-        "no_history" to R.string.heatmap_ui_no_history,
         "opacity" to R.string.heatmap_ui_opacity,
         "padding" to R.string.heatmap_ui_padding,
-        "peak_n" to R.string.heatmap_ui_peak_n,
         "peak_opacity" to R.string.heatmap_ui_peak_opacity,
         "save" to R.string.heatmap_ui_save,
         "section_background" to R.string.heatmap_ui_section_background,
@@ -63,9 +60,7 @@ private val UI_STRINGS =
         "section_shape" to R.string.heatmap_ui_section_shape,
         "subtitle" to R.string.heatmap_ui_subtitle,
         "target_base" to R.string.heatmap_ui_target_base,
-        "target_base_hint" to R.string.heatmap_ui_target_base_hint,
         "target_empty" to R.string.heatmap_ui_target_empty,
-        "target_empty_hint" to R.string.heatmap_ui_target_empty_hint,
         "title" to R.string.heatmap_ui_title,
     )
 

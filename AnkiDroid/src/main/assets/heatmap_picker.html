@@ -197,12 +197,30 @@
     font-variant-numeric: tabular-nums;
   }
 
+  /* 기본 스타일에 맡기면 채워지지 않은 구간이 흰색으로 남아 다크 테마에서 눈에 띕니다.
+     트랙과 손잡이를 테마 색으로 직접 지정합니다. */
   input[type=range] {
+    -webkit-appearance: none;
+    appearance: none;
     flex: 1;
     min-width: 0;
     height: 28px;
-    accent-color: var(--accent);
     background: transparent;
+  }
+  input[type=range]::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--line);
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    margin-top: -7px;
+    border: none;
+    border-radius: 50%;
+    background: var(--accent);
   }
 
   /* 저장 버튼은 화면 아래에 붙여 둡니다. 스크롤해서 찾지 않아도 되도록. */
@@ -262,7 +280,7 @@
 <div class="pane-controls">
 
 <section>
-  <div class="label"><h2 data-i18n="section_color"></h2><span class="hint" id="targetHint"></span></div>
+  <div class="label"><h2 data-i18n="section_color"></h2></div>
   <div class="card">
     <div class="targets" id="targets"></div>
     <canvas id="sv"></canvas>
@@ -275,7 +293,7 @@
 </section>
 
 <section>
-  <div class="label"><h2 data-i18n="section_curve"></h2><span class="hint" id="peakHint"></span></div>
+  <div class="label"><h2 data-i18n="section_curve"></h2></div>
   <div class="card">
     <canvas id="curve"></canvas>
   </div>
@@ -356,8 +374,8 @@ var DEFAULTS = {
 /* 배경은 색이 아니라 밝기 모드와 투명도로만 정하므로 여기 없습니다.
    빈 칸은 기본적으로 밝기 모드가 정해주고, 직접 지정을 켤 때만 고를 수 있습니다. */
 var TARGETS = [
-  { key: "base", label: "target_base", hint: "target_base_hint" },
-  { key: "emptyColor", label: "target_empty", hint: "target_empty_hint" }
+  { key: "base", label: "target_base" },
+  { key: "emptyColor", label: "target_empty" }
 ];
 
 var INTENSITY_FLOOR = 0.18;
@@ -583,8 +601,10 @@ function drawPreview() {
   var canvas = el("preview");
   var width = boxWidth(canvas);
   if (width <= 0) { return; }
-  var pitch = width / PREVIEW_COLUMNS;
-  var view = setupCanvas(canvas, width, Math.round(pitch * ROWS));
+  /* 여백도 함께 보여줍니다. 위젯 폭을 대략 260dp 로 잡고 그 비율로 환산합니다. */
+  var pad = S.padding * (width / 260);
+  var pitch = (width - pad * 2) / PREVIEW_COLUMNS;
+  var view = setupCanvas(canvas, width, Math.round(pitch * ROWS + pad * 2));
   var ctx = view.ctx;
 
   ctx.fillStyle = rgba(S.dark ? "#000000" : "#FFFFFF", S.bgAlpha / 255);
@@ -600,7 +620,7 @@ function drawPreview() {
     var column = Math.floor(i / ROWS);
     if (column >= PREVIEW_COLUMNS) { continue; }
     ctx.fillStyle = colorForCount(counts[i]);
-    rrPath(ctx, column * pitch + gap / 2, (i % ROWS) * pitch + gap / 2, cell, cell, radius);
+    rrPath(ctx, pad + column * pitch + gap / 2, pad + (i % ROWS) * pitch + gap / 2, cell, cell, radius);
     ctx.fill();
   }
 }
@@ -812,20 +832,6 @@ function redraw() {
   el("modeLight").setAttribute("aria-pressed", S.dark ? "false" : "true");
 
 
-  if (STATS.ready) {
-    el("peakHint").textContent = STATS.peak > 0
-      ? fmt("peak_n", STATS.peak)
-      : t("no_history");
-  } else {
-    el("peakHint").textContent = t("loading");
-  }
-
-  var chosen = null;
-  TARGETS.forEach(function (target) {
-    if (target.key === active) { chosen = target; }
-  });
-  el("targetHint").textContent = chosen ? t(chosen.hint) : "";
-
   var tabs = el("targets").children;
   for (var i = 0; i < tabs.length; i++) {
     var key = tabs[i].dataset.key;
@@ -873,13 +879,10 @@ var STRINGS = {
   count_n: "%d",
   empty_opacity: "Empty days",
   hex_label: "Hex colour code",
-  loading: "Loading study history\u2026",
   mode_dark: "Dark",
   mode_light: "Light",
-  no_history: "No review history yet",
   opacity: "Opacity",
   padding: "Padding",
-  peak_n: "Peak %d/day",
   peak_opacity: "Busiest day",
   save: "Save",
   section_background: "Background",
@@ -888,9 +891,7 @@ var STRINGS = {
   section_shape: "Cell shape",
   subtitle: "Pick one colour. Days you studied more show up darker.",
   target_base: "Base",
-  target_base_hint: "Colour of your busiest day",
   target_empty: "Empty day",
-  target_empty_hint: "Colour of a day with no reviews",
   title: "Heatmap widget"
 };
 

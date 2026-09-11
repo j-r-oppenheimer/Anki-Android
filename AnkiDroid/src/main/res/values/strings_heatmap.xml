@@ -16,13 +16,10 @@
     <string name="heatmap_ui_count_n" translatable="false">%d</string>
     <string name="heatmap_ui_empty_opacity" translatable="false">Empty days</string>
     <string name="heatmap_ui_hex_label" translatable="false">Hex colour code</string>
-    <string name="heatmap_ui_loading" translatable="false">Loading study history\u2026</string>
     <string name="heatmap_ui_mode_dark" translatable="false">Dark</string>
     <string name="heatmap_ui_mode_light" translatable="false">Light</string>
-    <string name="heatmap_ui_no_history" translatable="false">No review history yet</string>
     <string name="heatmap_ui_opacity" translatable="false">Opacity</string>
     <string name="heatmap_ui_padding" translatable="false">Padding</string>
-    <string name="heatmap_ui_peak_n" translatable="false">Peak %d/day</string>
     <string name="heatmap_ui_peak_opacity" translatable="false">Busiest day</string>
     <string name="heatmap_ui_save" translatable="false">Save</string>
     <string name="heatmap_ui_section_background" translatable="false">Background</string>
@@ -31,9 +28,7 @@
     <string name="heatmap_ui_section_shape" translatable="false">Cell shape</string>
     <string name="heatmap_ui_subtitle" translatable="false">Pick one colour. Days you studied more show up darker.</string>
     <string name="heatmap_ui_target_base" translatable="false">Base</string>
-    <string name="heatmap_ui_target_base_hint" translatable="false">Colour of your busiest day</string>
     <string name="heatmap_ui_target_empty" translatable="false">Empty day</string>
-    <string name="heatmap_ui_target_empty_hint" translatable="false">Colour of a day with no reviews</string>
     <string name="heatmap_ui_title" translatable="false">Heatmap widget</string>
     <string name="heatmap_widget_description" translatable="false">Shows how much you studied, day by day</string>
 </resources>
