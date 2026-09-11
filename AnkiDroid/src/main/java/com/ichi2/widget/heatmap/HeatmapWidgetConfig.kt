@@ -31,6 +31,7 @@ import androidx.core.view.updatePadding
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.appbar.MaterialToolbar
 import com.ichi2.anki.R
+import com.ichi2.themes.Themes
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import timber.log.Timber
@@ -78,6 +79,11 @@ class HeatmapWidgetConfig : AppCompatActivity() {
     private lateinit var webView: WebView
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // AnkiActivity 가 하는 것과 같은 순서입니다. 사용자가 고른 테마는 런타임에
+        // 적용되므로, super.onCreate 보다 먼저 불러야 앱바와 배경까지 반영됩니다.
+        // 이게 없으면 매니페스트의 기본 테마가 그대로 쓰여서, 설정 화면만
+        // 앱과 다른 색으로 뜨고 WebView 에 넘기는 색도 전부 어긋납니다.
+        Themes.setTheme(this, savedInstanceState)
         super.onCreate(savedInstanceState)
 
         // 사용자가 뒤로 가면 위젯 배치가 취소되도록 기본값을 먼저 설정합니다.

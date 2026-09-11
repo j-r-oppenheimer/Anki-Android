@@ -691,9 +691,15 @@ function recomputeAxisTop() {
     axisTop = 100;
     return;
   }
-  var wanted = Math.max(STATS.auto * 2, S.maxCount * 1.2, 20);
+  // 축은 학습 기록만 보고 정합니다. 최대 개수를 끌어 바꿔도 눈금이 따라
+  // 움직이면 기준이 흔들려서, 여기에는 S.maxCount 를 넣지 않습니다.
+  var wanted = Math.max(STATS.auto * 2, 20);
   var step = wanted > 300 ? 50 : (wanted > 100 ? 20 : 10);
   axisTop = Math.ceil(wanted / step) * step;
+  // 예전에 축 밖의 값을 저장해 둔 경우에만 화면을 열 때 한 번 넓힙니다.
+  if (S.maxCount > axisTop) {
+    axisTop = Math.ceil((S.maxCount * 1.05) / step) * step;
+  }
 }
 
 function countStep() {
@@ -704,22 +710,31 @@ function drawCurve() {
   var canvas = el("curve");
   var width = boxWidth(canvas);
   if (width <= 0) { return; }
-  var view = setupCanvas(canvas, width, 250);
+  var view = setupCanvas(canvas, width, 320);
   var ctx = view.ctx;
   var p = plotRect(view);
   var max = effectiveMax();
 
-  /* 배경: 가로축이 곧 색 견본입니다 */
+  /* 배경: 세로 위치가 곧 하루 복습 수이고, 그 자리의 색이 실제로 칠해질 색입니다.
+     위로 갈수록 많이 한 날이라 진해집니다. 위젯에서 보이는 그대로가 되도록
+     위젯 배경까지 같은 순서로 깔아 둡니다. */
   ctx.save();
   rrPath(ctx, p.x, p.y, p.w, p.h, 12);
   ctx.clip();
-  var slices = 72;
+
+  ctx.fillStyle = UI.surface;
+  ctx.fillRect(p.x, p.y, p.w, p.h);
+  ctx.fillStyle = rgba(S.dark ? "#000000" : "#FFFFFF", S.bgAlpha / 255);
+  ctx.fillRect(p.x, p.y, p.w, p.h);
+
+  var slices = 96;
   for (var s = 0; s < slices; s++) {
-    ctx.fillStyle = colorForIntensity((s + 0.5) / slices);
-    ctx.fillRect(p.x + (p.w * s) / slices, p.y, p.w / slices + 0.6, p.h);
+    ctx.fillStyle = colorForCount(((slices - s - 0.5) / slices) * axisTop);
+    ctx.fillRect(p.x, p.y + (p.h * s) / slices, p.w, p.h / slices + 0.6);
   }
-  /* 세로축 안내선 */
-  ctx.strokeStyle = "rgba(0,0,0,0.22)";
+
+  /* 가로 안내선 */
+  ctx.strokeStyle = UI.line;
   ctx.lineWidth = 1;
   for (var g = 1; g < 4; g++) {
     var gy = p.y + (p.h * g) / 4;
@@ -740,7 +755,7 @@ function drawCurve() {
       hist[clamp(Math.floor((n / axisTop) * buckets), 0, buckets - 1)]++;
     }
     var tallest = Math.max.apply(null, hist) || 1;
-    ctx.fillStyle = "rgba(255,255,255,0.16)";
+    ctx.fillStyle = UI.dark ? "rgba(255,255,255,0.20)" : "rgba(0,0,0,0.16)";
     var bh = p.h / buckets;
     for (var k = 0; k < buckets; k++) {
       if (!hist[k]) { continue; }
@@ -752,7 +767,7 @@ function drawCurve() {
   /* 곡선: 세로축의 개수마다 가로축의 어느 색이 되는지 */
   var endY = p.y + p.h - (Math.min(max, axisTop) / axisTop) * p.h;
 
-  ctx.strokeStyle = "rgba(0,0,0,0.35)";
+  ctx.strokeStyle = UI.dark ? "rgba(0,0,0,0.45)" : "rgba(255,255,255,0.65)";
   ctx.lineWidth = 5;
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
@@ -783,7 +798,7 @@ function drawCurve() {
 
   /* 축 눈금 */
   ctx.font = "11px system-ui, sans-serif";
-  ctx.fillStyle = "#8b909a";
+  ctx.fillStyle = UI.muted;
   ctx.textAlign = "right";
   ctx.textBaseline = "middle";
   if (STATS.ready) {
@@ -962,8 +977,15 @@ function applyStrings() {
 /* ------------------------------------------------------------------ 테마 */
 
 /* 현재 AnkiDroid 테마의 색을 그대로 씁니다. 밝은 테마를 쓰면 이 화면도 밝습니다. */
+/* 캔버스는 CSS 를 못 쓰므로 테마 색을 여기에 받아 둡니다. */
+var UI = { dark: true, muted: "#8b909a", line: "rgba(127,127,127,0.28)", surface: "#21242a" };
+
 function applyTheme(theme) {
   if (!theme) { return; }
+  UI.dark = !!theme.dark;
+  if (theme.muted) { UI.muted = theme.muted; }
+  if (theme.surface2) { UI.surface = theme.surface2; }
+  UI.line = theme.dark ? "rgba(255,255,255,0.16)" : "rgba(0,0,0,0.14)";
   var root = document.documentElement.style;
   var map = {
     bg: "--bg", surface: "--surface", surface2: "--surface-2", line: "--line",
