@@ -25,11 +25,7 @@
     <string name="heatmap_ui_cancel" translatable="false">Cancel</string>
     <string name="heatmap_ui_save" translatable="false">Save</string>
     <string name="heatmap_ui_target_base" translatable="false">Base</string>
-    <string name="heatmap_ui_target_empty" translatable="false">Empty day</string>
-    <string name="heatmap_ui_target_background" translatable="false">Background</string>
     <string name="heatmap_ui_target_base_hint" translatable="false">Colour of your busiest day</string>
-    <string name="heatmap_ui_target_empty_hint" translatable="false">Colour of a day with no reviews</string>
-    <string name="heatmap_ui_target_background_hint" translatable="false">Widget background tint</string>
     <string name="heatmap_ui_axis_light" translatable="false">Light</string>
     <string name="heatmap_ui_axis_dark" translatable="false">Dark</string>
     <string name="heatmap_ui_axis_color" translatable="false">Colour</string>
@@ -41,4 +37,9 @@
     <string name="heatmap_ui_curve_slow" translatable="false">Only your <b>heaviest</b> days stand out.</string>
     <string name="heatmap_ui_curve_linear" translatable="false">Darkens <b>in proportion</b> to reviews.</string>
     <string name="heatmap_widget_description" translatable="false">Shows how much you studied, day by day</string>
+    <string name="heatmap_ui_section_background" translatable="false">Background</string>
+    <string name="heatmap_ui_mode_dark" translatable="false">Dark</string>
+    <string name="heatmap_ui_mode_light" translatable="false">Light</string>
+    <string name="heatmap_ui_empty_opacity" translatable="false">Empty days</string>
+    <string name="heatmap_ui_background_note" translatable="false">A partly transparent background lets the wallpaper show through, and One UI blurs it.</string>
 </resources>

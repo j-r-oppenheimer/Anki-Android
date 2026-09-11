@@ -19,7 +19,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <style>
-  /* 값은 전부 Kotlin이 현재 AnkiDroid 테마에서 읽어 넣습니다.
+  /* 색은 전부 Kotlin 이 현재 AnkiDroid 테마에서 읽어 넣습니다.
      아래는 테마를 못 읽었을 때만 쓰이는 대체값입니다. */
   :root {
     --bg: #0e0f12;
@@ -40,150 +40,162 @@
   html, body { margin: 0; background: var(--bg); }
 
   body {
-    font-family: system-ui, -apple-system, "Roboto", sans-serif;
+    padding: 0 16px 112px;
+    font-family: system-ui, sans-serif;
     color: var(--text);
-    padding: 0 16px calc(96px + env(safe-area-inset-bottom));
-    -webkit-user-select: none;
-    user-select: none;
+    font-size: 15px;
+    line-height: 1.45;
   }
 
-  header { padding: 22px 2px 16px; }
-  header h1 { margin: 0; font-size: 21px; font-weight: 650; letter-spacing: -0.01em; }
-  header p { margin: 5px 0 0; font-size: 13px; color: var(--muted); }
+  /* 설정 화면 위에 이미 앱바가 있으므로 제목은 한 줄 설명만 둡니다. */
+  header { padding: 14px 4px 4px; }
+  header h1 { display: none; }
+  header p { margin: 0; font-size: 13.5px; color: var(--muted); }
 
-  /* ---------------------------------------------------------- 미리보기 */
+  /* 넓은 화면에서는 왼쪽에 미리보기를 고정하고 오른쪽에서 조작합니다. */
+  .layout { display: block; }
+
   .stage {
-    border-radius: 20px;
+    border-radius: 22px;
     padding: 16px;
+    margin-top: 14px;
     background: radial-gradient(120% 100% at 15% 0%, var(--stage-1) 0%, var(--stage-2) 45%, var(--stage-3) 100%);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
   }
   #preview { display: block; width: 100%; }
 
-  /* ---------------------------------------------------------- 섹션 */
-  section { margin-top: 26px; }
+  /* AnkiDroid 설정 화면처럼 구역 제목은 강조색, 본문은 카드에 담습니다. */
+  section { margin-top: 24px; }
   .label {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
-    margin: 0 2px 10px;
+    gap: 12px;
+    padding: 0 4px 8px;
   }
   .label h2 {
     margin: 0;
     font-size: 13px;
     font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--muted);
+    letter-spacing: 0.02em;
+    color: var(--accent);
   }
   .label .hint { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 
-  .card { background: var(--surface); border-radius: 18px; padding: 16px; }
+  .card {
+    background: var(--surface);
+    border-radius: 16px;
+    padding: 16px;
+  }
 
-  /* ---------------------------------------------------------- 색 고르기 */
   .targets { display: flex; gap: 8px; margin-bottom: 14px; }
+  .targets[hidden] { display: none; }
   .targets button {
     flex: 1;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 7px;
-    min-width: 0;
     height: 40px;
-    padding: 0 6px;
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    background: transparent;
+    padding: 0 10px;
+    font: inherit;
+    font-size: 13.5px;
     color: var(--muted);
-    font-family: inherit;
-    font-size: 12px;
-    white-space: nowrap;
-    overflow: hidden;
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 20px;
   }
   .targets button[aria-pressed="true"] {
-    border-color: var(--text);
     color: var(--text);
+    border-color: transparent;
     background: var(--surface-2);
   }
-  .targets .dot {
-    width: 15px;
-    height: 15px;
-    flex: none;
-    border-radius: 999px;
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
-  }
+  .targets .dot { width: 13px; height: 13px; border-radius: 50%; }
 
   #sv, #hue { display: block; width: 100%; touch-action: none; }
   #hue { margin-top: 12px; }
 
   .hexrow { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
   .hexrow input {
-    width: 118px;
-    flex: none;
-    height: 40px;
+    width: 108px;
+    height: 42px;
     padding: 0 12px;
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    background: var(--surface-2);
-    color: var(--text);
+    font: inherit;
+    font-size: 14px;
     font-family: ui-monospace, monospace;
-    font-size: 15px;
-    letter-spacing: 0.06em;
-    -webkit-user-select: text;
-    user-select: text;
+    color: var(--text);
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 10px;
   }
   .hexrow span { font-size: 12px; color: var(--muted); }
 
   .rowcap {
     display: block;
     margin: 16px 2px 8px;
-    font-size: 11px;
-    letter-spacing: 0.03em;
+    font-size: 12px;
     color: var(--muted);
   }
 
-  .presets {
-    display: grid;
-    grid-template-columns: repeat(9, 1fr);
-    gap: 8px;
-  }
+  .presets { display: flex; flex-wrap: wrap; gap: 9px; }
   .presets button {
-    aspect-ratio: 1;
-    min-height: 30px;
-    border: none;
+    width: 34px;
+    height: 34px;
     padding: 0;
-    border-radius: 999px;
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+    border: none;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 1px rgba(127, 127, 127, 0.28);
   }
 
-  /* ---------------------------------------------------------- 곡선 */
   #curve { display: block; width: 100%; touch-action: none; }
   .curve-note { margin: 14px 2px 0; font-size: 13px; line-height: 1.5; color: var(--muted); }
   .curve-note b { color: var(--text); font-weight: 600; }
 
   .chips { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
   .chips button {
-    border: 1px solid var(--line);
-    background: transparent;
-    color: var(--text);
-    font-family: inherit;
+    height: 36px;
+    padding: 0 16px;
+    font: inherit;
     font-size: 13px;
-    padding: 8px 14px;
-    border-radius: 999px;
+    color: var(--text);
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 18px;
   }
-  .chips button:disabled { color: #5b606a; border-color: #23262c; }
+  .chips button:disabled { color: var(--muted); opacity: 0.5; }
 
-  /* ---------------------------------------------------------- 슬라이더 */
-  .row { display: flex; align-items: center; gap: 14px; padding: 6px 0; }
-  .row label { width: 78px; flex: none; font-size: 14px; }
+  /* 다크 / 라이트 토글 */
+  .segmented {
+    display: flex;
+    margin-bottom: 6px;
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    overflow: hidden;
+  }
+  .segmented button {
+    flex: 1;
+    height: 40px;
+    font: inherit;
+    font-size: 13.5px;
+    color: var(--muted);
+    background: transparent;
+    border: none;
+  }
+  .segmented button[aria-pressed="true"] {
+    color: var(--text);
+    background: var(--surface-2);
+  }
+
+  .row { display: flex; align-items: center; gap: 14px; padding: 7px 0; }
+  .row label { width: 88px; flex: none; font-size: 14px; }
   .row .val {
-    width: 60px;
+    width: 46px;
     flex: none;
     text-align: right;
     font-size: 13px;
-    font-variant-numeric: tabular-nums;
     color: var(--muted);
+    font-variant-numeric: tabular-nums;
   }
+
   input[type=range] {
     flex: 1;
     min-width: 0;
@@ -192,7 +204,7 @@
     background: transparent;
   }
 
-  /* ---------------------------------------------------------- 하단 */
+  /* 저장 버튼은 화면 아래에 붙여 둡니다. 스크롤해서 찾지 않아도 되도록. */
   footer {
     position: fixed;
     left: 0;
@@ -201,18 +213,35 @@
     display: flex;
     gap: 10px;
     padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
-    background: linear-gradient(to top, var(--bg) 62%, rgba(14, 15, 18, 0));
+    background: var(--bg);
+    border-top: 1px solid var(--line);
   }
   footer button {
-    height: 50px;
-    border: none;
-    border-radius: 14px;
+    height: 48px;
+    font: inherit;
     font-size: 15px;
     font-weight: 600;
-    font-family: inherit;
+    border: none;
+    border-radius: 24px;
   }
-  #cancel { flex: none; width: 96px; background: var(--surface-2); color: var(--text); }
+  #cancel { flex: none; width: 104px; background: var(--surface-2); color: var(--text); }
   #save { flex: 1; background: var(--accent); color: var(--on-accent); }
+
+  /* 태블릿 가로 화면: 왼쪽 미리보기 고정, 오른쪽 설정 */
+  @media (min-width: 680px) {
+    body { padding: 0 24px 96px; }
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(280px, 380px) minmax(0, 1fr);
+      gap: 28px;
+      align-items: start;
+    }
+    .pane-preview { position: sticky; top: 16px; }
+    .pane-controls section:first-child { margin-top: 14px; }
+    footer { padding-left: 24px; padding-right: 24px; }
+    #save { flex: none; width: 220px; margin-left: auto; }
+    #cancel { order: -1; }
+  }
 </style>
 </head>
 <body>
@@ -222,9 +251,14 @@
   <p data-i18n="subtitle"></p>
 </header>
 
-<div class="stage">
-  <canvas id="preview"></canvas>
+<div class="layout">
+<div class="pane-preview">
+  <div class="stage">
+    <canvas id="preview"></canvas>
+  </div>
 </div>
+
+<div class="pane-controls">
 
 <section>
   <div class="label"><h2 data-i18n="section_color"></h2><span class="hint" id="targetHint"></span></div>
@@ -272,12 +306,31 @@
       <span class="val" id="gapOut"></span>
     </div>
     <div class="row">
-      <label data-i18n="opacity"></label>
-      <input type="range" id="alpha" min="1" max="254" step="1">
-      <span class="val" id="alphaOut"></span>
+      <label data-i18n="empty_opacity"></label>
+      <input type="range" id="emptyAlpha" min="0" max="160" step="1">
+      <span class="val" id="emptyAlphaOut"></span>
     </div>
   </div>
 </section>
+
+<section>
+  <div class="label"><h2 data-i18n="section_background"></h2></div>
+  <div class="card">
+    <div class="segmented" id="modeToggle">
+      <button type="button" id="modeDark" data-i18n="mode_dark"></button>
+      <button type="button" id="modeLight" data-i18n="mode_light"></button>
+    </div>
+    <div class="row">
+      <label data-i18n="opacity"></label>
+      <input type="range" id="bgAlpha" min="1" max="254" step="1">
+      <span class="val" id="bgAlphaOut"></span>
+    </div>
+    <p class="curve-note" data-i18n="background_note"></p>
+  </div>
+</section>
+
+</div>
+</div>
 
 <footer>
   <button id="cancel" data-i18n="cancel"></button>
@@ -289,9 +342,9 @@
 
 var DEFAULTS = {
   base: "#2F81F7",
-  empty: "#2A2C31",
-  background: "#000000",
-  alpha: 102,
+  dark: true,
+  bgAlpha: 102,
+  emptyAlpha: 38,
   corner: 25,
   gap: 18,
   curveX: 50,
@@ -307,10 +360,10 @@ var PRESETS = [
 /** 배경화면에서 뽑아낸 시스템 색. 안드로이드 12 이상에서만 채워집니다. */
 var THEME_COLORS = [];
 
+/* 고르는 색은 기준색 하나뿐입니다. 빈 칸과 배경은 색이 아니라
+   밝기 모드와 투명도로 정하므로 여기 들어가지 않습니다. */
 var TARGETS = [
-  { key: "base", label: "target_base", hint: "target_base_hint" },
-  { key: "empty", label: "target_empty", hint: "target_empty_hint" },
-  { key: "background", label: "target_background", hint: "target_background_hint" }
+  { key: "base", label: "target_base", hint: "target_base_hint" }
 ];
 
 var INTENSITY_FLOOR = 0.18;
@@ -452,12 +505,25 @@ function countRatioAt(intensity) {
   return Math.pow(clamp(intensity, 0, 1), 1 / gamma());
 }
 
-function colorForIntensity(intensity) {
-  return mixOklab(S.empty, S.base, INTENSITY_FLOOR + (1 - INTENSITY_FLOOR) * intensity);
+/* 격자와 배경이 쓰는 무채색. 위젯 코드의 neutral 과 같은 규칙입니다. */
+function neutralHex() { return S.dark ? "#FFFFFF" : "#000000"; }
+
+function rgba(hex, alpha) {
+  var c = parseHex(hex);
+  return "rgba(" + c[0] + "," + c[1] + "," + c[2] + "," + alpha.toFixed(3) + ")";
 }
 
+/* 색은 무채색에서 기준색으로, 투명도는 빈 칸에서 불투명으로 함께 옮겨갑니다. */
+function colorForIntensity(intensity) {
+  var mix = INTENSITY_FLOOR + (1 - INTENSITY_FLOOR) * intensity;
+  var alpha = (S.emptyAlpha + (255 - S.emptyAlpha) * mix) / 255;
+  return rgba(mixOklab(neutralHex(), S.base, mix), alpha);
+}
+
+function emptyStyle() { return rgba(neutralHex(), S.emptyAlpha / 255); }
+
 function colorForCount(count) {
-  if (count <= 0) { return S.empty; }
+  if (count <= 0) { return emptyStyle(); }
   return colorForIntensity(intensityAt(count / Math.max(1, effectiveMax())));
 }
 
@@ -581,9 +647,7 @@ function drawPreview() {
   var view = setupCanvas(canvas, width, Math.round(pitch * ROWS));
   var ctx = view.ctx;
 
-  var bg = parseHex(S.background);
-  ctx.fillStyle = "rgba(" + bg[0] + "," + bg[1] + "," + bg[2] + "," +
-    (S.alpha / 255).toFixed(3) + ")";
+  ctx.fillStyle = rgba(S.dark ? "#000000" : "#FFFFFF", S.bgAlpha / 255);
   rrPath(ctx, 0, 0, view.w, view.h, 14);
   ctx.fill();
 
@@ -788,7 +852,10 @@ function redraw() {
   document.documentElement.style.setProperty("--accent", S.base);
   el("cornerOut").textContent = S.corner + "%";
   el("gapOut").textContent = S.gap + "%";
-  el("alphaOut").textContent = Math.round((S.alpha / 255) * 100) + "%";
+  el("bgAlphaOut").textContent = Math.round((S.bgAlpha / 255) * 100) + "%";
+  el("emptyAlphaOut").textContent = Math.round((S.emptyAlpha / 255) * 100) + "%";
+  el("modeDark").setAttribute("aria-pressed", S.dark ? "true" : "false");
+  el("modeLight").setAttribute("aria-pressed", S.dark ? "false" : "true");
 
   el("curveNote").innerHTML = describeCurve();
   el("straight").disabled = S.curveX === S.curveY;
@@ -828,7 +895,8 @@ function redraw() {
 function syncInputs() {
   el("corner").value = S.corner;
   el("gap").value = S.gap;
-  el("alpha").value = S.alpha;
+  el("bgAlpha").value = S.bgAlpha;
+  el("emptyAlpha").value = S.emptyAlpha;
 }
 
 function selectTarget(key) {
@@ -912,6 +980,7 @@ function applyTheme(theme) {
 
 (function buildTargets() {
   var host = el("targets");
+  if (TARGETS.length < 2) { el("targets").hidden = true; }
   TARGETS.forEach(function (target) {
     var button = document.createElement("button");
     button.dataset.key = target.key;
@@ -962,7 +1031,17 @@ function bindRange(id, field) {
 
 bindRange("corner", "corner");
 bindRange("gap", "gap");
-bindRange("alpha", "alpha");
+bindRange("bgAlpha", "bgAlpha");
+bindRange("emptyAlpha", "emptyAlpha");
+
+/* 밝기 모드. 색을 고르는 게 아니라 위젯이 밝은 배경 위인지 어두운 배경 위인지만 정합니다. */
+function setMode(dark) {
+  S.dark = dark;
+  syncInputs();
+  redraw();
+}
+el("modeDark").addEventListener("click", function () { setMode(true); });
+el("modeLight").addEventListener("click", function () { setMode(false); });
 
 el("straight").addEventListener("click", function () {
   S.curveX = 50;
@@ -1050,9 +1129,9 @@ el("save").addEventListener("click", function () {
   if (!window.AnkiHeatmap) { return; }
   AnkiHeatmap.save(JSON.stringify({
     base: S.base,
-    empty: S.empty,
-    background: S.background,
-    alpha: S.alpha,
+    dark: S.dark,
+    bgAlpha: S.bgAlpha,
+    emptyAlpha: S.emptyAlpha,
     corner: S.corner,
     gap: S.gap,
     curveX: S.curveX,

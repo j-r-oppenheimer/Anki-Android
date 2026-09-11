@@ -55,11 +55,7 @@ private val UI_STRINGS =
         "cancel" to R.string.heatmap_ui_cancel,
         "save" to R.string.heatmap_ui_save,
         "target_base" to R.string.heatmap_ui_target_base,
-        "target_empty" to R.string.heatmap_ui_target_empty,
-        "target_background" to R.string.heatmap_ui_target_background,
         "target_base_hint" to R.string.heatmap_ui_target_base_hint,
-        "target_empty_hint" to R.string.heatmap_ui_target_empty_hint,
-        "target_background_hint" to R.string.heatmap_ui_target_background_hint,
         "axis_light" to R.string.heatmap_ui_axis_light,
         "axis_dark" to R.string.heatmap_ui_axis_dark,
         "axis_color" to R.string.heatmap_ui_axis_color,
@@ -70,6 +66,11 @@ private val UI_STRINGS =
         "curve_fast" to R.string.heatmap_ui_curve_fast,
         "curve_slow" to R.string.heatmap_ui_curve_slow,
         "curve_linear" to R.string.heatmap_ui_curve_linear,
+        "section_background" to R.string.heatmap_ui_section_background,
+        "mode_dark" to R.string.heatmap_ui_mode_dark,
+        "mode_light" to R.string.heatmap_ui_mode_light,
+        "empty_opacity" to R.string.heatmap_ui_empty_opacity,
+        "background_note" to R.string.heatmap_ui_background_note,
     )
 
 class HeatmapWidgetConfig : AppCompatActivity() {

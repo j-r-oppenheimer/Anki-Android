@@ -61,15 +61,36 @@ private const val INTENSITY_FLOOR = 0.18
 /** 설정 화면에서 고른 값. 색은 전부 ARGB Int. */
 class HeatmapSettings(
     val base: Int,
-    val empty: Int,
-    val background: Int,
+    /** true 면 어두운 위에 밝은 격자, false 면 그 반대. */
+    val darkMode: Boolean,
+    /** 위젯 배경 틴트의 진하기. 1~254 여야 삼성 블러가 켜집니다. */
+    val backgroundAlpha: Int,
+    /** 복습이 없던 칸의 진하기. 0 이면 아예 투명합니다. */
+    val emptyAlpha: Int,
     val cornerRatio: Float,
     val gapRatio: Float,
     val curveX: Int,
     val curveY: Int,
     /** 0 이면 학습 기록에서 자동으로 정합니다. */
     val maxCount: Int,
-)
+) {
+    /** 격자와 배경이 쓰는 무채색. 밝은 배경에서는 검정, 어두운 배경에서는 흰색. */
+    val neutral: Int get() = if (darkMode) Color.WHITE else Color.BLACK
+
+    /** 위젯 루트에 칠할 배경. 색은 고르지 않고 모드와 투명도로만 정합니다. */
+    val background: Int
+        get() =
+            Color.argb(
+                backgroundAlpha,
+                Color.red(neutral).inv() and 0xFF,
+                Color.green(neutral).inv() and 0xFF,
+                Color.blue(neutral).inv() and 0xFF,
+            )
+
+    /** 복습이 없던 칸. 반투명이라 뒤의 배경화면이 비칩니다. */
+    val empty: Int
+        get() = Color.argb(emptyAlpha, Color.red(neutral), Color.green(neutral), Color.blue(neutral))
+}
 
 /** 위젯별로 SharedPreferences에 저장합니다. */
 object HeatmapPrefs {
@@ -77,8 +98,8 @@ object HeatmapPrefs {
 
     /** 안드로이드 11 이하, 또는 시스템 색을 못 읽을 때 쓰는 값. */
     private const val FALLBACK_BASE = 0xFF2F81F7.toInt()
-    private const val FALLBACK_EMPTY = 0xFF2A2C31.toInt()
-    private const val DEFAULT_BACKGROUND = 0x66000000
+    private const val DEFAULT_BACKGROUND_ALPHA = 102
+    private const val DEFAULT_EMPTY_ALPHA = 38
     private const val DEFAULT_CORNER = 25
     private const val DEFAULT_GAP = 18
     private const val DEFAULT_CURVE = 50
@@ -98,14 +119,6 @@ object HeatmapPrefs {
             context.getColor(android.R.color.system_accent1_400)
         } else {
             FALLBACK_BASE
-        }
-
-    /** 복습이 없던 날의 기본색. 시스템 중성색이 있으면 그쪽이 더 잘 어울립니다. */
-    private fun defaultEmpty(context: Context): Int =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            context.getColor(android.R.color.system_neutral1_800)
-        } else {
-            FALLBACK_EMPTY
         }
 
     /**
@@ -132,8 +145,10 @@ object HeatmapPrefs {
         val legacyBase = prefs.getInt(key("level4", appWidgetId), defaultBase(context))
         return HeatmapSettings(
             base = prefs.getInt(key("base", appWidgetId), legacyBase),
-            empty = prefs.getInt(key("empty", appWidgetId), defaultEmpty(context)),
-            background = prefs.getInt(key("background", appWidgetId), DEFAULT_BACKGROUND),
+            darkMode = prefs.getBoolean(key("dark", appWidgetId), true),
+            backgroundAlpha =
+                prefs.getInt(key("bgAlpha", appWidgetId), DEFAULT_BACKGROUND_ALPHA).coerceIn(1, 254),
+            emptyAlpha = prefs.getInt(key("emptyAlpha", appWidgetId), DEFAULT_EMPTY_ALPHA).coerceIn(0, 255),
             cornerRatio = prefs.getInt(key("corner", appWidgetId), DEFAULT_CORNER) / 100f,
             gapRatio = prefs.getInt(key("gap", appWidgetId), DEFAULT_GAP) / 100f,
             curveX = prefs.getInt(key("curveX", appWidgetId), DEFAULT_CURVE),
@@ -154,9 +169,9 @@ object HeatmapPrefs {
         return JSONObject()
             .put("themeColors", theme)
             .put("base", hex(s.base))
-            .put("empty", hex(s.empty))
-            .put("background", hex(s.background))
-            .put("alpha", Color.alpha(s.background))
+            .put("dark", s.darkMode)
+            .put("bgAlpha", s.backgroundAlpha)
+            .put("emptyAlpha", s.emptyAlpha)
             .put("corner", (s.cornerRatio * 100).roundToInt())
             .put("gap", (s.gapRatio * 100).roundToInt())
             .put("curveX", s.curveX)
@@ -171,17 +186,17 @@ object HeatmapPrefs {
         appWidgetId: Int,
         json: JSONObject,
     ) {
-        val alpha = json.optInt("alpha", 102).coerceIn(1, 254)
-        val bgRgb = Color.parseColor(json.getString("background"))
-
         context
             .getSharedPreferences(FILE, Context.MODE_PRIVATE)
             .edit()
             .putInt(key("base", appWidgetId), Color.parseColor(json.getString("base")))
-            .putInt(key("empty", appWidgetId), Color.parseColor(json.getString("empty")))
+            .putBoolean(key("dark", appWidgetId), json.optBoolean("dark", true))
             .putInt(
-                key("background", appWidgetId),
-                Color.argb(alpha, Color.red(bgRgb), Color.green(bgRgb), Color.blue(bgRgb)),
+                key("bgAlpha", appWidgetId),
+                json.optInt("bgAlpha", DEFAULT_BACKGROUND_ALPHA).coerceIn(1, 254),
+            ).putInt(
+                key("emptyAlpha", appWidgetId),
+                json.optInt("emptyAlpha", DEFAULT_EMPTY_ALPHA).coerceIn(0, 255),
             ).putInt(key("corner", appWidgetId), json.optInt("corner", DEFAULT_CORNER).coerceIn(0, 50))
             .putInt(key("gap", appWidgetId), json.optInt("gap", DEFAULT_GAP).coerceIn(0, 35))
             .putInt(key("curveX", appWidgetId), json.optInt("curveX", DEFAULT_CURVE).coerceIn(4, 96))
@@ -197,8 +212,9 @@ object HeatmapPrefs {
         val editor = context.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit()
         listOf(
             "base",
-            "empty",
-            "background",
+            "dark",
+            "bgAlpha",
+            "emptyAlpha",
             "corner",
             "gap",
             "curveX",
@@ -424,7 +440,12 @@ internal fun colorForCount(
     val ratio = (count.toDouble() / maxCount.coerceAtLeast(1)).coerceIn(0.0, 1.0)
     val intensity = ratio.pow(gammaOf(settings.curveX, settings.curveY))
     val mix = INTENSITY_FLOOR + (1.0 - INTENSITY_FLOOR) * intensity
-    return mixOklab(settings.empty, settings.base, mix)
+
+    // 색은 무채색에서 기준색으로, 투명도는 빈 칸에서 불투명으로 같이 옮겨갑니다.
+    // 그래야 적게 한 날도 배경이 비쳐 보입니다.
+    val rgb = mixOklab(settings.neutral, settings.base, mix)
+    val alpha = (settings.emptyAlpha + (255 - settings.emptyAlpha) * mix).roundToInt().coerceIn(0, 255)
+    return Color.argb(alpha, Color.red(rgb), Color.green(rgb), Color.blue(rgb))
 }
 
 // ------------------------------------------------------------------ OkLab
