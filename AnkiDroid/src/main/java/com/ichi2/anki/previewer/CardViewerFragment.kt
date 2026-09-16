@@ -148,6 +148,8 @@ abstract class CardViewerFragment(
         savedInstanceState: Bundle?,
     ) {
         setupWebView(savedInstanceState)
+        com.ichi2.anki.imagesave.CardImageSaver.attach(requireContext(), webViewLayout)
+        com.ichi2.anki.customfont.CustomFont.applyCardBackgroundTo(webViewLayout)
         setupErrorListeners()
         viewModel.eval.collectIn(lifecycleScope) { eval ->
             webViewLayout.evaluateJavascript(eval)
@@ -243,6 +245,8 @@ abstract class CardViewerFragment(
      */
     override fun onWebViewRecreated(webView: WebView) {
         setupWebView(null)
+        com.ichi2.anki.imagesave.CardImageSaver.attach(requireContext(), webView)
+        com.ichi2.anki.customfont.CustomFont.applyCardBackgroundTo(webViewLayout)
     }
 
     open inner class CardViewerWebViewClient(

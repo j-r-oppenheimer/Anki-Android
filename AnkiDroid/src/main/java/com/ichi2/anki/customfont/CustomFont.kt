@@ -35,6 +35,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.LayoutInflaterCompat
 import com.google.android.material.color.MaterialColors
 import com.ichi2.anki.AnkiDroidApp
+import com.ichi2.anki.R
 import com.ichi2.anki.common.preferences.sharedPrefs
 import com.ichi2.themes.Themes
 import com.ichi2.utils.openInputStreamSafe
@@ -238,6 +239,9 @@ object CustomFont {
     }
 
     fun applyToActivity(activity: Activity) {
+        // 학습 화면의 카드 영역. 다른 화면에는 이 id 가 없어서 그냥 넘어갑니다.
+        applyCardBackgroundTo(activity.findViewById<View>(R.id.flashcard))
+
         if (!appliesToApp(activity)) return
         val typeface = typeface(activity) ?: return
         val root = activity.window?.decorView ?: return
@@ -320,26 +324,80 @@ object CustomFont {
      * 때문에, !important 없이 그냥 얹으면 순서에서 밀려 무시됩니다.
      * color 는 body 에만 걸리므로 노트 안에서 색을 직접 지정한 글자는 그대로 남습니다.
      */
-    fun appendCardThemeCss(css: StringBuilder) {
-        val context = appContext() ?: return
-        if (!context.sharedPrefs().getBoolean(KEY_CARD_BACKGROUND, false)) return
+    private fun cardBackgroundEnabled(context: Context) =
+        context.sharedPrefs().getBoolean(KEY_CARD_BACKGROUND, false)
+
+    /**
+     * 카드에 쓸 배경색과 글자색.
+     *
+     * 앱 컨텍스트의 테마는 매니페스트 기본값이라 사용자가 고른 테마가 아닙니다.
+     * 현재 테마의 스타일을 씌운 컨텍스트에서 읽어야 합니다.
+     */
+    private fun themeCardColors(context: Context): Pair<Int, Int>? =
         try {
-            // 앱 컨텍스트의 테마는 매니페스트 기본값이라 사용자가 고른 테마가 아닙니다.
-            // 현재 테마의 스타일을 씌운 컨텍스트에서 색을 읽어야 합니다.
             val themed = ContextThemeWrapper(context, Themes.currentTheme.styleResId)
             val background =
                 MaterialColors.getColor(themed, android.R.attr.colorBackground, Color.TRANSPARENT)
+            // textColor 는 테마 속성이 아니라 뷰 속성이라 대부분의 테마에서 비어 있습니다.
+            // textColorPrimary 를 읽어야 실제 글자색이 나옵니다.
             val text =
-                MaterialColors.getColor(themed, android.R.attr.textColor, Color.TRANSPARENT)
-            if (background == Color.TRANSPARENT || text == Color.TRANSPARENT) return
-
-            css.append("html,body,.card{background-color:")
-            css.append(hexOf(background))
-            css.append(" !important;color:")
-            css.append(hexOf(text))
-            css.append(" !important;}\n")
+                MaterialColors.getColor(themed, android.R.attr.textColorPrimary, Color.TRANSPARENT)
+            if (background == Color.TRANSPARENT || text == Color.TRANSPARENT) {
+                null
+            } else {
+                background to text
+            }
         } catch (e: Exception) {
-            Timber.w(e, "could not apply the app theme to cards")
+            Timber.w(e, "could not read the app theme colours")
+            null
+        }
+
+    fun appendCardThemeCss(css: StringBuilder) {
+        val context = appContext() ?: return
+        if (!cardBackgroundEnabled(context)) return
+        val colors = themeCardColors(context) ?: return
+        val background = hexOf(colors.first)
+        val text = hexOf(colors.second)
+
+        // Anki 의 리뷰어 스타일시트는 배경을 --canvas 변수로 칠합니다. 변수까지 같이
+        // 바꿔야 카드 본문이 차지하지 않는 부분(태블릿처럼 화면이 카드보다 큰 경우)도
+        // 같은 색이 됩니다. 본문이 짧아도 화면을 채우도록 최소 높이도 줍니다.
+        css.append(":root{--canvas:").append(background).append(" !important;")
+        css.append("--canvas-elevated:").append(background).append(" !important;}\n")
+        css.append("html,body,.card,#qa,#content{background-color:").append(background)
+        css.append(" !important;background-image:none !important;color:").append(text)
+        css.append(" !important;}\n")
+        css.append("html{min-height:100%;}body{min-height:100vh;}\n")
+    }
+
+    /**
+     * 카드 배경을 앱 테마 색으로 쓸 때, 웹뷰가 페이지를 그리지 않는 영역까지 덮습니다.
+     *
+     * 태블릿처럼 화면이 큰 기기에서 CSS 만으로는 화면 일부만 칠해지는 경우가 있어,
+     * 웹뷰를 담고 있는 네이티브 컨테이너와 웹뷰 자체의 배경도 같이 맞춰 줍니다.
+     * [root] 아래에서만 동작하므로 통계나 설정 화면의 웹뷰에는 영향이 없습니다.
+     */
+    fun applyCardBackgroundTo(root: View?) {
+        if (root == null) return
+        val context = root.context
+        if (!cardBackgroundEnabled(context)) return
+        val colors = themeCardColors(context) ?: return
+        root.setBackgroundColor(colors.first)
+        tintWebViews(root, colors.first)
+    }
+
+    private fun tintWebViews(
+        view: View,
+        color: Int,
+    ) {
+        if (view is WebView) {
+            view.setBackgroundColor(color)
+            return
+        }
+        if (view is ViewGroup) {
+            for (index in 0 until view.childCount) {
+                tintWebViews(view.getChildAt(index), color)
+            }
         }
     }
 
