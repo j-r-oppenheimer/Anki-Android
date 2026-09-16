@@ -3413,4 +3413,59 @@ optional_patch("AnkiDroid/src/main/java/com/ichi2/anki/previewer/CardViewerFragm
                "card preview image save after webview recreation",
                sentinel="CardImageSaver.attach(requireContext(), webView)")
 
+# ---------------------------------------------------------------- 카드 미리보기 테마 색
+# 학습 화면은 card_template.html 에 ReviewerCustomFonts 로 CSS 를 넣지만, 미리보기는
+# stdHtml() 로 만든 별도 페이지에 카드를 JS 로 넣어서 그 CSS 가 전혀 닿지 않습니다.
+# 위에서 네이티브 배경만 칠해 두었으므로 카드 안쪽은 노트 타입 색 그대로였습니다.
+# 같은 CSS 를 미리보기 페이지의 <head> 에 넣습니다. html:root 특이도와 !important 덕분에
+# 나중에 본문으로 들어오는 노트 타입 CSS 보다 우선합니다.
+PREVIEW_HTML_OLD = """    protected open fun onLoadInitialHtml(): String =
+        stdHtml(
+            context = requireContext(),
+            nightMode = Themes.isNightTheme,
+        )
+"""
+
+PREVIEW_HTML_NEW = """    protected open fun onLoadInitialHtml(): String {
+        val html =
+            stdHtml(
+                context = requireContext(),
+                nightMode = Themes.isNightTheme,
+            )
+        val themeCss = StringBuilder()
+        com.ichi2.anki.customfont.CustomFont.appendCardThemeCss(themeCss)
+        if (themeCss.isEmpty()) return html
+        return html.replaceFirst("</head>", "<style>\\n$themeCss</style>\\n</head>")
+    }
+"""
+
+optional_patch("AnkiDroid/src/main/java/com/ichi2/anki/previewer/CardViewerFragment.kt",
+               PREVIEW_HTML_OLD, PREVIEW_HTML_NEW, "card preview theme colours",
+               sentinel="CustomFont.appendCardThemeCss(themeCss)")
+
+# ---------------------------------------------------------------- 카드 미리보기 커스텀 폰트
+# 색과 같은 이유로 미리보기에는 @font-face 도 들어가지 않았습니다.
+# 위 패치가 만든 <head> 삽입 자리에 폰트 CSS 를 같이 넣습니다.
+optional_patch("AnkiDroid/src/main/java/com/ichi2/anki/previewer/CardViewerFragment.kt",
+               "        com.ichi2.anki.customfont.CustomFont.appendCardThemeCss(themeCss)\n",
+               "        com.ichi2.anki.customfont.CustomFont.appendCardCss(themeCss)\n"
+               "        com.ichi2.anki.customfont.CustomFont.appendCardThemeCss(themeCss)\n",
+               "card preview custom font css",
+               sentinel="CustomFont.appendCardCss(themeCss)")
+
+# 미리보기 페이지도 AnkiServer 주소(http://127.0.0.1:PORT/)를 기준으로 열리므로
+# 폰트 요청이 같은 출처로 나갑니다. 학습 화면처럼 웹뷰 클라이언트에서 가로채 돌려줍니다.
+PREVIEW_FONT_REQUEST_OLD = """        ): WebResourceResponse? = resourceHandler.shouldInterceptRequest(request)
+"""
+
+PREVIEW_FONT_REQUEST_NEW = """        ): WebResourceResponse? =
+            com.ichi2.anki.customfont.CustomFont.interceptFontRequest(request)
+                ?: resourceHandler.shouldInterceptRequest(request)
+"""
+
+optional_patch("AnkiDroid/src/main/java/com/ichi2/anki/previewer/CardViewerFragment.kt",
+               PREVIEW_FONT_REQUEST_OLD, PREVIEW_FONT_REQUEST_NEW,
+               "card preview custom font request",
+               sentinel="CustomFont.interceptFontRequest(request)\n                ?: resourceHandler")
+
 print("all patches applied")
