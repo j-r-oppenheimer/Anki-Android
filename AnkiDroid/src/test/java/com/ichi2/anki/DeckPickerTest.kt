@@ -15,10 +15,11 @@ import android.view.View
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.widget.Toolbar
-import androidx.core.content.IntentCompat
 import androidx.core.content.edit
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.Insets
+import androidx.core.net.toUri
+import androidx.core.view.ContentInfoCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.children
@@ -35,6 +36,7 @@ import com.ichi2.anki.common.preferences.sharedPrefs
 import com.ichi2.anki.common.time.TimeManager
 import com.ichi2.anki.common.utils.android.getResFromAttr
 import com.ichi2.anki.common.utils.annotation.KotlinCleanup
+import com.ichi2.anki.common.utils.ext.getParcelableExtraCompat
 import com.ichi2.anki.databinding.ActivityHomescreenBinding
 import com.ichi2.anki.deckpicker.DeckPickerViewModel
 import com.ichi2.anki.dialogs.DatabaseErrorDialog
@@ -65,6 +67,7 @@ import com.ichi2.testutils.common.Flaky
 import com.ichi2.testutils.common.OS
 import com.ichi2.testutils.ext.addBasicNoteWithOp
 import com.ichi2.testutils.ext.menu
+import com.ichi2.testutils.ext.text
 import com.ichi2.testutils.grantWritePermissions
 import com.ichi2.testutils.revokeWritePermissions
 import com.ichi2.testutils.withBooleanPreference
@@ -1040,7 +1043,7 @@ class DeckPickerTest : RobolectricTest() {
                         equalTo(PermissionsActivity::class.java.name),
                     )
 
-                    val extra = IntentCompat.getParcelableExtra(intent, EXTRA_PERMISSIONS_SET, StoragePermissionSet::class.java)
+                    val extra = intent.getParcelableExtraCompat<StoragePermissionSet>(EXTRA_PERMISSIONS_SET)
 
                     assertNotNull(extra)
                     assertThat(extra.permissions, equalTo(listOf(INTERNET)))
@@ -1109,6 +1112,26 @@ class DeckPickerTest : RobolectricTest() {
             return super.onPrepareOptionsMenu(menu)
         }
     }
+
+    @Test
+    fun draggingUnsupportedFileShowsSnackbarError() =
+        deckPicker {
+            val clipData = android.content.ClipData.newRawUri("unsupported", "file:///path/to/image.jpg".toUri())
+            val payload =
+                ContentInfoCompat
+                    .Builder(clipData, ContentInfoCompat.SOURCE_DRAG_AND_DROP)
+                    .build()
+            ViewCompat.performReceiveContent(findViewById(R.id.pull_to_sync_wrapper), payload)
+
+            val snackbar = showSnackbar(getString(R.string.import_log_no_apkg))
+            assertThat("snackbar must be shown for unsupported file drop", snackbar, notNullValue())
+
+            val snackbarText = snackbar?.text
+            assertThat(
+                snackbarText,
+                equalTo(getString(R.string.import_log_no_apkg)),
+            )
+        }
 }
 
 fun RobolectricTest.setIntroductionSlidesShown(shown: Boolean) {

@@ -170,6 +170,7 @@ import com.ichi2.anki.reviewreminders.ScheduleRemindersFragment
 import com.ichi2.anki.servicelayer.ScopedStorageService
 import com.ichi2.anki.settings.Prefs
 import com.ichi2.anki.settings.enums.DayTheme
+import com.ichi2.anki.shareddeck.SharedDecksActivity
 import com.ichi2.anki.snackbar.BaseSnackbarBuilderProvider
 import com.ichi2.anki.snackbar.SnackbarBuilder
 import com.ichi2.anki.snackbar.showSnackbar
@@ -199,7 +200,6 @@ import com.ichi2.themes.Themes
 import com.ichi2.ui.AccessibleSearchView
 import com.ichi2.ui.BadgeDrawableBuilder
 import com.ichi2.utils.ClipboardUtil.IMPORT_MIME_TYPES
-import com.ichi2.utils.ImportResult
 import com.ichi2.utils.ImportUtils
 import com.ichi2.utils.NetworkUtils
 import com.ichi2.utils.Permissions
@@ -953,8 +953,7 @@ open class DeckPicker :
             val clip = uriContent?.clip ?: return@OnReceiveContentListener remaining
             val uri = clip.getItemAt(0).uri
             if (!ImportUtils.FileImporter().isValidImportType(this, uri)) {
-                // TODO: This does nothing
-                ImportResult.Failure(getString(R.string.import_log_no_apkg))
+                showSnackbar(R.string.import_log_no_apkg)
                 return@OnReceiveContentListener remaining
             }
 
@@ -1450,7 +1449,7 @@ open class DeckPicker :
 
     private fun createBackup() {
         launchCatchingTask {
-            withProgress(message = TR.profilesCreatingBackup()) {
+            withProgress(message = TR.sentenceCase.creatingBackup) {
                 performBackupInBackground(true)
             }
             showThemedToast(this@DeckPicker, TR.profilesBackupCreated(), false)
