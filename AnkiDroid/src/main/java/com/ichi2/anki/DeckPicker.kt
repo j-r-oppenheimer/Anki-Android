@@ -269,7 +269,8 @@ open class DeckPicker :
 
     private val importViewModel: ImportViewModel by viewModels()
 
-    private lateinit var binding: ActivityHomescreenBinding
+    internal lateinit var binding: ActivityHomescreenBinding
+        private set
 
     @VisibleForTesting
     internal val deckPickerBinding: IncludeDeckPickerBinding
@@ -1534,6 +1535,7 @@ open class DeckPicker :
             importColpkgListener = DatabaseRestorationListener(this, path)
         }
         mediaUsnOnConflict = savedInstanceState.getSerializableCompat("mediaUsnOnConflict")
+        showRestoredBottomNavTab()
     }
 
     override fun onPause() {
