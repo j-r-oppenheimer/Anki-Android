@@ -3390,13 +3390,14 @@ remove_text('AnkiDroid/src/main/java/com/ichi2/anki/noteeditor/NoteEditorMultime
 # CardViewerFragment 가 SafeWebViewLayout 컨테이너 안에 웹뷰를 넣어 둡니다.
 # 그래서 컨테이너를 넘겨서 안쪽 웹뷰를 찾아 붙입니다.
 #   - 이미지를 길게 눌러 저장하기
-#   - 카드 배경색을 앱 테마로 쓸 때 웹뷰가 안 그리는 영역까지 덮기
+#   - 카드 배경색을 앱 테마로 쓸 때 화면 전체 배경까지 덮기
+#     (미리보기 루트는 alternativeBackgroundColor 를 배경으로 씁니다)
 # import 를 건드리지 않도록 전체 경로로 적습니다.
 optional_patch("AnkiDroid/src/main/java/com/ichi2/anki/previewer/CardViewerFragment.kt",
                "        setupWebView(savedInstanceState)\n        setupErrorListeners()",
                "        setupWebView(savedInstanceState)\n"
                "        com.ichi2.anki.imagesave.CardImageSaver.attach(requireContext(), webViewLayout)\n"
-               "        com.ichi2.anki.customfont.CustomFont.applyCardBackgroundTo(webViewLayout)\n"
+               "        com.ichi2.anki.customfont.CustomFont.applyCardBackgroundTo(view)\n"
                "        setupErrorListeners()",
                "card preview image save and background",
                sentinel="CardImageSaver.attach(requireContext(), webViewLayout)")
@@ -3407,7 +3408,7 @@ optional_patch("AnkiDroid/src/main/java/com/ichi2/anki/previewer/CardViewerFragm
                "    override fun onWebViewRecreated(webView: WebView) {\n"
                "        setupWebView(null)\n"
                "        com.ichi2.anki.imagesave.CardImageSaver.attach(requireContext(), webView)\n"
-               "        com.ichi2.anki.customfont.CustomFont.applyCardBackgroundTo(webViewLayout)\n"
+               "        com.ichi2.anki.customfont.CustomFont.applyCardBackgroundTo(view)\n"
                "    }",
                "card preview image save after webview recreation",
                sentinel="CardImageSaver.attach(requireContext(), webView)")
