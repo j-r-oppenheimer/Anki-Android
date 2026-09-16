@@ -239,12 +239,15 @@ object CustomFont {
     }
 
     fun applyToActivity(activity: Activity) {
-        // 학습 화면의 카드 영역. 다른 화면에는 이 id 가 없어서 그냥 넘어갑니다.
-        applyCardBackgroundTo(activity.findViewById<View>(R.id.flashcard))
-
-        if (!appliesToApp(activity)) return
-        val typeface = typeface(activity) ?: return
         val root = activity.window?.decorView ?: return
+        val typeface = if (appliesToApp(activity)) typeface(activity) else null
+
+        applyCardScreenBackground(activity)
+        if (typeface == null) {
+            // 폰트는 꺼져 있고 카드 배경만 켠 경우에도 아래의 반복 적용이 필요합니다.
+            scheduleRescans(root) { applyCardScreenBackground(activity) }
+            return
+        }
 
         applyRecursively(root, typeface)
 
@@ -252,7 +255,10 @@ object CustomFont {
         // 직후 몇 차례 나눠서 다시 훑습니다. 이미 적용된 뷰는 건너뛰므로 부담이 작고,
         // 아래 배치 감시가 놓치는 경우를 메웁니다.
         for (delay in longArrayOf(0L, 150L, 400L, 900L, 2000L)) {
-            root.postDelayed({ applyRecursively(root, typeface) }, delay)
+            root.postDelayed({
+                applyCardScreenBackground(activity)
+                applyRecursively(root, typeface)
+            }, delay)
         }
 
         // 설정 화면처럼 스크롤하면서 행이 새로 만들어지는 화면은 몇 번 훑는 것만으로는
@@ -265,6 +271,7 @@ object CustomFont {
                 val now = SystemClock.uptimeMillis()
                 if (now - last >= RESCAN_INTERVAL_MS) {
                     last = now
+                    applyCardScreenBackground(activity)
                     applyRecursively(root, typeface)
                 }
             }
@@ -359,15 +366,18 @@ object CustomFont {
         val background = hexOf(colors.first)
         val text = hexOf(colors.second)
 
-        // Anki 의 리뷰어 스타일시트는 배경을 --canvas 변수로 칠합니다. 변수까지 같이
-        // 바꿔야 카드 본문이 차지하지 않는 부분(태블릿처럼 화면이 카드보다 큰 경우)도
-        // 같은 색이 됩니다. 본문이 짧아도 화면을 채우도록 최소 높이도 줍니다.
+        // 이 스타일은 card_template.html 의 ::style:: 자리에 들어가는데, 그 뒤에
+        // reviewer_extras.css 가 한 번 더 실려서 !important 끼리 붙으면 뒤쪽이 이깁니다.
+        // html:root 처럼 특이도를 한 단계 올리면 순서와 무관하게 이쪽이 이깁니다.
+        // --canvas 는 Anki 리뷰어 스타일시트가 배경을 칠할 때 쓰는 변수입니다.
+        val selector =
+            "html:root,html:root body,html:root .card,html:root #content,html:root #qa"
         css.append(":root{--canvas:").append(background).append(" !important;")
         css.append("--canvas-elevated:").append(background).append(" !important;}\n")
-        css.append("html,body,.card,#qa,#content{background-color:").append(background)
+        css.append(selector).append("{background-color:").append(background)
         css.append(" !important;background-image:none !important;color:").append(text)
         css.append(" !important;}\n")
-        css.append("html{min-height:100%;}body{min-height:100vh;}\n")
+        css.append("html:root{min-height:100%;}html:root body{min-height:100vh;}\n")
     }
 
     /**
@@ -377,6 +387,41 @@ object CustomFont {
      * 웹뷰를 담고 있는 네이티브 컨테이너와 웹뷰 자체의 배경도 같이 맞춰 줍니다.
      * [root] 아래에서만 동작하므로 통계나 설정 화면의 웹뷰에는 영향이 없습니다.
      */
+    /**
+     * 학습 화면에서 카드 배경색이 닿아야 하는 네이티브 겹.
+     *
+     * 화면이 한 겹이 아니라서, 어느 겹이 남는지 기기마다 다르게 보입니다.
+     *   front_frame        - 화면 루트. 시스템 바 인셋 때문에 생기는 좌우/아래 여백을 덮습니다.
+     *   flashcard          - 웹뷰가 들어가는 칸.
+     *   bottom_area_layout - 정답 버튼이 놓인 아래쪽 띠. 원래 자기 색을 씁니다.
+     * 없는 id 는 그냥 건너뜁니다. 전체 화면 모드처럼 구성이 다른 레이아웃도 있습니다.
+     */
+    private val cardScreenIds =
+        intArrayOf(R.id.front_frame, R.id.flashcard, R.id.bottom_area_layout)
+
+    fun applyCardScreenBackground(activity: Activity) {
+        val cardFrame = activity.findViewById<View>(R.id.flashcard) ?: return
+        if (!cardBackgroundEnabled(activity)) return
+        val colors = themeCardColors(activity) ?: return
+
+        for (id in cardScreenIds) {
+            activity.findViewById<View>(id)?.setBackgroundColor(colors.first)
+        }
+        // 웹뷰는 카드가 처음 그려질 때 만들어져서 화면이 뜨는 시점에는 아직 없습니다.
+        // 그래서 이 함수를 여러 번 부릅니다.
+        tintWebViews(cardFrame, colors.first)
+    }
+
+    /** 나중에 만들어지는 뷰까지 잡도록 몇 차례 나눠서 다시 적용합니다. */
+    private fun scheduleRescans(
+        root: View,
+        action: () -> Unit,
+    ) {
+        for (delay in longArrayOf(0L, 150L, 400L, 900L, 2000L)) {
+            root.postDelayed({ action() }, delay)
+        }
+    }
+
     fun applyCardBackgroundTo(root: View?) {
         if (root == null) return
         val context = root.context
