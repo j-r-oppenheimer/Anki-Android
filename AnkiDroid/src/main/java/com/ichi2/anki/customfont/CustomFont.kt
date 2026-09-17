@@ -377,7 +377,12 @@ object CustomFont {
         css.append(selector).append("{background-color:").append(background)
         css.append(" !important;background-image:none !important;color:").append(text)
         css.append(" !important;}\n")
-        css.append("html:root{min-height:100%;}html:root body{min-height:100vh;}\n")
+        // body 에 min-height:100vh 를 주면 body 의 margin(reviewer_extras.css 의 20px)과
+        // #content 의 margin 이 그 위에 더해져 페이지가 화면보다 조금 길어집니다.
+        // 그러면 정답을 열 때 card.js 의 location.href="#answer" 가 그만큼 스크롤해서
+        // 내용이 짧은 카드도 hr 윗부분(문제)이 화면 위로 밀려납니다.
+        // 루트 요소의 배경은 높이와 상관없이 캔버스 전체에 칠해지므로 html 쪽만 둡니다.
+        css.append("html:root{min-height:100%;}\n")
     }
 
     /**
