@@ -223,11 +223,11 @@ class RichTextEditor(
          */
         val DEFAULT_HIGHLIGHTS =
             listOf(
-                0x66FFF59D.toInt(), // yellow
-                0x66A5D6A7.toInt(), // green
-                0x6690CAF9.toInt(), // blue
-                0x66F48FB1.toInt(), // pink
-                0x66CE93D8.toInt(), // purple
+                0x66FFF59D, // yellow
+                0x66A5D6A7, // green
+                0x6690CAF9, // blue
+                0x66F48FB1, // pink
+                0x66CE93D8, // purple
             )
 
         /**
