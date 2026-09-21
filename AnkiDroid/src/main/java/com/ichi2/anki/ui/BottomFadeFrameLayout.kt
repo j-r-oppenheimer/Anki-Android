@@ -39,11 +39,26 @@ class BottomFadeFrameLayout
         /** buffer used by [View.screenY] */
         private val locBuf = IntArray(2)
 
+        /**
+         * Repaints when the anchor is placed somewhere new. The fade is measured
+         * from the anchor's position on screen at the moment it is drawn, and
+         * nothing else here notices that moving: the deck list reordering after a
+         * rename moves the anchor without touching this view, which would leave a
+         * band measured against where the anchor used to be until something
+         * unrelated happened to repaint.
+         */
+        private val anchorLayoutListener =
+            View.OnLayoutChangeListener { _, _, top, _, bottom, _, oldTop, _, oldBottom ->
+                if (top != oldTop || bottom != oldBottom) invalidate()
+            }
+
         /** The fade applies to this view, and all views below it vertically */
         var anchorView: View? = null
             set(value) {
                 if (field !== value) {
+                    field?.removeOnLayoutChangeListener(anchorLayoutListener)
                     field = value
+                    value?.addOnLayoutChangeListener(anchorLayoutListener)
                     invalidate()
                 }
             }
@@ -56,14 +71,17 @@ class BottomFadeFrameLayout
 
         override fun dispatchDraw(canvas: Canvas) {
             val target = anchorView
-            if (target == null || target.height == 0 || width == 0 || height == 0) {
+            if (target == null || !target.isLaidOut || target.height == 0 || width == 0 || height == 0) {
                 super.dispatchDraw(canvas)
                 return
             }
             val targetTopInSelf = target.screenY - screenY
             val bandTop = (targetTopInSelf + target.paddingTop).toFloat()
             val bandBottom = height.toFloat()
-            if (bandBottom <= bandTop) {
+            // A bottom fade cannot start above this view. When it seems to, the
+            // anchor has not been placed where it will end up, and fading anyway
+            // would grey out the content down to the bottom of the screen.
+            if (bandBottom <= bandTop || bandTop < 0f) {
                 super.dispatchDraw(canvas)
                 return
             }
