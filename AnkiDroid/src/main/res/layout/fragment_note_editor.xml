@@ -86,6 +86,14 @@
                 android:paddingVertical="@dimen/keyline_1"
                 android:paddingHorizontal="6dip" />
 
+            <!-- Rich text mode renders the same fields here instead; its height is
+                 driven by the page content so the ScrollView above keeps scrolling. -->
+            <WebView
+                android:id="@+id/RichTextEditorWebView"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone" />
+
             <LinearLayout
                 android:id="@+id/ImageOcclusionButtonsLayout"
                 android:layout_width="match_parent"
@@ -177,4 +185,9 @@
         android:id="@+id/editor_toolbar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"/>
+    <include
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        layout="@layout/view_rich_text_toolbar" />
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

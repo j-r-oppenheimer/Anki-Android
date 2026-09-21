@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <style>
+      :root {
+        --bg: #ffffff;
+        --fg: #202020;
+        --label: #808080;
+        --border: #d0d0d0;
+        --accent: #3f51b5;
+      }
+      html, body {
+        margin: 0;
+        padding: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font-size: 16px;
+        font-family: sans-serif;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .block { padding: 6px 8px 10px 8px; }
+      .label {
+        font-size: 12px;
+        font-weight: bold;
+        color: var(--label);
+        padding-bottom: 4px;
+      }
+      .editor {
+        min-height: 2.4em;
+        padding: 8px 10px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        outline: none;
+        line-height: 1.5;
+        word-wrap: break-word;
+        overflow-wrap: anywhere;
+      }
+      .editor:focus { border-color: var(--accent); }
+      .editor img { max-width: 100%; height: auto; }
+      .editor ul, .editor ol { margin: 0.3em 0; padding-inline-start: 1.6em; }
+    </style>
+  </head>
+  <body>
+    <div id="fields"></div>
+    <script>
+      // The note editor owns the field values; this page is only a view over them.
+      // Every keystroke is pushed straight back so a save never races the editor.
+      var active = null;
+
+      function post(name, arg) {
+        if (window.AnkiRich && window.AnkiRich[name]) window.AnkiRich[name](arg);
+      }
+
+      function reportHeight() {
+        post('onHeight', Math.ceil(document.body.scrollHeight));
+      }
+
+      function reportState() {
+        if (!active) return;
+        var state = [];
+        ['bold', 'italic', 'underline', 'insertUnorderedList', 'insertOrderedList'].forEach(function (c) {
+          try { if (document.queryCommandState(c)) state.push(c); } catch (e) { /* unsupported */ }
+        });
+        post('onFormatState', state.join(','));
+      }
+
+      function reportCaret() {
+        var sel = window.getSelection();
+        if (!sel || sel.rangeCount === 0) return;
+        var rect = sel.getRangeAt(0).getBoundingClientRect();
+        // A collapsed range at the start of an empty line has a zero rect; fall
+        // back to the field itself so the caret still gets scrolled into view.
+        var top = rect.height ? rect.top : (active ? active.getBoundingClientRect().top : 0);
+        post('onCaret', Math.round(top + window.scrollY));
+      }
+
+      function setFields(fields) {
+        var root = document.getElementById('fields');
+        root.textContent = '';
+        fields.forEach(function (field, index) {
+          var block = document.createElement('div');
+          block.className = 'block';
+
+          var label = document.createElement('div');
+          label.className = 'label';
+          label.textContent = field.name;
+          block.appendChild(label);
+
+          var editor = document.createElement('div');
+          editor.className = 'editor';
+          editor.contentEditable = 'true';
+          editor.dataset.index = index;
+          editor.innerHTML = field.html;
+          block.appendChild(editor);
+
+          root.appendChild(block);
+        });
+        active = root.querySelector('.editor');
+        reportHeight();
+      }
+
+      function setTheme(bg, fg, label, border, accent) {
+        var s = document.documentElement.style;
+        s.setProperty('--bg', bg);
+        s.setProperty('--fg', fg);
+        s.setProperty('--label', label);
+        s.setProperty('--border', border);
+        s.setProperty('--accent', accent);
+      }
+
+      function focusField(index) {
+        var editor = document.querySelector('.editor[data-index="' + index + '"]');
+        if (!editor) return;
+        editor.focus();
+        var range = document.createRange();
+        range.selectNodeContents(editor);
+        range.collapse(false);
+        var sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+
+      function exec(command, value) {
+        if (!active) return;
+        active.focus();
+        // Bold and friends should stay as <b>/<i>/<u> tags, which is what Anki's
+        // own editor writes. Only the highlighter needs an inline style.
+        var css = command === 'hiliteColor' || command === 'foreColor';
+        try { document.execCommand('styleWithCSS', false, css); } catch (e) { /* unsupported */ }
+        var applied = document.execCommand(command, false, value || null);
+        // Some WebView builds only know the older name for the highlighter.
+        if (!applied && command === 'hiliteColor') document.execCommand('backColor', false, value);
+        flush(active);
+        reportState();
+      }
+
+      function flush(editor) {
+        post('onFieldChanged', editor.dataset.index + ':' + editor.innerHTML);
+      }
+
+      function flushAll() {
+        document.querySelectorAll('.editor').forEach(flush);
+      }
+
+      document.addEventListener('input', function (e) {
+        if (!e.target.classList.contains('editor')) return;
+        flush(e.target);
+        reportHeight();
+        reportCaret();
+      });
+
+      document.addEventListener('focusin', function (e) {
+        if (!e.target.classList.contains('editor')) return;
+        active = e.target;
+        reportState();
+        reportCaret();
+      });
+
+      document.addEventListener('selectionchange', function () {
+        reportState();
+      });
+
+      // Pasting rich content from another app drags along fonts and colours that
+      // do not belong in a note; keep the text and let the toolbar do formatting.
+      document.addEventListener('paste', function (e) {
+        if (!e.target.classList || !e.target.classList.contains('editor')) return;
+        var text = e.clipboardData && e.clipboardData.getData('text/plain');
+        if (text === null || text === undefined) return;
+        e.preventDefault();
+        document.execCommand('insertText', false, text);
+      });
+
+      window.addEventListener('resize', reportHeight);
+      new ResizeObserver(reportHeight).observe(document.body);
+    </script>
+  </body>
+</html>

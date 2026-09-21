@@ -14,6 +14,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
+import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -28,12 +29,14 @@ import android.view.View
 import android.view.View.OnFocusChangeListener
 import android.view.ViewGroup.MarginLayoutParams
 import android.view.WindowManager
+import android.webkit.WebView
 import android.widget.AdapterView
 import android.widget.AdapterView.OnItemSelectedListener
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.Spinner
 import android.widget.TextView
 import androidx.activity.addCallback
@@ -41,6 +44,7 @@ import androidx.activity.result.ActivityResult
 import androidx.activity.result.ActivityResultCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.CheckResult
+import androidx.annotation.ColorInt
 import androidx.annotation.DrawableRes
 import androidx.annotation.VisibleForTesting
 import androidx.appcompat.app.AlertDialog
@@ -48,6 +52,7 @@ import androidx.appcompat.widget.AppCompatButton
 import androidx.core.content.FileProvider
 import androidx.core.content.edit
 import androidx.core.content.res.ResourcesCompat
+import androidx.core.graphics.ColorUtils
 import androidx.core.graphics.Insets
 import androidx.core.os.BundleCompat
 import androidx.core.text.HtmlCompat
@@ -147,6 +152,7 @@ import com.ichi2.anki.pages.ImageOcclusion
 import com.ichi2.anki.pages.viewmodel.ImageOcclusionArgs
 import com.ichi2.anki.previewer.TemplatePreviewerArguments
 import com.ichi2.anki.previewer.TemplatePreviewerPage
+import com.ichi2.anki.richtext.RichTextEditor
 import com.ichi2.anki.servicelayer.LanguageHintService.languageHint
 import com.ichi2.anki.servicelayer.NoteService
 import com.ichi2.anki.servicelayer.NoteService.convertToHtmlNewline
@@ -184,16 +190,17 @@ import com.ichi2.utils.positiveButton
 import com.ichi2.utils.show
 import com.ichi2.utils.title
 import dev.androidbroadcast.vbpd.viewBinding
-import kotlinx.coroutines.launch
-import net.ankiweb.rsdroid.Backend
-import org.json.JSONArray
-import timber.log.Timber
 import java.io.File
 import java.util.LinkedList
 import java.util.Locale
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
+import net.ankiweb.rsdroid.Backend
+import org.json.JSONArray
+import timber.log.Timber
+
 import com.ichi2.anki.common.android.R as CommonR
 
 const val CALLER_KEY = "caller"
@@ -244,6 +251,24 @@ class NoteEditorFragment :
     private var reloadRequired = false
 
     private var fieldsLayoutContainer: LinearLayout? = null
+
+    /**
+     * Rich text mode swaps the raw-HTML [FieldEditText] list for a contenteditable
+     * page with a formatting toolbar. The edit texts stay authoritative, so every
+     * other part of the editor (saving, sticky fields, multimedia) is unaffected.
+     */
+    private var richTextEditor: RichTextEditor? = null
+    private var richTextWebView: WebView? = null
+    private var richTextToolbar: View? = null
+    private var richTextPreference = false
+    private var mediaDir: File? = null
+
+    /**
+     * Image occlusion notes hide two of their fields and drive them from the
+     * occlusion editor, so they stay on the plain editor.
+     */
+    private val richTextActive: Boolean
+        get() = richTextPreference && editorNote != null && !currentNotetypeIsImageOcclusion()
     private var tagsDialogFactory: TagsDialogFactory? = null
     private var tagsButton: AppCompatButton? = null
     private var cardsButton: AppCompatButton? = null
@@ -631,6 +656,20 @@ class NoteEditorFragment :
         super.onSaveInstanceState(outState)
     }
 
+    override fun onPause() {
+        // Guards against the process being killed with edits only in the page.
+        richTextEditor?.flush()
+        super.onPause()
+    }
+
+    override fun onDestroyView() {
+        richTextEditor?.destroy()
+        richTextEditor = null
+        richTextWebView = null
+        richTextToolbar = null
+        super.onDestroyView()
+    }
+
     private fun addInstanceStateToBundle(savedInstanceState: Bundle) {
         Timber.i("Saving instance")
         savedInstanceState.putInt(CALLER_KEY, caller.value)
@@ -653,6 +692,11 @@ class NoteEditorFragment :
         Timber.d("NoteEditor() onCollectionLoaded: caller: %s", caller)
         requireAnkiActivity().registerReceiver()
         fieldsLayoutContainer = requireView().findViewById(R.id.CardEditorEditFieldsLayout)
+        richTextWebView = requireView().findViewById(R.id.RichTextEditorWebView)
+        richTextToolbar = requireView().findViewById(R.id.rich_text_toolbar)
+        mediaDir = File(col.media.dir)
+        richTextPreference = requireContext().sharedPrefs().getBoolean(PREF_NOTE_EDITOR_RICH_TEXT, false)
+        setupRichTextToolbar()
         tagsButton = requireView().findViewById(R.id.CardEditorTagButton)
         cardsButton = requireView().findViewById(R.id.CardEditorCardsButton)
         cardsButton!!.setOnClickListener {
@@ -1455,6 +1499,12 @@ class NoteEditorFragment :
      */
     override fun onPrepareMenu(menu: Menu) {
         menu.findItem(R.id.action_preview).isVisible = allowPreviewAction()
+        menu.findItem(R.id.action_rich_text).apply {
+            isVisible = editorNote != null && !currentNotetypeIsImageOcclusion()
+            // The icon shows the mode the button switches to.
+            setIcon(if (richTextActive) R.drawable.ic_html_source_24dp else R.drawable.ic_rich_text_24dp)
+            setTitle(if (richTextActive) R.string.rich_text_switch_to_html else R.string.rich_text_switch_to_rich)
+        }
         if (addNote) {
             menu.findItem(R.id.action_copy_note).isVisible = false
             menu.findItem(R.id.action_save).isVisible = allowSaveAction()
@@ -1516,6 +1566,11 @@ class NoteEditorFragment :
     override fun onMenuItemSelected(item: MenuItem): Boolean {
         Timber.d("NoteEditor::onMenuItemSelected")
         when (item.itemId) {
+            R.id.action_rich_text -> {
+                Timber.i("NoteEditor:: Rich text toggle pressed")
+                toggleRichTextMode()
+                return true
+            }
             R.id.action_preview -> {
                 Timber.i("NoteEditor:: Preview button pressed")
                 if (allowPreviewAction()) {
@@ -1940,6 +1995,7 @@ class NoteEditorFragment :
             editLineView.isVisible = i !in indicesToHide
             fieldsLayoutContainer!!.addView(editLineView)
         }
+        applyRichTextMode()
     }
 
     private fun getActionModeCallback(
@@ -2299,15 +2355,151 @@ class NoteEditorFragment :
 
     private fun applyBottomInset() {
         val toolbarHeight =
-            if (toolbar.isVisible) resources.getDimensionPixelSize(R.dimen.note_editor_toolbar_height) else 0
+            if (toolbar.isVisible || richTextActive) {
+                resources.getDimensionPixelSize(R.dimen.note_editor_toolbar_height)
+            } else {
+                0
+            }
         toolbar.updatePadding(bottom = bottomInsetPx)
+        richTextToolbar?.updatePadding(bottom = bottomInsetPx)
         binding.noteEditorLayout.updateLayoutParams<MarginLayoutParams> {
             bottomMargin = toolbarHeight + bottomInsetPx
         }
     }
 
+    // ------------------------------------------------------------------ rich text
+
+    private fun setupRichTextToolbar() {
+        val toolbar = richTextToolbar ?: return
+        // `hiliteColor` is the only command that needs a value; the rest toggle.
+        val commands =
+            listOf(
+                R.id.rich_bold to "bold",
+                R.id.rich_italic to "italic",
+                R.id.rich_underline to "underline",
+                R.id.rich_bulleted_list to "insertUnorderedList",
+                R.id.rich_numbered_list to "insertOrderedList",
+                R.id.rich_clear_format to "removeFormat",
+            )
+        for ((id, command) in commands) {
+            toolbar.findViewById<View>(id).setOnClickListener { richTextEditor?.exec(command) }
+        }
+        toolbar.findViewById<View>(R.id.rich_highlight).setOnClickListener {
+            richTextEditor?.exec("hiliteColor", RichTextEditor.HIGHLIGHT_COLOR)
+        }
+    }
+
+    private fun toggleRichTextMode() {
+        // Pull anything still only in the page before the fields take over again.
+        if (richTextActive) richTextEditor?.flush()
+        richTextPreference = !richTextPreference
+        requireContext().sharedPrefs().edit { putBoolean(PREF_NOTE_EDITOR_RICH_TEXT, richTextPreference) }
+        applyRichTextMode()
+        requireActivity().invalidateOptionsMenu()
+    }
+
+    private fun applyRichTextMode() {
+        val webView = richTextWebView ?: return
+        val active = richTextActive
+        webView.isVisible = active
+        richTextToolbar?.isVisible = active
+        fieldsLayoutContainer?.isVisible = !active
+        updateToolbar()
+        if (!active) return
+
+        val editor = richTextEditor ?: createRichTextEditor(webView)
+        editor.setFields(
+            names = currentFields.map { it.name },
+            values = editFields.orEmpty().map { it.fieldText ?: "" },
+        )
+    }
+
+    private fun createRichTextEditor(webView: WebView): RichTextEditor {
+        val editor =
+            RichTextEditor(
+                webView = webView,
+                onFieldChanged = ::onRichTextFieldChanged,
+                onHeightChanged = { contentHeight ->
+                    if (webView.layoutParams.height != contentHeight) {
+                        webView.updateLayoutParams { height = contentHeight }
+                    }
+                },
+                onFormatStateChanged = ::onRichTextFormatState,
+                onCaretMoved = ::scrollRichTextCaretIntoView,
+            )
+        editor.load(mediaDir)
+        applyRichTextTheme(editor)
+        richTextEditor = editor
+        return editor
+    }
+
+    private fun applyRichTextTheme(editor: RichTextEditor) {
+        val background = themeColor(android.R.attr.colorBackground, Color.WHITE)
+        val foreground = themeColor(android.R.attr.textColorPrimary, Color.BLACK)
+        editor.setTheme(
+            background = background,
+            foreground = foreground,
+            label = themeColor(android.R.attr.textColorSecondary, Color.GRAY),
+            // A quarter of the way from the page to the text reads as a hairline
+            // border on both the light and the dark themes.
+            border = ColorUtils.blendARGB(background, foreground, 0.25f),
+            accent = themeColor(androidx.appcompat.R.attr.colorAccent, Color.BLUE),
+        )
+    }
+
+    /** Reads a theme attribute that may hold either a colour or a colour state list. */
+    @ColorInt
+    private fun themeColor(
+        attr: Int,
+        @ColorInt fallback: Int,
+    ): Int {
+        val typed = requireContext().obtainStyledAttributes(intArrayOf(attr))
+        try {
+            return typed.getColorStateList(0)?.defaultColor ?: typed.getColor(0, fallback)
+        } finally {
+            typed.recycle()
+        }
+    }
+
+    private fun onRichTextFieldChanged(
+        index: Int,
+        html: String,
+    ) {
+        val field = editFields?.getOrNull(index) ?: return
+        if (field.fieldText == html) return
+        field.setText(html)
+    }
+
+    private fun onRichTextFormatState(commands: Set<String>) {
+        val toolbar = richTextToolbar ?: return
+        val states =
+            listOf(
+                R.id.rich_bold to "bold",
+                R.id.rich_italic to "italic",
+                R.id.rich_underline to "underline",
+                R.id.rich_bulleted_list to "insertUnorderedList",
+                R.id.rich_numbered_list to "insertOrderedList",
+            )
+        for ((id, command) in states) {
+            toolbar.findViewById<View>(id).isSelected = command in commands
+        }
+    }
+
+    /** Keeps the caret on screen: the page has no scroller of its own. */
+    private fun scrollRichTextCaretIntoView(topPx: Int) {
+        val scrollView = view?.findViewById<ScrollView>(R.id.note_editor_layout) ?: return
+        val webView = richTextWebView ?: return
+        val caret = webView.top + topPx
+        val margin = (48 * resources.displayMetrics.density).toInt()
+        if (caret < scrollView.scrollY + margin) {
+            scrollView.smoothScrollTo(0, (caret - margin).coerceAtLeast(0))
+        } else if (caret > scrollView.scrollY + scrollView.height - margin) {
+            scrollView.smoothScrollTo(0, caret - scrollView.height + margin)
+        }
+    }
+
     private fun updateToolbar() {
-        toolbar.isVisible = !shouldHideToolbar()
+        toolbar.isVisible = !shouldHideToolbar() && !richTextActive
         applyBottomInset()
         if (!toolbar.isVisible) return
         toolbar.clearCustomItems()
@@ -2804,6 +2996,7 @@ class NoteEditorFragment :
         // preferences keys
         const val PREF_NOTE_EDITOR_SCROLL_TOOLBAR = "noteEditorScrollToolbar"
         private const val PREF_NOTE_EDITOR_SHOW_TOOLBAR = "noteEditorShowToolbar"
+        private const val PREF_NOTE_EDITOR_RICH_TEXT = "noteEditorRichText"
         private const val PREF_NOTE_EDITOR_NEWLINE_REPLACE = "noteEditorNewlineReplace"
         private const val PREF_NOTE_EDITOR_CAPITALIZE = "note_editor_capitalize"
         private const val PREF_NOTE_EDITOR_FONT_SIZE = "note_editor_font_size"

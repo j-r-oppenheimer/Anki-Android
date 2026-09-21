@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<resources>
+    <style name="RichTextToolbarButton">
+        <item name="android:layout_width">?attr/minTouchTargetSize</item>
+        <item name="android:layout_height">match_parent</item>
+        <item name="android:background">@drawable/rich_text_toolbar_button</item>
+        <item name="android:scaleType">centerInside</item>
+        <item name="android:padding">8dp</item>
+    </style>
+</resources>

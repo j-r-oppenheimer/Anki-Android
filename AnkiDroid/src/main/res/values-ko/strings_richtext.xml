@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<resources>
+    <string name="rich_text_switch_to_rich">서식 편집기</string>
+    <string name="rich_text_switch_to_html">HTML 편집기</string>
+    <string name="rich_text_bold">굵게</string>
+    <string name="rich_text_italic">기울임</string>
+    <string name="rich_text_underline">밑줄</string>
+    <string name="rich_text_highlight">형광펜</string>
+    <string name="rich_text_bulleted_list">글머리 기호 목록</string>
+    <string name="rich_text_numbered_list">번호 매기기 목록</string>
+    <string name="rich_text_clear_format">서식 지우기</string>
+</resources>
