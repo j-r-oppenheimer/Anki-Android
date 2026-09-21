@@ -26,6 +26,32 @@
     xmlns:search="http://schemas.android.com/apk/com.bytehamster.lib.preferencesearch"
     xmlns:tools="http://schemas.android.com/tools"
         android:key="@string/pref_appearance_screen_key">
+    <PreferenceCategory android:title="@string/custom_font_category">
+        <Preference
+            android:key="@string/custom_font_pick_key"
+            android:summary="@string/custom_font_pick_summary"
+            android:title="@string/custom_font_pick">
+            <intent android:action="com.ichi2.anki.CUSTOM_FONT_SETTINGS" />
+        </Preference>
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="@string/custom_font_apply_app_key"
+            android:summary="@string/custom_font_apply_app_summary"
+            android:title="@string/custom_font_apply_app" />
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:dependency="@string/custom_font_apply_app_key"
+            android:key="@string/custom_font_apply_cards_key"
+            android:summary="@string/custom_font_apply_cards_summary"
+            android:title="@string/custom_font_apply_cards" />
+    </PreferenceCategory>
+    <PreferenceCategory android:title="@string/card_theme_category">
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="@string/card_theme_background_key"
+            android:summary="@string/card_theme_background_summary"
+            android:title="@string/card_theme_background" />
+    </PreferenceCategory>
     <PreferenceCategory android:title="@string/pref_cat_themes" >
         <ListPreference
             android:defaultValue="@string/theme_follow_system_value"

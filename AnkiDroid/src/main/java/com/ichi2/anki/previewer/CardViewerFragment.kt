@@ -147,6 +147,8 @@ abstract class CardViewerFragment(
         savedInstanceState: Bundle?,
     ) {
         setupWebView(savedInstanceState)
+        com.ichi2.anki.imagesave.CardImageSaver.attach(requireContext(), webViewLayout)
+        com.ichi2.anki.customfont.CustomFont.applyCardBackgroundTo(view)
         setupErrorListeners()
         viewModel.eval.collectIn(lifecycleScope) { eval ->
             webViewLayout.evaluateJavascript(eval)
@@ -177,11 +179,18 @@ abstract class CardViewerFragment(
         webViewLayout.destroy() // stops <audio> playbacks
     }
 
-    protected open fun onLoadInitialHtml(): String =
-        stdHtml(
-            context = requireContext(),
-            nightMode = Themes.isNightTheme,
-        )
+    protected open fun onLoadInitialHtml(): String {
+        val html =
+            stdHtml(
+                context = requireContext(),
+                nightMode = Themes.isNightTheme,
+            )
+        val themeCss = StringBuilder()
+        com.ichi2.anki.customfont.CustomFont.appendCardCss(themeCss)
+        com.ichi2.anki.customfont.CustomFont.appendCardThemeCss(themeCss)
+        if (themeCss.isEmpty()) return html
+        return html.replaceFirst("</head>", "<style>\n$themeCss</style>\n</head>")
+    }
 
     private fun setupWebView(savedInstanceState: Bundle?) {
         with(webViewLayout) {
@@ -242,6 +251,8 @@ abstract class CardViewerFragment(
      */
     override fun onWebViewRecreated(webView: WebView) {
         setupWebView(null)
+        com.ichi2.anki.imagesave.CardImageSaver.attach(requireContext(), webView)
+        com.ichi2.anki.customfont.CustomFont.applyCardBackgroundTo(view)
     }
 
     open inner class CardViewerWebViewClient(
@@ -253,7 +264,9 @@ abstract class CardViewerFragment(
         override fun shouldInterceptRequest(
             view: WebView?,
             request: WebResourceRequest,
-        ): WebResourceResponse? = resourceHandler.shouldInterceptRequest(request)
+        ): WebResourceResponse? =
+            com.ichi2.anki.customfont.CustomFont.interceptFontRequest(request)
+                ?: resourceHandler.shouldInterceptRequest(request)
 
         override fun onPageStarted(
             view: WebView?,

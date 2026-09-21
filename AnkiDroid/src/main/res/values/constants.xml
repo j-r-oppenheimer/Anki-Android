@@ -78,10 +78,16 @@
         <item>@string/day_theme_light</item>
         <item>@string/day_theme_plain</item>
         <item>@string/day_theme_eink</item>
+        <item>@string/day_theme_sand</item>
+        <item>@string/day_theme_sage</item>
+        <item>@string/day_theme_mist</item>
     </string-array>
     <string-array name="night_theme_labels">
         <item>@string/night_theme_black</item>
         <item>@string/night_theme_dark</item>
+        <item>@string/night_theme_sand</item>
+        <item>@string/night_theme_sage</item>
+        <item>@string/night_theme_mist</item>
     </string-array>
     <string-array name="html_size_code_labels">
         <item>@string/html_size_code_xx_small</item>
@@ -185,6 +191,12 @@
     <string name="theme_plain_value">2</string>
     <string name="theme_black_value">3</string>
     <string name="theme_dark_value">4</string>
+    <string name="theme_sand_value">5</string>
+    <string name="theme_sage_value">6</string>
+    <string name="theme_mist_value">7</string>
+    <string name="theme_sandnight_value">8</string>
+    <string name="theme_sagenight_value">9</string>
+    <string name="theme_mistnight_value">10</string>
 
     <string-array name="app_theme_values">
         <item>@string/theme_follow_system_value</item>
@@ -195,10 +207,16 @@
         <item>@string/theme_light_value</item>
         <item>@string/theme_plain_value</item>
         <item>@string/theme_eink_scheme_value</item>
+        <item>@string/theme_sand_value</item>
+        <item>@string/theme_sage_value</item>
+        <item>@string/theme_mist_value</item>
     </string-array>
     <string-array name="night_theme_values">
         <item>@string/theme_black_value</item>
         <item>@string/theme_dark_value</item>
+        <item>@string/theme_sandnight_value</item>
+        <item>@string/theme_sagenight_value</item>
+        <item>@string/theme_mistnight_value</item>
     </string-array>
 
     <string-array name="sync_media_entries">

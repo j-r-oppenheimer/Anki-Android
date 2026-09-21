@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  저장할 위치: AnkiDroid/src/main/res/drawable/nav_drawer_solid.xml
+
+  좌측 네비게이션 패널 상단에 들어가던 Anki 문양(@drawable/nav_drawer_logo)을
+  대신합니다. 테마의 앱바 색을 그대로 따라가는 단색입니다.
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="?attr/appBarColor" />
+</shape>

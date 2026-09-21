@@ -30,6 +30,7 @@ open class PageWebViewClient : SafeWebViewClient() {
     ): WebResourceResponse? {
         val path = request.url.path
         if (request.method != "GET" || path == null) return null
+        com.ichi2.anki.customfont.CustomFont.interceptPageFontRequest(request)?.let { return it }
         if (path == "/favicon.png") {
             return WebResourceResponse("image/x-icon", null, ByteArrayInputStream(byteArrayOf()))
         }
@@ -69,6 +70,7 @@ open class PageWebViewClient : SafeWebViewClient() {
                 """document.body.style.setProperty("background-color", "$bgColor", "important");
                     console.log("Background color set");""",
             )
+            com.ichi2.anki.customfont.CustomFont.injectIntoPage(webView)
         }
     }
 

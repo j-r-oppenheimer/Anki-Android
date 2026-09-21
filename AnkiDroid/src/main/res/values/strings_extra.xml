@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  저장할 위치: AnkiDroid/src/main/res/values/strings_extra.xml
+
+  nav_statistics
+    좌측 서랍의 "통계" 항목은 원래 러스트 백엔드 번역(TR.statisticsTitle())에서
+    옵니다. 그런데 Anki 의 한국어 번역 파일에 statistics-title 키가 없어서
+    영어로 폴백됩니다. 안드로이드 문자열 리소스로 갈아끼워 해결합니다.
+
+  card_theme_*
+    노트 타입 CSS 대신 앱 테마 색을 카드 배경에 쓰는 설정.
+-->
+<resources>
+    <string name="nav_statistics" translatable="false">Statistics</string>
+
+    <!-- 설정 항목 제목에는 maxLength="41" 이 있어야 합니다.
+         AnkiDroid 의 자체 lint 규칙(PreferencesTitleMaxLengthAttr)이 릴리즈 빌드를 막습니다. -->
+    <string name="card_theme_category" maxLength="41" translatable="false">Card display</string>
+    <string name="card_theme_background" maxLength="41" translatable="false">Use app theme for card background</string>
+    <string name="card_theme_background_summary" translatable="false">Overrides the background and text colour set by the note type.</string>
+    <!-- 프리퍼런스 키. 값은 CustomFont.kt 의 상수와 같아야 하므로 바꾸지 마세요. -->
+    <string name="card_theme_background_key" translatable="false">cardThemeBackground</string>
+</resources>

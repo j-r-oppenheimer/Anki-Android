@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  저장할 위치: AnkiDroid/src/main/res/values-ko/strings_imagesave.xml
+-->
+<resources>
+    <string name="image_action_title" translatable="false">이미지</string>
+    <string name="image_action_save" translatable="false">갤러리에 저장</string>
+    <string name="image_action_share" translatable="false">공유</string>
+    <string name="image_saved" translatable="false">갤러리에 저장했습니다</string>
+    <string name="image_save_failed" translatable="false">저장에 실패했습니다</string>
+    <string name="image_share_failed" translatable="false">공유에 실패했습니다</string>
+    <string name="image_save_needs_android_10" translatable="false">저장은 Android 10 이상에서만 됩니다</string>
+</resources>

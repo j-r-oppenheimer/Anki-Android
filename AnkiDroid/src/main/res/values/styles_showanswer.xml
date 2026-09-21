@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  저장할 위치: AnkiDroid/src/main/res/values/styles_showanswer.xml
+
+  원본은 정답 보기 버튼에 @style/HardButton 을 씌워서 "어려움" 버튼과 같은 색을
+  쓰게 합니다. 답변 버튼 색은 테마 온도에 맞춰 따로 잡아둔 값이라, Mist 처럼
+  차가운 테마에서도 정답 보기 버튼만 베이지로 뜹니다.
+  전용 색(showAnswerButtonBackground)을 보게 하는 스타일입니다.
+  이 속성은 원본의 모든 테마가 정의하고 있어 어떤 테마에서도 안전합니다.
+-->
+<resources>
+    <style name="ShowAnswerButton">
+        <item name="answerButtonBackground">?attr/showAnswerButtonBackground</item>
+    </style>
+</resources>

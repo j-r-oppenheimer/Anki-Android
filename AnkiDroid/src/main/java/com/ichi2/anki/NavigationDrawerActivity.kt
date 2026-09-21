@@ -171,7 +171,19 @@ abstract class NavigationDrawerActivity(
             drawerLayout.findViewById<NavigationView>(R.id.navdrawer_items_container).apply {
                 setNavigationItemSelectedListener(this@NavigationDrawerActivity)
                 menu.findItem(R.id.nav_decks)?.title = TR.actionsDecks()
-                menu.findItem(R.id.nav_stats)?.title = TR.statisticsTitle()
+                menu.findItem(R.id.nav_stats)?.title = context.getString(R.string.nav_statistics)
+                itemTextColor?.let { existing ->
+                    val accent =
+                        com.google.android.material.color.MaterialColors.getColor(
+                            context,
+                            androidx.appcompat.R.attr.colorAccent,
+                            existing.defaultColor,
+                        )
+                    val states = arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf())
+                    val colors = intArrayOf(accent, existing.defaultColor)
+                    itemTextColor = android.content.res.ColorStateList(states, colors)
+                    itemIconTintList = android.content.res.ColorStateList(states, colors)
+                }
                 setupDrawerInsets(this)
             }
         val toolbar: Toolbar? = mainView.findViewById(R.id.toolbar)

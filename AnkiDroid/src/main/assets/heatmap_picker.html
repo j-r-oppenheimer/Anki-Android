@@ -1,0 +1,1143 @@
+<!--
+  저장할 위치: AnkiDroid/src/main/assets/heatmap_picker.html
+  WebView가 file:///android_asset/heatmap_picker.html 로 읽습니다.
+
+  색 선택은 이 페이지 안에서 직접 합니다 (HSV 사각형 + 색상 띠 + 16진수 입력).
+  브라우저/OS 기본 색상 대화상자는 쓰지 않습니다.
+
+  곡선 그래프
+    가로축 = 색 (연함 -> 진함)
+    세로축 = 하루 복습 수
+    오른쪽 끝 손잡이를 위아래로 끌면 "색이 가장 진해지는 개수"가 정해집니다.
+    가운데 손잡이를 끌면 곡선이 휩니다.
+
+  색 계산은 HeatmapWidget.kt 와 같은 식입니다.
+  기준색은 그대로 두고 투명도만 움직입니다 (강도 = 개수비^gamma).
+-->
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+  /* 색은 전부 Kotlin 이 현재 AnkiDroid 테마에서 읽어 넣습니다.
+     아래는 테마를 못 읽었을 때만 쓰이는 대체값입니다. */
+  :root {
+    --bg: #0e0f12;
+    --surface: #181a1f;
+    --surface-2: #21242a;
+    --line: #2c3037;
+    --text: #eceef2;
+    --muted: #91969f;
+    --accent: #39d353;
+    --on-accent: #ffffff;
+    --stage-1: #55606f;
+    --stage-2: #333a46;
+    --stage-3: #23272f;
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body { margin: 0; background: var(--bg); }
+
+  body {
+    padding: 0 16px 112px;
+    font-family: system-ui, sans-serif;
+    color: var(--text);
+    font-size: 15px;
+    line-height: 1.45;
+  }
+
+  /* 넓은 화면에서는 왼쪽에 미리보기를 고정하고 오른쪽에서 조작합니다. */
+  .layout { display: block; }
+
+  .stage {
+    border-radius: 22px;
+    padding: 16px;
+    margin-top: 16px;
+    background: radial-gradient(120% 100% at 15% 0%, var(--stage-1) 0%, var(--stage-2) 45%, var(--stage-3) 100%);
+  }
+  #preview { display: block; width: 100%; }
+
+  /* AnkiDroid 설정 화면처럼 구역 제목은 강조색, 본문은 카드에 담습니다. */
+  section { margin-top: 24px; }
+  .label {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 0 4px 8px;
+  }
+  .label h2 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--accent);
+  }
+  .label .hint { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  .card {
+    background: var(--surface);
+    border-radius: 16px;
+    padding: 16px;
+  }
+
+  .targets { display: flex; gap: 8px; margin-bottom: 14px; }
+  .targets[hidden] { display: none; }
+  .targets button {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    height: 40px;
+    padding: 0 10px;
+    font: inherit;
+    font-size: 13.5px;
+    color: var(--muted);
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 20px;
+  }
+  .targets button[aria-pressed="true"] {
+    color: var(--text);
+    border-color: transparent;
+    background: var(--surface-2);
+  }
+  .targets .dot { width: 13px; height: 13px; border-radius: 50%; }
+
+  #sv, #hue { display: block; width: 100%; touch-action: none; }
+  #hue { margin-top: 12px; }
+
+  .hexrow { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
+  .hexrow input {
+    width: 108px;
+    height: 42px;
+    padding: 0 12px;
+    font: inherit;
+    font-size: 14px;
+    font-family: ui-monospace, monospace;
+    color: var(--text);
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+  }
+  .hexrow span { font-size: 12px; color: var(--muted); }
+
+  .rowcap {
+    display: block;
+    margin: 16px 2px 8px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .presets { display: flex; flex-wrap: wrap; gap: 9px; }
+  .presets button {
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 1px rgba(127, 127, 127, 0.28);
+  }
+
+  #curve { display: block; width: 100%; touch-action: none; }
+  .curve-note { margin: 14px 2px 0; font-size: 13px; line-height: 1.5; color: var(--muted); }
+  .curve-note b { color: var(--text); font-weight: 600; }
+
+  .chips { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+  .chips button {
+    height: 36px;
+    padding: 0 16px;
+    font: inherit;
+    font-size: 13px;
+    color: var(--text);
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+  }
+  .chips button:disabled { color: var(--muted); opacity: 0.5; }
+
+  /* 다크 / 라이트 토글 */
+  .segmented {
+    display: flex;
+    margin-bottom: 6px;
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    overflow: hidden;
+  }
+  .segmented button {
+    flex: 1;
+    height: 40px;
+    font: inherit;
+    font-size: 13.5px;
+    color: var(--muted);
+    background: transparent;
+    border: none;
+  }
+  .segmented button[aria-pressed="true"] {
+    color: var(--text);
+    background: var(--surface-2);
+  }
+
+  .row { display: flex; align-items: center; gap: 14px; padding: 7px 0; }
+  .row label { width: 88px; flex: none; font-size: 14px; }
+  .row .val {
+    width: 46px;
+    flex: none;
+    text-align: right;
+    font-size: 13px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* 기본 스타일에 맡기면 채워지지 않은 구간이 흰색으로 남아 다크 테마에서 눈에 띕니다.
+     트랙과 손잡이를 테마 색으로 직접 지정합니다. */
+  input[type=range] {
+    -webkit-appearance: none;
+    appearance: none;
+    flex: 1;
+    min-width: 0;
+    height: 28px;
+    background: transparent;
+  }
+  /* --fill 은 JS 가 값에 맞춰 갱신합니다. 지나온 구간은 강조색, 남은 구간은 회색. */
+  input[type=range]::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 2px;
+    background: linear-gradient(
+      to right,
+      var(--accent) 0 var(--fill, 0%),
+      var(--line) var(--fill, 0%) 100%
+    );
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    margin-top: -7px;
+    border: none;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  /* 저장 버튼은 화면 아래에 붙여 둡니다. 스크롤해서 찾지 않아도 되도록. */
+  footer {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    gap: 10px;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    background: var(--bg);
+    border-top: 1px solid var(--line);
+  }
+  footer button {
+    height: 48px;
+    font: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    border: none;
+    border-radius: 24px;
+  }
+  #cancel { flex: none; width: 104px; background: var(--surface-2); color: var(--text); }
+  #save { flex: 1; background: var(--accent); color: var(--on-accent); }
+
+  /* 태블릿 가로 화면: 왼쪽 미리보기 고정, 오른쪽 설정 */
+  @media (min-width: 680px) {
+    body { padding: 0 24px 96px; }
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(280px, 380px) minmax(0, 1fr);
+      gap: 28px;
+      align-items: start;
+    }
+    .pane-preview { position: sticky; top: 16px; }
+      footer { padding-left: 24px; padding-right: 24px; }
+    #save { flex: none; width: 220px; margin-left: auto; }
+    #cancel { order: -1; }
+  }
+</style>
+</head>
+<body>
+
+
+<div class="layout">
+<div class="pane-preview">
+  <div class="stage">
+    <canvas id="preview"></canvas>
+  </div>
+</div>
+
+<div class="pane-controls">
+
+<section>
+  <div class="label"><h2 data-i18n="section_color"></h2></div>
+  <div class="card">
+    <div class="targets" id="targets"></div>
+    <canvas id="sv"></canvas>
+    <canvas id="hue"></canvas>
+    <div class="hexrow">
+      <input type="text" id="hex" maxlength="7" spellcheck="false" autocapitalize="characters"
+             inputmode="text" data-i18n-aria="hex_label">
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="label"><h2 data-i18n="section_curve"></h2></div>
+  <div class="card">
+    <canvas id="curve"></canvas>
+  </div>
+</section>
+
+<section>
+  <div class="label"><h2 data-i18n="section_shape"></h2></div>
+  <div class="card">
+    <div class="row">
+      <label data-i18n="corner"></label>
+      <input type="range" id="corner" min="0" max="50" step="1">
+      <span class="val" id="cornerOut"></span>
+    </div>
+    <div class="row">
+      <label data-i18n="cell_size"></label>
+      <input type="range" id="gap" min="65" max="100" step="1">
+      <span class="val" id="gapOut"></span>
+    </div>
+    <div class="row">
+      <label data-i18n="padding"></label>
+      <input type="range" id="padding" min="0" max="24" step="1">
+      <span class="val" id="paddingOut"></span>
+    </div>
+    <div class="row">
+      <label data-i18n="empty_opacity"></label>
+      <input type="range" id="emptyPct" min="0" max="100" step="1">
+      <span class="val" id="emptyPctOut"></span>
+    </div>
+    <div class="row">
+      <label data-i18n="peak_opacity"></label>
+      <input type="range" id="peakPct" min="10" max="100" step="1">
+      <span class="val" id="peakPctOut"></span>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="label"><h2 data-i18n="section_background"></h2></div>
+  <div class="card">
+    <div class="segmented" id="modeToggle">
+      <button type="button" id="modeDark" data-i18n="mode_dark"></button>
+      <button type="button" id="modeLight" data-i18n="mode_light"></button>
+    </div>
+    <div class="row">
+      <label data-i18n="opacity"></label>
+      <input type="range" id="bgAlpha" min="1" max="254" step="1">
+      <span class="val" id="bgAlphaOut"></span>
+    </div>
+  </div>
+</section>
+
+</div>
+</div>
+
+<footer>
+  <button id="cancel" data-i18n="cancel"></button>
+  <button id="save" data-i18n="save"></button>
+</footer>
+
+<script>
+"use strict";
+
+var DEFAULTS = {
+  base: "#2F81F7",
+  dark: true,
+  bgAlpha: 128,
+  emptyPct: 15,
+  peakPct: 100,
+  padding: 8,
+  emptyColor: "#000000",
+  corner: 25,
+  gap: 18,
+  curveX: 50,
+  curveY: 50,
+  maxCount: 0
+};
+
+/* 배경은 색이 아니라 밝기 모드와 투명도로만 정하므로 여기 없습니다.
+   빈 칸은 기본적으로 밝기 모드가 정해주고, 직접 지정을 켤 때만 고를 수 있습니다. */
+var TARGETS = [
+  { key: "base", label: "target_base" },
+  { key: "emptyColor", label: "target_empty" }
+];
+
+var INTENSITY_FLOOR = 0.18;
+var ROWS = 7;
+var PREVIEW_COLUMNS = 17;
+var PLOT = { left: 40, right: 26, top: 16, bottom: 30 };
+
+var S = Object.assign({}, DEFAULTS);
+var STATS = { counts: [], auto: 40, peak: 0, weekday: 0, ready: false };
+var active = "base";
+var HSV = { h: 140, s: 0.7, v: 0.8 };
+var axisTop = 100;
+
+function el(id) { return document.getElementById(id); }
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+function boxWidth(canvas) { return canvas.parentNode.clientWidth - 32; }
+
+/* ------------------------------------------------------------------ 색 변환 */
+
+function parseHex(hex) {
+  return [
+    parseInt(hex.slice(1, 3), 16),
+    parseInt(hex.slice(3, 5), 16),
+    parseInt(hex.slice(5, 7), 16)
+  ];
+}
+
+function toHex(rgb) {
+  return "#" + rgb.map(function (v) {
+    return ("0" + clamp(Math.round(v), 0, 255).toString(16)).slice(-2).toUpperCase();
+  }).join("");
+}
+
+function hsvToRgb(h, s, v) {
+  var c = v * s;
+  var hp = (h % 360) / 60;
+  var x = c * (1 - Math.abs((hp % 2) - 1));
+  var m = v - c;
+  var r = [[c, x, 0], [x, c, 0], [0, c, x], [0, x, c], [x, 0, c], [c, 0, x]][Math.floor(hp) % 6];
+  return [(r[0] + m) * 255, (r[1] + m) * 255, (r[2] + m) * 255];
+}
+
+function rgbToHsv(rgb) {
+  var r = rgb[0] / 255, g = rgb[1] / 255, b = rgb[2] / 255;
+  var max = Math.max(r, g, b), min = Math.min(r, g, b);
+  var d = max - min;
+  var h = 0;
+  if (d > 0) {
+    if (max === r) { h = 60 * (((g - b) / d) % 6); }
+    else if (max === g) { h = 60 * ((b - r) / d + 2); }
+    else { h = 60 * ((r - g) / d + 4); }
+  }
+  if (h < 0) { h += 360; }
+  return { h: h, s: max === 0 ? 0 : d / max, v: max };
+}
+
+function hsvCss(h, s, v) {
+  var rgb = hsvToRgb(h, s, v);
+  return "rgb(" + Math.round(rgb[0]) + "," + Math.round(rgb[1]) + "," + Math.round(rgb[2]) + ")";
+}
+
+
+/* ------------------------------------------------------------------ 색 계산 */
+
+function effectiveMax() {
+  return S.maxCount > 0 ? S.maxCount : STATS.auto;
+}
+
+/* 곡선 손잡이 (색 = curveX%, 개수 = 최대 개수의 curveY%) 를 지나는 지수 */
+function gamma() {
+  var color = clamp(S.curveX, 4, 96) / 100;
+  var count = clamp(S.curveY, 4, 96) / 100;
+  if (Math.abs(color - count) < 1e-4) { return 1; }
+  return clamp(Math.log(color) / Math.log(count), 0.15, 6);
+}
+
+function intensityAt(countRatio) {
+  return Math.pow(clamp(countRatio, 0, 1), gamma());
+}
+
+/* 색 강도로부터 개수비를 되돌립니다. 곡선을 그릴 때 씁니다. */
+function countRatioAt(intensity) {
+  return Math.pow(clamp(intensity, 0, 1), 1 / gamma());
+}
+
+/* 배경과 빈 칸이 함께 쓰는 무채색. 위젯 코드의 tone 과 같은 규칙입니다.
+   다크는 검정, 라이트는 흰색이라 빈 칸이 바탕의 연장처럼 보입니다. */
+function toneHex() { return S.dark ? "#000000" : "#FFFFFF"; }
+
+function rgba(hex, alpha) {
+  var c = parseHex(hex);
+  return "rgba(" + c[0] + "," + c[1] + "," + c[2] + "," + alpha.toFixed(3) + ")";
+}
+
+/* 색은 고른 기준색 그대로 두고 투명도만 움직입니다.
+   색과 투명도를 같이 조절하면 적게 한 날이 두 번 흐려져서
+   정작 고른 색이 화면에 제대로 드러나지 않습니다. */
+function colorForIntensity(intensity) {
+  var mix = INTENSITY_FLOOR + (1 - INTENSITY_FLOOR) * intensity;
+  return rgba(S.base, (S.emptyPct + (S.peakPct - S.emptyPct) * mix) / 100);
+}
+
+function emptyStyle() { return rgba(S.emptyColor, S.emptyPct / 100); }
+
+function colorForCount(count) {
+  if (count <= 0) { return emptyStyle(); }
+  return colorForIntensity(intensityAt(count / Math.max(1, effectiveMax())));
+}
+
+/* ------------------------------------------------------------------ 캔버스 */
+
+function setupCanvas(canvas, cssWidth, cssHeight) {
+  var dpr = window.devicePixelRatio || 1;
+  canvas.style.height = cssHeight + "px";
+  canvas.width = Math.max(1, Math.round(cssWidth * dpr));
+  canvas.height = Math.max(1, Math.round(cssHeight * dpr));
+  var ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, cssWidth, cssHeight);
+  return { ctx: ctx, w: cssWidth, h: cssHeight };
+}
+
+function rrPath(ctx, x, y, w, h, r) {
+  var radius = clamp(r, 0, Math.min(w, h) / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.arcTo(x + w, y, x + w, y + h, radius);
+  ctx.arcTo(x + w, y + h, x, y + h, radius);
+  ctx.arcTo(x, y + h, x, y, radius);
+  ctx.arcTo(x, y, x + w, y, radius);
+  ctx.closePath();
+}
+
+function knob(ctx, x, y, fill, radius) {
+  ctx.fillStyle = "rgba(0,0,0,0.5)";
+  ctx.beginPath();
+  ctx.arc(x, y, radius + 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = fill;
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.stroke();
+}
+
+/* ------------------------------------------------------------------ 색 위젯 */
+
+function drawSV() {
+  var canvas = el("sv");
+  var width = boxWidth(canvas);
+  if (width <= 0) { return; }
+  var view = setupCanvas(canvas, width, 158);
+  var ctx = view.ctx;
+
+  ctx.save();
+  rrPath(ctx, 0, 0, view.w, view.h, 14);
+  ctx.clip();
+
+  var saturation = ctx.createLinearGradient(0, 0, view.w, 0);
+  saturation.addColorStop(0, "#ffffff");
+  saturation.addColorStop(1, hsvCss(HSV.h, 1, 1));
+  ctx.fillStyle = saturation;
+  ctx.fillRect(0, 0, view.w, view.h);
+
+  var value = ctx.createLinearGradient(0, 0, 0, view.h);
+  value.addColorStop(0, "rgba(0,0,0,0)");
+  value.addColorStop(1, "#000000");
+  ctx.fillStyle = value;
+  ctx.fillRect(0, 0, view.w, view.h);
+  ctx.restore();
+
+  knob(ctx, HSV.s * view.w, (1 - HSV.v) * view.h, S[active], 9);
+}
+
+function drawHue() {
+  var canvas = el("hue");
+  var width = boxWidth(canvas);
+  if (width <= 0) { return; }
+  var view = setupCanvas(canvas, width, 30);
+  var ctx = view.ctx;
+
+  ctx.save();
+  rrPath(ctx, 0, 4, view.w, view.h - 8, (view.h - 8) / 2);
+  ctx.clip();
+  var strip = ctx.createLinearGradient(0, 0, view.w, 0);
+  for (var stop = 0; stop <= 6; stop++) {
+    strip.addColorStop(stop / 6, hsvCss(stop * 60, 1, 1));
+  }
+  ctx.fillStyle = strip;
+  ctx.fillRect(0, 0, view.w, view.h);
+  ctx.restore();
+
+  knob(ctx, (HSV.h / 360) * view.w, view.h / 2, hsvCss(HSV.h, 1, 1), 8);
+}
+
+function commitHsv() {
+  S[active] = toHex(hsvToRgb(HSV.h, HSV.s, HSV.v));
+  redraw();
+}
+
+/* ------------------------------------------------------------------ 미리보기 */
+
+function previewCounts() {
+  var total = (PREVIEW_COLUMNS - 1) * ROWS + STATS.weekday + 1;
+  if (STATS.counts.length >= total) {
+    return STATS.counts.slice(STATS.counts.length - total);
+  }
+  var out = [];
+  var seed = 7;
+  for (var i = 0; i < total; i++) {
+    seed = (seed * 1103515245 + 12345) % 2147483648;
+    var r = seed / 2147483648;
+    out.push(r < 0.22 ? 0 : Math.round(r * r * effectiveMax() * 1.3));
+  }
+  return out;
+}
+
+function drawPreview() {
+  var canvas = el("preview");
+  var width = boxWidth(canvas);
+  if (width <= 0) { return; }
+  /* 여백도 함께 보여줍니다. 위젯 폭을 대략 260dp 로 잡고 그 비율로 환산합니다. */
+  var pad = S.padding * (width / 260);
+  var pitch = (width - pad * 2) / PREVIEW_COLUMNS;
+  var view = setupCanvas(canvas, width, Math.round(pitch * ROWS + pad * 2));
+  var ctx = view.ctx;
+
+  ctx.fillStyle = rgba(S.dark ? "#000000" : "#FFFFFF", S.bgAlpha / 255);
+  rrPath(ctx, 0, 0, view.w, view.h, 14);
+  ctx.fill();
+
+  var gap = pitch * (S.gap / 100);
+  var cell = pitch - gap;
+  var radius = cell * (S.corner / 100);
+  var counts = previewCounts();
+
+  for (var i = 0; i < counts.length; i++) {
+    var column = Math.floor(i / ROWS);
+    if (column >= PREVIEW_COLUMNS) { continue; }
+    ctx.fillStyle = colorForCount(counts[i]);
+    rrPath(ctx, pad + column * pitch + gap / 2, pad + (i % ROWS) * pitch + gap / 2, cell, cell, radius);
+    ctx.fill();
+  }
+}
+
+/* ------------------------------------------------------------------ 곡선 */
+
+function plotRect(view) {
+  return {
+    x: PLOT.left,
+    y: PLOT.top,
+    w: view.w - PLOT.left - PLOT.right,
+    h: view.h - PLOT.top - PLOT.bottom
+  };
+}
+
+/**
+ * 세로축 위쪽 끝.
+ *
+ * 최고 기록에 맞추면 어쩌다 몰아친 하루 때문에 곡선이 바닥에 눌려버립니다.
+ * 그래서 자동값(90 백분위수)의 두 배를 기준으로 잡아 기본 상태에서 최대 개수
+ * 손잡이가 그래프 중간 높이에 오게 합니다. 최고 기록은 옆의 안내 문구에 적습니다.
+ *
+ * 끌고 있는 동안 축이 늘어나면 손잡이가 손가락을 피해 달아나므로,
+ * 이 함수는 기록이 도착할 때와 화면을 처음 열 때만 부릅니다.
+ */
+function recomputeAxisTop() {
+  if (!STATS.ready) {
+    axisTop = 100;
+    return;
+  }
+  // 축은 학습 기록만 보고 정합니다. 최대 개수를 끌어 바꿔도 눈금이 따라
+  // 움직이면 손잡이가 손가락을 피해 달아나므로, 여기에는 S.maxCount 를 넣지 않습니다.
+  // 축 위쪽에 여유가 있어야 최대 개수를 위로 끌어올릴 자리가 생깁니다.
+  var wanted = Math.max(STATS.auto * 2, 20);
+  var step = wanted > 300 ? 50 : (wanted > 100 ? 20 : 10);
+  axisTop = Math.ceil(wanted / step) * step;
+  // 예전에 축 밖의 값을 저장해 둔 경우에만 화면을 열 때 한 번 넓힙니다.
+  if (S.maxCount > axisTop) {
+    axisTop = Math.ceil((S.maxCount * 1.05) / step) * step;
+  }
+}
+
+function countStep() {
+  return axisTop > 200 ? 5 : 1;
+}
+
+function drawCurve() {
+  var canvas = el("curve");
+  var width = boxWidth(canvas);
+  if (width <= 0) { return; }
+  var view = setupCanvas(canvas, width, 320);
+  var ctx = view.ctx;
+  var p = plotRect(view);
+  var max = effectiveMax();
+
+  /* 배경: 세로 위치가 곧 하루 복습 수이고, 그 자리의 색이 실제로 칠해질 색입니다.
+     위로 갈수록 많이 한 날이라 진해집니다. 위젯에서 보이는 그대로가 되도록
+     위젯 배경까지 같은 순서로 깔아 둡니다. */
+  ctx.save();
+  rrPath(ctx, p.x, p.y, p.w, p.h, 12);
+  ctx.clip();
+
+  ctx.fillStyle = UI.surface;
+  ctx.fillRect(p.x, p.y, p.w, p.h);
+  ctx.fillStyle = rgba(S.dark ? "#000000" : "#FFFFFF", S.bgAlpha / 255);
+  ctx.fillRect(p.x, p.y, p.w, p.h);
+
+  var slices = 96;
+  for (var s = 0; s < slices; s++) {
+    ctx.fillStyle = colorForCount(((slices - s - 0.5) / slices) * axisTop);
+    ctx.fillRect(p.x, p.y + (p.h * s) / slices, p.w, p.h / slices + 0.6);
+  }
+
+  /* 가로 안내선 */
+  ctx.strokeStyle = UI.line;
+  ctx.lineWidth = 1;
+  for (var g = 1; g < 4; g++) {
+    var gy = p.y + (p.h * g) / 4;
+    ctx.beginPath();
+    ctx.moveTo(p.x, gy);
+    ctx.lineTo(p.x + p.w, gy);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  /* 하루 복습 수의 분포를 왼쪽에서 뻗는 막대로 */
+  if (STATS.ready && STATS.counts.length) {
+    var buckets = 24;
+    var hist = new Array(buckets).fill(0);
+    for (var i = 0; i < STATS.counts.length; i++) {
+      var n = STATS.counts[i];
+      if (n <= 0) { continue; }
+      hist[clamp(Math.floor((n / axisTop) * buckets), 0, buckets - 1)]++;
+    }
+    var tallest = Math.max.apply(null, hist) || 1;
+    ctx.fillStyle = UI.dark ? "rgba(255,255,255,0.20)" : "rgba(0,0,0,0.16)";
+    var bh = p.h / buckets;
+    for (var k = 0; k < buckets; k++) {
+      if (!hist[k]) { continue; }
+      var bw = (hist[k] / tallest) * (p.w * 0.32);
+      ctx.fillRect(p.x, p.y + p.h - (k + 1) * bh + 0.5, bw, bh - 1);
+    }
+  }
+
+  /* 곡선: 세로축의 개수마다 가로축의 어느 색이 되는지 */
+  var endY = p.y + p.h - (Math.min(max, axisTop) / axisTop) * p.h;
+
+  ctx.strokeStyle = UI.dark ? "rgba(0,0,0,0.45)" : "rgba(255,255,255,0.65)";
+  ctx.lineWidth = 5;
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+  tracePath(ctx, p, max);
+  ctx.stroke();
+
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 2.5;
+  tracePath(ctx, p, max);
+  ctx.stroke();
+
+  /* 최대 개수 위쪽은 색이 더 진해지지 않습니다 */
+  if (endY > p.y + 1) {
+    ctx.strokeStyle = "rgba(255,255,255,0.45)";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(p.x + p.w, endY);
+    ctx.lineTo(p.x + p.w, p.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  /* 손잡이 두 개 */
+  var mid = midHandle(p, max);
+  knob(ctx, mid.x, mid.y, "#ffffff", 8);
+  knob(ctx, p.x + p.w, endY, S.base, 10);
+
+  /* 축 눈금 */
+  ctx.font = "11px system-ui, sans-serif";
+  ctx.fillStyle = UI.muted;
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
+  if (STATS.ready) {
+    /* 번역 함수 t() 와 이름이 겹치지 않도록 tick 을 씁니다.
+       var 는 함수 전체를 가리므로, 여기서 t 를 쓰면 아래 t("axis_light") 가 깨집니다. */
+    for (var tick = 0; tick <= 2; tick++) {
+      var value = Math.round((axisTop * tick) / 2);
+      ctx.fillText(String(value), p.x - 8, p.y + p.h - (p.h * tick) / 2);
+    }
+  } else {
+    ctx.fillText("…", p.x - 8, p.y + p.h / 2);
+  }
+
+  ctx.textBaseline = "top";
+  ctx.textAlign = "left";
+  ctx.fillText(t("axis_light"), p.x, p.y + p.h + 9);
+  ctx.textAlign = "right";
+  ctx.fillText(t("axis_dark"), p.x + p.w, p.y + p.h + 9);
+  ctx.textAlign = "center";
+  ctx.fillText(t("axis_color"), p.x + p.w / 2, p.y + p.h + 9);
+
+  /* 최대 개수 표시 */
+  if (STATS.ready) {
+    ctx.textAlign = "right";
+    ctx.textBaseline = "bottom";
+    ctx.font = "600 12px system-ui, sans-serif";
+    ctx.fillStyle = "#ffffff";
+    ctx.fillText(fmt("count_n", max), p.x + p.w - 14, endY - 12);
+  }
+}
+
+function tracePath(ctx, p, max) {
+  var steps = 80;
+  var visible = Math.min(max, axisTop) / axisTop;
+  ctx.beginPath();
+  for (var i = 0; i <= steps; i++) {
+    var intensity = i / steps;
+    var x = p.x + p.w * intensity;
+    var y = p.y + p.h - countRatioAt(intensity) * visible * p.h;
+    if (i === 0) { ctx.moveTo(x, y); } else { ctx.lineTo(x, y); }
+  }
+}
+
+/**
+ * 가운데 손잡이. 세로 위치는 curveY 를 그대로 쓰지 않고 곡선에서 다시 구합니다.
+ * gamma 를 0.15~6 으로 제한하기 때문에 아주 극단적인 곳으로 끌면 저장된 값과
+ * 실제 곡선이 살짝 어긋나는데, 이렇게 하면 손잡이가 언제나 곡선 위에 있습니다.
+ */
+function midHandle(p, max) {
+  var visible = Math.min(max, axisTop) / axisTop;
+  var color = clamp(S.curveX, 4, 96) / 100;
+  return {
+    x: p.x + p.w * color,
+    y: p.y + p.h - countRatioAt(color) * visible * p.h
+  };
+}
+
+
+/* ------------------------------------------------------------------ 그리기 */
+
+/* 슬라이더의 채워진 만큼을 --fill 에 넣어 트랙 그라디언트를 갱신합니다. */
+function paintRanges() {
+  var ranges = document.querySelectorAll("input[type=range]");
+  for (var i = 0; i < ranges.length; i++) {
+    var input = ranges[i];
+    var min = parseFloat(input.min) || 0;
+    var max = parseFloat(input.max) || 100;
+    var value = parseFloat(input.value) || 0;
+    var percent = max > min ? ((value - min) / (max - min)) * 100 : 0;
+    input.style.setProperty("--fill", percent.toFixed(1) + "%");
+  }
+}
+
+function redraw() {
+  paintRanges();
+  document.documentElement.style.setProperty("--accent", S.base);
+  el("cornerOut").textContent = S.corner + "%";
+  el("gapOut").textContent = (100 - S.gap) + "%";
+  el("paddingOut").textContent = S.padding + "dp";
+  el("bgAlphaOut").textContent = Math.round((S.bgAlpha / 255) * 100) + "%";
+  el("emptyPctOut").textContent = S.emptyPct + "%";
+  el("peakPctOut").textContent = S.peakPct + "%";
+  el("modeDark").setAttribute("aria-pressed", S.dark ? "true" : "false");
+  el("modeLight").setAttribute("aria-pressed", S.dark ? "false" : "true");
+
+
+  var tabs = el("targets").children;
+  for (var i = 0; i < tabs.length; i++) {
+    var key = tabs[i].dataset.key;
+    tabs[i].setAttribute("aria-pressed", key === active ? "true" : "false");
+    tabs[i].firstChild.style.background = S[key];
+  }
+
+  if (document.activeElement !== el("hex")) {
+    el("hex").value = S[active];
+  }
+
+  drawSV();
+  drawHue();
+  drawPreview();
+  drawCurve();
+}
+
+function syncInputs() {
+  el("corner").value = S.corner;
+  el("gap").value = 100 - S.gap;
+  el("padding").value = S.padding;
+  el("bgAlpha").value = S.bgAlpha;
+  el("emptyPct").value = S.emptyPct;
+  el("peakPct").value = S.peakPct;
+}
+
+function selectTarget(key) {
+  active = key;
+  HSV = rgbToHsv(parseHex(S[key]));
+  redraw();
+}
+
+/* --------------------------------------------------------------- 문자열 */
+
+/* 화면에 나오는 모든 문구는 Kotlin이 안드로이드 문자열 리소스에서 읽어
+   넘겨줍니다. 따라서 AnkiDroid의 언어 설정을 그대로 따라갑니다.
+   여기 적힌 값은 문자열을 못 받았을 때만 쓰이는 영어 대체값입니다. */
+var STRINGS = {
+  axis_color: "Colour",
+  axis_dark: "Dark",
+  axis_light: "Light",
+  cancel: "Cancel",
+  cell_size: "Cell size",
+  corner: "Corner",
+  count_n: "%d",
+  empty_opacity: "Empty days",
+  hex_label: "Hex colour code",
+  mode_dark: "Dark",
+  mode_light: "Light",
+  opacity: "Opacity",
+  padding: "Padding",
+  peak_opacity: "Busiest day",
+  save: "Save",
+  section_background: "Background",
+  section_color: "Colour",
+  section_curve: "Intensity curve",
+  section_shape: "Cell shape",
+  target_base: "Base",
+  target_empty: "Empty day",
+  title: "Heatmap widget"
+};
+
+function t(key) { return STRINGS[key] !== undefined ? STRINGS[key] : key; }
+function fmt(key, value) { return t(key).replace("%d", value); }
+
+function applyStrings() {
+  var nodes = document.querySelectorAll("[data-i18n]");
+  for (var i = 0; i < nodes.length; i++) {
+    nodes[i].textContent = t(nodes[i].getAttribute("data-i18n"));
+  }
+  var aria = document.querySelectorAll("[data-i18n-aria]");
+  for (var j = 0; j < aria.length; j++) {
+    aria[j].setAttribute("aria-label", t(aria[j].getAttribute("data-i18n-aria")));
+  }
+}
+
+/* ------------------------------------------------------------------ 테마 */
+
+/* 현재 AnkiDroid 테마의 색을 그대로 씁니다. 밝은 테마를 쓰면 이 화면도 밝습니다. */
+/* 캔버스는 CSS 를 못 쓰므로 테마 색을 여기에 받아 둡니다. */
+var UI = { dark: true, muted: "#8b909a", line: "rgba(127,127,127,0.28)", surface: "#21242a" };
+
+function applyTheme(theme) {
+  if (!theme) { return; }
+  UI.dark = !!theme.dark;
+  if (theme.muted) { UI.muted = theme.muted; }
+  if (theme.surface2) { UI.surface = theme.surface2; }
+  UI.line = theme.dark ? "rgba(255,255,255,0.16)" : "rgba(0,0,0,0.14)";
+  var root = document.documentElement.style;
+  var map = {
+    bg: "--bg", surface: "--surface", surface2: "--surface-2", line: "--line",
+    text: "--text", muted: "--muted", accent: "--accent", onAccent: "--on-accent",
+    stage1: "--stage-1", stage2: "--stage-2", stage3: "--stage-3"
+  };
+  for (var k in map) {
+    if (theme[k]) { root.setProperty(map[k], theme[k]); }
+  }
+  document.documentElement.style.colorScheme = theme.dark ? "dark" : "light";
+}
+
+/* ------------------------------------------------------------------ 입력 */
+
+(function buildTargets() {
+  var host = el("targets");
+  TARGETS.forEach(function (target) {
+    var button = document.createElement("button");
+    button.dataset.key = target.key;
+    var dot = document.createElement("span");
+    dot.className = "dot";
+    button.appendChild(dot);
+    button.appendChild(document.createTextNode(t(target.label)));
+    button.addEventListener("click", function () { selectTarget(target.key); });
+    host.appendChild(button);
+  });
+})();
+
+
+
+el("hex").addEventListener("input", function () {
+  var text = this.value.trim().toUpperCase();
+  if (text.charAt(0) !== "#") { text = "#" + text; }
+  if (/^#[0-9A-F]{6}$/.test(text)) {
+    S[active] = text;
+    HSV = rgbToHsv(parseHex(text));
+    redraw();
+  }
+});
+
+el("hex").addEventListener("blur", function () { this.value = S[active]; });
+
+function bindRange(id, field) {
+  el(id).addEventListener("input", function () {
+    S[field] = parseInt(this.value, 10);
+    paintRanges();
+    redraw();
+  });
+}
+
+bindRange("corner", "corner");
+bindRange("padding", "padding");
+/* 격자 간격이 고정이라 칸이 커지면 그만큼 사이가 좁아집니다.
+   보이는 값은 칸 크기로 두고, 저장은 기존대로 간격으로 합니다. */
+el("gap").addEventListener("input", function () {
+  S.gap = 100 - parseInt(this.value, 10);
+  redraw();
+});
+bindRange("bgAlpha", "bgAlpha");
+bindRange("emptyPct", "emptyPct");
+bindRange("peakPct", "peakPct");
+
+/* 밝기 모드. 색을 고르는 게 아니라 위젯이 밝은 배경 위인지 어두운 배경 위인지만 정합니다. */
+function setMode(dark) {
+  /* 빈 칸 색을 따로 고르지 않은 상태(검정이나 흰색 그대로)면 모드를 따라가게 합니다.
+     직접 다른 색을 골랐다면 건드리지 않습니다. */
+  var untouched = S.emptyColor === "#000000" || S.emptyColor === "#FFFFFF";
+  S.dark = dark;
+  if (untouched) { S.emptyColor = toneHex(); }
+  syncInputs();
+  if (active === "emptyColor") { selectTarget("emptyColor"); } else { redraw(); }
+}
+el("modeDark").addEventListener("click", function () { setMode(true); });
+el("modeLight").addEventListener("click", function () { setMode(false); });
+
+
+/** 캔버스에 끌기 동작을 붙입니다. handler(x, y, view) 는 CSS 픽셀 좌표를 받습니다. */
+function draggable(canvas, handler) {
+  var dragging = false;
+
+  function send(event) {
+    var box = canvas.getBoundingClientRect();
+    handler(event.clientX - box.left, event.clientY - box.top, { w: box.width, h: box.height });
+  }
+
+  canvas.addEventListener("pointerdown", function (event) {
+    dragging = true;
+    if (canvas.setPointerCapture) { canvas.setPointerCapture(event.pointerId); }
+    send(event);
+    event.preventDefault();
+  });
+  canvas.addEventListener("pointermove", function (event) {
+    if (dragging) { send(event); }
+  });
+  function stop() { dragging = false; }
+  canvas.addEventListener("pointerup", stop);
+  canvas.addEventListener("pointercancel", stop);
+}
+
+draggable(el("sv"), function (x, y, view) {
+  HSV.s = clamp(x / view.w, 0, 1);
+  HSV.v = clamp(1 - y / view.h, 0, 1);
+  commitHsv();
+});
+
+draggable(el("hue"), function (x, y, view) {
+  HSV.h = clamp((x / view.w) * 360, 0, 359.9);
+  commitHsv();
+});
+
+/* 오른쪽 끝 손잡이 = 최대 개수, 가운데 손잡이 = 곡선 모양 */
+(function curveDragging() {
+  var grabbed = null;
+
+  draggable(el("curve"), function (x, y, view) {
+    var p = plotRect(view);
+    var max = effectiveMax();
+
+    if (grabbed === null) {
+      var mid = midHandle(p, max);
+      var endY = p.y + p.h - (Math.min(max, axisTop) / axisTop) * p.h;
+      var toMid = Math.pow(x - mid.x, 2) + Math.pow(y - mid.y, 2);
+      var toEnd = Math.pow(x - (p.x + p.w), 2) + Math.pow(y - endY, 2);
+      grabbed = toEnd < toMid ? "max" : "mid";
+    }
+
+    if (grabbed === "max") {
+      var ratio = clamp((p.y + p.h - y) / p.h, 0.02, 1);
+      var step = countStep();
+      S.maxCount = Math.max(step, Math.round((ratio * axisTop) / step) * step);
+    } else {
+      var visible = Math.min(max, axisTop) / axisTop;
+      S.curveX = clamp(Math.round(((x - p.x) / p.w) * 100), 4, 96);
+      S.curveY = clamp(
+        Math.round((((p.y + p.h - y) / p.h) / Math.max(visible, 0.02)) * 100),
+        4,
+        96
+      );
+    }
+    redraw();
+  });
+
+  function release() { grabbed = null; }
+  el("curve").addEventListener("pointerup", release);
+  el("curve").addEventListener("pointercancel", release);
+})();
+
+el("save").addEventListener("click", function () {
+  if (!window.AnkiHeatmap) { return; }
+  AnkiHeatmap.save(JSON.stringify({
+    base: S.base,
+    dark: S.dark,
+    bgAlpha: S.bgAlpha,
+    emptyPct: S.emptyPct,
+    peakPct: S.peakPct,
+    padding: S.padding,
+    emptyColor: S.emptyColor,
+    corner: S.corner,
+    gap: S.gap,
+    curveX: S.curveX,
+    curveY: S.curveY,
+    maxCount: S.maxCount
+  }));
+});
+
+el("cancel").addEventListener("click", function () {
+  if (window.AnkiHeatmap && AnkiHeatmap.cancel) { AnkiHeatmap.cancel(); }
+});
+
+/* 학습 기록은 컬렉션을 열어야 하므로 준비되는 대로 여기로 들어옵니다. */
+window.ankiHeatmapStats = function (stats) {
+  STATS = {
+    counts: stats.counts || [],
+    auto: stats.auto || 40,
+    peak: stats.peak || 0,
+    weekday: stats.weekday || 0,
+    ready: true
+  };
+  recomputeAxisTop();
+  redraw();
+};
+
+window.addEventListener("resize", redraw);
+
+(function start() {
+  var loaded = DEFAULTS;
+  try {
+    if (window.AnkiHeatmap) {
+      var raw = AnkiHeatmap.load();
+      if (raw) { loaded = JSON.parse(raw); }
+    }
+  } catch (e) { /* 기본값으로 진행합니다. */ }
+
+  if (loaded.strings) { STRINGS = Object.assign({}, STRINGS, loaded.strings); }
+  applyStrings();
+  applyTheme(loaded.theme);
+
+  S = Object.assign({}, DEFAULTS, loaded);
+
+  syncInputs();
+  recomputeAxisTop();
+  /* 기록 요청을 먼저 보냅니다. 그리기 쪽에서 문제가 생기더라도
+     학습 기록은 도착하도록 순서를 이렇게 둡니다. */
+  if (window.AnkiHeatmap && AnkiHeatmap.requestStats) {
+    AnkiHeatmap.requestStats();
+  }
+
+  selectTarget("base");
+})();
+</script>
+</body>
+</html>

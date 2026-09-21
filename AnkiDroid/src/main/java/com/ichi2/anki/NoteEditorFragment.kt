@@ -108,6 +108,7 @@ import com.ichi2.anki.dialogs.startDeckSelection
 import com.ichi2.anki.dialogs.tags.TagsDialogFactory
 import com.ichi2.anki.dialogs.tags.TagsDialogListener
 import com.ichi2.anki.exception.toBytesShortString
+import com.ichi2.anki.imagesave.ensureImageExtension
 import com.ichi2.anki.libanki.Card
 import com.ichi2.anki.libanki.CardId
 import com.ichi2.anki.libanki.CardOrdinal
@@ -423,15 +424,49 @@ class NoteEditorFragment :
             val clip = uriContent.clip
             val description = clip.description
 
-            if (!hasMedia(description)) {
+            // 원본은 클립보드 설명에 적힌 MIME 타입만 믿고, 미디어가 아니라고 나오면
+            // 조용히 끝냅니다. 타입을 제대로 알려주지 않는 앱에서 붙여넣기가 아무
+            // 반응 없이 무시되던 이유입니다. 여기서는 각 URI 의 실제 타입을 물어봅니다.
+            val resolver = requireContext().contentResolver
+            val mediaItems =
+                clip
+                    .items()
+                    .mapNotNull { item ->
+                        val uri = item.uri ?: return@mapNotNull null
+                        val type =
+                            try {
+                                resolver.getType(uri)
+                            } catch (e: Exception) {
+                                Timber.w(e, "could not read the type of a pasted item")
+                                null
+                            }
+                        val isMedia =
+                            type != null &&
+                                (
+                                    type.startsWith("image/") ||
+                                        type.startsWith("audio/") ||
+                                        type.startsWith("video/")
+                                )
+                        if (hasMedia(description) || isMedia) uri to type else null
+                    }.toList()
+
+            if (mediaItems.isEmpty()) {
                 return@OnReceiveContentListener remaining
             }
 
-            for (uri in clip.items().map { it.uri }) {
+            for ((uri, type) in mediaItems) {
+                // 설명이 미디어라고 말하지 않으면 실제 타입으로 만든 설명을 넘깁니다.
+                // 이 설명은 아래에서 이미지인지 영상인지 판단하는 데 쓰입니다.
+                val effectiveDescription =
+                    if (hasMedia(description) || type == null) {
+                        description
+                    } else {
+                        ClipDescription(description.label, arrayOf(type))
+                    }
                 lifecycleScope.launch {
                     try {
                         val pasteAsPng = shouldPasteAsPng()
-                        multimediaController.onPaste(view as EditText, uri, description, pasteAsPng)
+                        multimediaController.onPaste(view as EditText, uri, effectiveDescription, pasteAsPng)
                     } catch (e: Exception) {
                         Timber.w(e)
                         CrashReportService.sendExceptionReport(e, "NoteEditor::onReceiveContent")
@@ -708,18 +743,55 @@ class NoteEditorFragment :
             pasteOcclusionImageButton?.setOnClickListener {
                 // TODO: Support all extensions
                 //  See https://github.com/ankitects/anki/blob/6f3550464d37aee1b8b784e431cbfce8382d3ce7/rslib/src/image_occlusion/imagedata.rs#L154
-                if (ClipboardUtil.hasImage(clipboard)) {
-                    val uri = ClipboardUtil.getUri(clipboard)
-                    val i =
-                        Intent().apply {
-                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                            clipData = ClipData.newUri(requireActivity().contentResolver, uri.toString(), uri)
-                        }
-                    ImportUtils.getFileCachedCopy(requireContext(), i)?.let { path ->
-                        setupImageOcclusionEditor(path)
-                    }
-                } else {
+                // 원본은 MIME 타입만 보고 첫 항목의 URI 를 그대로 썼습니다. 앱에 따라
+                // 첫 항목이 텍스트이고 이미지 URI 가 뒤쪽 항목에 있어서, 그 경우
+                // uri 가 null 인 채로 ClipData.newUri 에 넘어가 그대로 죽었습니다.
+                // 모든 항목을 훑고, 이미지 타입인 것을 먼저 고릅니다.
+                val resolver = requireActivity().contentResolver
+                val uris =
+                    clipboard
+                        ?.primaryClip
+                        ?.items()
+                        ?.mapNotNull { it.uri }
+                        ?.toList()
+                        .orEmpty()
+                val uri =
+                    uris.firstOrNull { resolver.getType(it)?.startsWith("image/") == true }
+                        ?: uris.firstOrNull()
+
+                if (uri == null) {
                     showSnackbar(TR.editingNoImageFoundOnClipboard())
+                } else {
+                    // 어떤 이유로든 실패하면 메시지를 보여줄 뿐 앱을 죽이지 않습니다.
+                    try {
+                        // ImportUtils.getFileCachedCopy 는 콘텐츠 제공자에게 파일 이름을
+                        // 먼저 묻고, 못 받으면 거기서 포기합니다. 이름을 안 알려주는 앱이
+                        // 있어서 붙여넣기만 실패했습니다. 드래그로 넣을 때는 이 경로를
+                        // 타지 않고 내용만 읽어 저장하기 때문에 잘 되던 겁니다.
+                        // 여기서도 이름에 기대지 않고 내용만 캐시에 복사합니다.
+                        val extension =
+                            android.webkit.MimeTypeMap
+                                .getSingleton()
+                                .getExtensionFromMimeType(resolver.getType(uri)) ?: "jpg"
+                        val target =
+                            File.createTempFile("occlusion_", ".$extension", requireContext().cacheDir)
+                        val copied =
+                            resolver.openInputStream(uri)?.use { input ->
+                                target.outputStream().use { output -> input.copyTo(output) }
+                                true
+                            } ?: false
+
+                        if (copied && target.length() > 0L) {
+                            setupImageOcclusionEditor(target.absolutePath)
+                        } else {
+                            target.delete()
+                            Timber.w("could not read the clipboard image")
+                            showSnackbar(TR.editingNoImageFoundOnClipboard())
+                        }
+                    } catch (e: Exception) {
+                        Timber.w(e, "failed to paste a clipboard image for occlusion")
+                        showSnackbar(TR.editingNoImageFoundOnClipboard())
+                    }
                 }
             }
         } else {
@@ -2505,6 +2577,10 @@ class NoteEditorFragment :
     private fun currentNotetypeIsImageOcclusion() = currentlySelectedNotetype?.isImageOcclusion == true
 
     private fun setupImageOcclusionEditor(imagePath: String = "") {
+        // 클립보드나 일부 앱이 넘긴 파일은 occlusion_123.bin 처럼 형식과 무관한
+        // 확장자로 들어옵니다. 카드 화면은 WebView 가 내용을 보고 그려서 멀쩡하지만,
+        // 가리기 편집은 확장자로 이미지를 찾기 때문에 다시 열면 비어 있습니다.
+        val usablePath = if (imagePath.isEmpty()) imagePath else ensureImageExtension(imagePath)
         val args =
             if (addNote) {
                 // if opened from an intent, the selected note type may not be suitable for IO
@@ -2516,7 +2592,7 @@ class NoteEditorFragment :
                     }
                 ImageOcclusionArgs.Add(
                     noteTypeId = noteTypeId,
-                    imagePath = imagePath,
+                    imagePath = usablePath,
                     originalDeckId = deckId,
                 )
             } else {

@@ -75,6 +75,7 @@ import com.ichi2.anki.common.utils.android.showThemedToast
 import com.ichi2.anki.common.utils.annotation.KotlinCleanup
 import com.ichi2.anki.compat.CompatHelper
 import com.ichi2.anki.compat.CompatHelper.Companion.registerReceiverCompat
+import com.ichi2.anki.customfont.CustomFont
 import com.ichi2.anki.dialogs.AsyncDialogFragment
 import com.ichi2.anki.dialogs.DatabaseErrorDialog
 import com.ichi2.anki.dialogs.DatabaseErrorDialog.CustomExceptionData
@@ -147,6 +148,7 @@ open class AnkiActivity(
         // Set the theme
         Themes.setTheme(this, savedInstanceState)
         disableXiaomiForceDarkMode(this)
+        CustomFont.installInflaterFactory(this)
         super.onCreate(savedInstanceState)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             @Suppress("deprecation")
@@ -178,6 +180,7 @@ open class AnkiActivity(
 
     override fun onStart() {
         super.onStart()
+        CustomFont.applyToActivity(this)
         // Disable the notifications bar if running under the test monkey.
         // This is a work-around for an issue with the monkey feature of adb - when the
         // monkey runs on a physical device, it can pull the status bar down, and escape the app

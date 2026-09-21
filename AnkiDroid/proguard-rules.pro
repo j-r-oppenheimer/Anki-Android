@@ -37,3 +37,13 @@
 # Ignore unused packages
 -dontwarn javax.naming.**
 -dontwarn org.ietf.jgss.**
+
+# --- 커스텀 빌드 추가 규칙 ---
+# 릴리즈 빌드는 minify가 켜져 있습니다. @JavascriptInterface 메서드는 JS에서
+# 이름으로 호출되므로 R8이 이름을 바꾸면 조용히 동작하지 않습니다.
+# 히트맵 위젯 설정 화면의 색상 저장이 여기에 해당합니다.
+-keepclasseswithmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
+-keep class com.ichi2.widget.heatmap.** { *; }
+-keep class com.ichi2.anki.imagesave.** { *; }

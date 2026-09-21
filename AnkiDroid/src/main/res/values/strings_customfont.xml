@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  저장할 위치: AnkiDroid/src/main/res/values/strings_customfont.xml
+-->
+<resources>
+    <string name="custom_font_category" maxLength="41" translatable="false">Custom font</string>
+    <string name="custom_font_title" translatable="false">Custom font</string>
+    <string name="custom_font_pick" maxLength="41" translatable="false">Choose a font file</string>
+    <string name="custom_font_pick_summary" translatable="false">Uses a TTF or OTF file from your device</string>
+    <string name="custom_font_apply_app" maxLength="41" translatable="false">Apply to the app</string>
+    <string name="custom_font_apply_app_summary" translatable="false">Deck list, study screen, settings and so on</string>
+    <string name="custom_font_apply_cards" maxLength="41" translatable="false">Apply to cards too</string>
+    <string name="custom_font_apply_cards_summary" translatable="false">Overrides the font set on your note types</string>
+    <string name="custom_font_choose" translatable="false">Select font file</string>
+    <string name="custom_font_remove" translatable="false">Remove font</string>
+    <string name="custom_font_none" translatable="false">No font selected</string>
+    <string name="custom_font_unnamed" translatable="false">Unnamed font</string>
+    <string name="custom_font_error" translatable="false">This file cannot be read as a font</string>
+    <string name="custom_font_sample" translatable="false">The quick brown fox 0123456789\nAaBbCc 가나다 漢字</string>
+    <string name="custom_font_note" translatable="false">Pick a file, then turn the switch on. The app updates when you reopen a screen; cards change from the next card.</string>
+    <!-- 프리퍼런스 키. 값은 코드의 상수와 같아야 하므로 절대 바꾸지 마세요. -->
+    <string name="custom_font_pick_key" translatable="false">customFontPick</string>
+    <string name="custom_font_apply_app_key" translatable="false">customFontApplyApp</string>
+    <string name="custom_font_apply_cards_key" translatable="false">customFontApplyCards</string>
+</resources>
