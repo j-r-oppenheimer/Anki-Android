@@ -1,10 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Material Symbols "format_indent_decrease". The source viewBox runs from -960 to 0 on the y
+     axis, which a vector drawable cannot express, so the group shifts it back. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24"
+    android:viewportWidth="960"
+    android:viewportHeight="960"
     android:tint="?attr/colorControlNormal">
-  <path
-      android:fillColor="@android:color/black"
-      android:pathData="M11,17h10v-2H11V17zM3,12l4,4V8L3,12zM3,6v2h18V6H3zM11,13h10v-2H11V13zM3,18v2h18v-2H3z"/>
+  <group android:translateY="960">
+    <path
+        android:fillColor="@android:color/black"
+        android:pathData="M120,-120v-80h720v80H120Zm320,-160v-80h400v80H440Zm0,-160v-80h400v80H440Zm0,-160v-80h400v80H440ZM120,-760v-80h720v80H120Zm160,440L120,-480l160,-160v320Z"/>
+  </group>
 </vector>
