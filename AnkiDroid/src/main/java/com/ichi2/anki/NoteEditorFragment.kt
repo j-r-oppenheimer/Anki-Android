@@ -2638,15 +2638,16 @@ class NoteEditorFragment :
                         shape = GradientDrawable.RECTANGLE
                         setColor(onEditorBackground(colour))
                     }
-                // Where the bar sits in Material's own text_format, in its 24dp
-                // grid: 14 wide and 2 tall, clear of both the letter and the edge.
+                // 14dp wide and 2dp tall, as in Material's own text_format, but
+                // resting on the bottom of the 24dp box: that is where the
+                // highlighter's block ends, so the two buttons line up.
                 LayerDrawable(arrayOf(letter, bar)).apply {
                     setLayerInset(
                         1,
                         (5 * density).toInt(),
-                        (17 * density).toInt(),
+                        (22 * density).toInt(),
                         (5 * density).toInt(),
-                        (5 * density).toInt(),
+                        0,
                     )
                 }
             }

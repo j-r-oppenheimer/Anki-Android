@@ -4,9 +4,10 @@
      colour buttons draw their own swatch where that bar would be.
 
      Dropping the bar means the path no longer starts where the original did, so
-     the first move is absolute. The group undoes the source's -960..0 y axis and
-     enlarges the letter about its own centre: on its own it sits small in the
-     icon's box, and it stops short of where the colour bar goes. -->
+     the first move is absolute. The group undoes the source's -960..0 y axis,
+     enlarges the letter about its own centre - alone it sits small in the icon's
+     box - and lowers it: the original reserved the bottom third for the underline,
+     so without that the letter hangs high. It ends up centred, at 5.6..18.4dp. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
@@ -14,7 +15,7 @@
     android:viewportHeight="960"
     android:tint="?attr/colorControlNormal">
   <group
-      android:translateY="960"
+      android:translateY="1060"
       android:pivotX="480"
       android:pivotY="-580"
       android:scaleX="1.17"
