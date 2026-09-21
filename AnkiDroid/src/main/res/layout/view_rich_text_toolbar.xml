@@ -11,16 +11,20 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:background="?attr/toolbarBackgroundColor"
+    android:fillViewport="true"
     android:scrollbars="none"
     android:visibility="gone">
 
     <!-- Height comes from the row, not the bar, so the window's bottom inset can
          be added as padding without squeezing the buttons. -->
+    <!-- fillViewport stretches this row to the bar when the buttons fit, so the
+         gravity centres them the way the HTML toolbar centres its own. Once they
+         no longer fit the row grows past the bar and scrolls instead. -->
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="@dimen/rich_text_toolbar_height"
-        android:orientation="horizontal"
-        android:paddingHorizontal="4dp">
+        android:gravity="center"
+        android:orientation="horizontal">
 
         <androidx.appcompat.widget.AppCompatImageButton
             android:id="@+id/rich_bold"

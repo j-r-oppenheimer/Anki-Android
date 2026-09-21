@@ -31,6 +31,7 @@ import android.view.MenuInflater
 import android.view.MenuItem
 import android.view.View
 import android.view.View.OnFocusChangeListener
+import android.view.ViewGroup
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.view.ViewGroup.MarginLayoutParams
 import android.view.WindowManager
@@ -73,6 +74,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsCompat.Type.displayCutout
 import androidx.core.view.WindowInsetsCompat.Type.ime
 import androidx.core.view.WindowInsetsCompat.Type.systemBars
+import androidx.core.view.children
 import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
@@ -2566,6 +2568,8 @@ class NoteEditorFragment :
         dismissFloatingToolbar()
         val content = layoutInflater.inflate(R.layout.view_rich_text_toolbar, null)
         content.isVisible = true
+        content.setBackgroundResource(R.drawable.rich_colour_popup_background)
+        compactToolbar(content)
         attachToolbar(content)
         val size = measureFloating(content)
         val gap = (8 * resources.displayMetrics.density).toInt()
@@ -2577,6 +2581,19 @@ class NoteEditorFragment :
                 showAsDropDown(webView, left, y - webView.height - size.second - gap)
             }
         palettes.forEach { it.refresh() }
+    }
+
+    /**
+     * Pulls the buttons closer together for the floating copy. It is summoned by a
+     * mouse and sits over the text, so it does not need the docked bar's room for
+     * a thumb, and a narrower bar covers less of what is being edited.
+     */
+    private fun compactToolbar(root: View) {
+        val buttonWidth = (36 * resources.displayMetrics.density).toInt()
+        val row = (root as ViewGroup).getChildAt(0) as ViewGroup
+        for (button in row.children) {
+            button.updateLayoutParams { width = buttonWidth }
+        }
     }
 
     private fun measureFloating(content: View): Pair<Int, Int> {
