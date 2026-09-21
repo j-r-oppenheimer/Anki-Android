@@ -2633,18 +2633,21 @@ class NoteEditorFragment :
                 LayerDrawable(arrayOf(block, letter))
             }
             SwatchStyle.UNDERLINE -> {
-                val barHeight = (3 * density).toInt()
                 val bar =
                     GradientDrawable().apply {
                         shape = GradientDrawable.RECTANGLE
                         setColor(onEditorBackground(colour))
-                        setSize(size, barHeight)
                     }
+                // Where the bar sits in Material's own text_format, in its 24dp
+                // grid: 14 wide and 2 tall, clear of both the letter and the edge.
                 LayerDrawable(arrayOf(letter, bar)).apply {
-                    // Squeeze the letter into the space above the bar so the two
-                    // never touch, whatever the letter's own descender does.
-                    setLayerInset(0, 0, 0, 0, barHeight + density.toInt())
-                    setLayerInset(1, 0, size - barHeight, 0, 0)
+                    setLayerInset(
+                        1,
+                        (5 * density).toInt(),
+                        (17 * density).toInt(),
+                        (5 * density).toInt(),
+                        (5 * density).toInt(),
+                    )
                 }
             }
         }
