@@ -313,10 +313,20 @@
         document.execCommand('insertText', false, text);
       });
 
+      // A long press fires contextmenu too, so remember what the last press came
+      // from. On a phone the selection already has the system's own menu and the
+      // toolbar is a thumb away at the bottom; a floating copy would only be the
+      // same buttons twice on a small screen.
+      var lastPointerType = '';
+      document.addEventListener('pointerdown', function (e) {
+        lastPointerType = e.pointerType || '';
+      }, true);
+
       // A right click on a selection asks for the toolbar where the text is,
       // rather than the browser's own menu.
       document.addEventListener('contextmenu', function (e) {
         if (!e.target.classList || !e.target.classList.contains('editor')) return;
+        if (lastPointerType !== 'mouse' && e.button !== 2) return;
         var sel = window.getSelection();
         if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
         e.preventDefault();
