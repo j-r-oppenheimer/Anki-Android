@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
 <resources>
-    <!-- Sized like note_editor_toolbar_button so the icons come out the same as
-         the HTML toolbar's: fitCenter draws a 24dp vector at the full 40dp the
-         padding leaves behind. -->
+    <!-- centerInside keeps the icon at the 24dp it was drawn for. The button is
+         wider than it is tall, which is where the spacing between icons comes
+         from; fitCenter would instead blow the icon up to fill the button. -->
     <style name="RichTextToolbarButton">
-        <item name="android:layout_width">@dimen/rich_text_toolbar_height</item>
+        <item name="android:layout_width">@dimen/rich_text_toolbar_button_width</item>
         <item name="android:layout_height">match_parent</item>
         <item name="android:background">@drawable/rich_text_toolbar_button</item>
-        <item name="android:scaleType">fitCenter</item>
-        <item name="android:padding">2dp</item>
+        <item name="android:scaleType">centerInside</item>
+        <item name="android:padding">8dp</item>
     </style>
 
     <style name="RichTextSwatch">

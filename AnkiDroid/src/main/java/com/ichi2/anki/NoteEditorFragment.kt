@@ -2589,7 +2589,7 @@ class NoteEditorFragment :
      * a thumb, and a narrower bar covers less of what is being edited.
      */
     private fun compactToolbar(root: View) {
-        val buttonWidth = (36 * resources.displayMetrics.density).toInt()
+        val buttonWidth = (40 * resources.displayMetrics.density).toInt()
         val row = (root as ViewGroup).getChildAt(0) as ViewGroup
         for (button in row.children) {
             button.updateLayoutParams { width = buttonWidth }

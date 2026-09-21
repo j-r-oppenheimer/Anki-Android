@@ -4,4 +4,8 @@
     <!-- Matches note_editor_toolbar_button, so the rich text bar and the HTML bar
          are the same height and the editor keeps its shape across the toggle. -->
     <dimen name="rich_text_toolbar_height">44dp</dimen>
+
+    <!-- Wider than the bar is tall, so the icons are not shoulder to shoulder.
+         Toolbar.kt lays the HTML bar out on the same 48dp step. -->
+    <dimen name="rich_text_toolbar_button_width">48dp</dimen>
 </resources>
