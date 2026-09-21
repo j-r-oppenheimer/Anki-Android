@@ -204,6 +204,7 @@ import dev.androidbroadcast.vbpd.viewBinding
 import java.io.File
 import java.util.LinkedList
 import java.util.Locale
+import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -2765,7 +2766,10 @@ class NoteEditorFragment :
                 webView = webView,
                 onFieldChanged = ::onRichTextFieldChanged,
                 onHeightChanged = { contentHeight ->
-                    if (webView.layoutParams.height != contentHeight) {
+                    // Resizing the view reflows the page, which reports a height
+                    // again. Ignoring a pixel of drift stops the two chasing each
+                    // other and jolting the list of fields while it happens.
+                    if (abs(webView.layoutParams.height - contentHeight) > 1) {
                         webView.updateLayoutParams { height = contentHeight }
                     }
                 },

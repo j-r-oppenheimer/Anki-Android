@@ -88,7 +88,7 @@
 
             <!-- Rich text mode renders the same fields here instead; its height is
                  driven by the page content so the ScrollView above keeps scrolling. -->
-            <WebView
+            <com.ichi2.anki.richtext.RichTextWebView
                 android:id="@+id/RichTextEditorWebView"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
