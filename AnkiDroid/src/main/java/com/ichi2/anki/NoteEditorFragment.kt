@@ -694,7 +694,7 @@ class NoteEditorFragment :
         fieldsLayoutContainer = requireView().findViewById(R.id.CardEditorEditFieldsLayout)
         richTextWebView = requireView().findViewById(R.id.RichTextEditorWebView)
         richTextToolbar = requireView().findViewById(R.id.rich_text_toolbar)
-        mediaDir = File(col.media.dir)
+        mediaDir = col.media.dir
         richTextPreference = requireContext().sharedPrefs().getBoolean(PREF_NOTE_EDITOR_RICH_TEXT, false)
         setupRichTextToolbar()
         tagsButton = requireView().findViewById(R.id.CardEditorTagButton)

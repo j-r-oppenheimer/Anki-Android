@@ -6,6 +6,7 @@ import android.annotation.SuppressLint
 import android.graphics.Color
 import android.os.Handler
 import android.os.Looper
+import android.view.View
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import androidx.annotation.ColorInt
@@ -44,7 +45,7 @@ class RichTextEditor(
             domStorageEnabled = false
         }
         webView.isVerticalScrollBarEnabled = false
-        webView.overScrollMode = WebView.OVER_SCROLL_NEVER
+        webView.overScrollMode = View.OVER_SCROLL_NEVER
         webView.setBackgroundColor(Color.TRANSPARENT)
         webView.addJavascriptInterface(Bridge(), "AnkiRich")
         webView.webViewClient =
