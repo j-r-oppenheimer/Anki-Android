@@ -1,0 +1,80 @@
+# Actions 탭 -> "Build custom APK" -> Run workflow (브랜치: custom) 을 누르면
+# 릴리즈 APK 를 빌드해서 Releases 에 올립니다.
+#
+# 수정 사항은 이 브랜치에 보통 커밋으로 들어 있습니다. 더 이상 패치 스크립트를
+# 돌리지도, 빌드 결과를 커밋하지도 않습니다. upstream 을 따라가려면:
+#   1. GitHub 에서 main 을 Sync fork
+#   2. git checkout custom && git merge main   (충돌 나면 그 파일만 고치면 됩니다)
+
+name: Build custom APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # AnkiDroid는 코틀린 경고를 전부 에러로 올려둡니다(build.gradle 의
+      # allWarningsAsErrors = fatalWarnings). 사소한 경고 하나로 20분짜리 빌드가
+      # 날아가지 않도록 이 커스텀 빌드에서는 끕니다. 이 값은 allWarningsAsErrors
+      # 한 곳에만 쓰이므로 다른 동작에는 영향이 없습니다.
+      # sdk.dir 은 러너의 ANDROID_HOME 이 대신 쓰이므로 적지 않아도 됩니다.
+      - name: Relax Kotlin warnings-as-errors
+        run: echo "fatal_warnings=false" >> local.properties
+
+      # 릴리즈 빌드입니다. AnkiDroid 저장소에 포함된 폴백 키스토어로 서명되므로
+      # 별도 서명 키 설정이 필요 없습니다.
+      # 패키지명(com.ichi2.anki.custom)과 서명키가 이전 빌드와 같아야 기존에
+      # 설치된 앱 위에 업데이트로 깔립니다. 아래 옵션은 바꾸지 마세요.
+      - name: Build release APK
+        run: |
+          ./gradlew :AnkiDroid:assembleFullRelease \
+            -PabiFilter=arm64-v8a \
+            -PcustomSuffix=".custom" \
+            -PcustomName="Anki" \
+            --no-daemon --stacktrace
+
+      # 빌드가 깨졌을 때 lint 전체 목록을 로그에 남깁니다.
+      # 실패 로그는 스택 트레이스가 길어서 정작 원인 줄이 잘리기 쉽습니다.
+      - name: Print lint report on failure
+        if: failure()
+        run: |
+          for f in AnkiDroid/build/intermediates/lint_vital_intermediate_text_report/*/*/lint-results-*.txt; do
+            echo "===== $f ====="
+            cat "$f"
+          done
+        shell: bash
+
+      - name: Collect APKs
+        run: |
+          mkdir -p out
+          find AnkiDroid/build/outputs/apk -name "*.apk" -exec cp {} out/ \;
+          ls -la out
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: custom-${{ github.run_number }}
+          name: Anki custom build ${{ github.run_number }}
+          body: |
+            릴리즈 빌드 (R8 최적화, 서명됨).
+            패키지명 com.ichi2.anki.custom — 이전 커스텀 빌드 위에 업데이트로 설치됩니다.
+          files: out/*.apk
