@@ -3,7 +3,8 @@
 <!-- The formatting bar for the note editor's rich text mode. Each button runs a
      document.execCommand against the current selection. The two colour buttons
      draw their own swatch at runtime, so each shows the colour it will paint;
-     a long press opens the palette popup. -->
+     a long press opens the palette popup. The row is as tall as the HTML
+     toolbar's, so the editor does not change shape when the modes swap. -->
 <HorizontalScrollView
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/rich_text_toolbar"
@@ -17,7 +18,7 @@
          be added as padding without squeezing the buttons. -->
     <LinearLayout
         android:layout_width="wrap_content"
-        android:layout_height="@dimen/note_editor_toolbar_height"
+        android:layout_height="@dimen/rich_text_toolbar_height"
         android:orientation="horizontal"
         android:paddingHorizontal="4dp">
 
@@ -39,21 +40,18 @@
             android:src="@drawable/ic_rich_underlined_24dp"
             android:contentDescription="@string/rich_text_underline" />
 
-        <View style="@style/RichTextToolbarDivider" />
 
         <androidx.appcompat.widget.AppCompatImageButton
             android:id="@+id/rich_highlight"
             style="@style/RichTextToolbarButton"
             android:contentDescription="@string/rich_text_highlight" />
 
-        <View style="@style/RichTextToolbarDivider" />
 
         <androidx.appcompat.widget.AppCompatImageButton
             android:id="@+id/rich_text_colour"
             style="@style/RichTextToolbarButton"
             android:contentDescription="@string/rich_text_text_colour" />
 
-        <View style="@style/RichTextToolbarDivider" />
 
         <androidx.appcompat.widget.AppCompatImageButton
             android:id="@+id/rich_bulleted_list"

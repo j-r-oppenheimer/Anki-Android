@@ -2,7 +2,7 @@
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
 <resources>
     <style name="RichTextToolbarButton">
-        <item name="android:layout_width">?attr/minTouchTargetSize</item>
+        <item name="android:layout_width">@dimen/rich_text_toolbar_height</item>
         <item name="android:layout_height">match_parent</item>
         <item name="android:background">@drawable/rich_text_toolbar_button</item>
         <item name="android:scaleType">centerInside</item>
@@ -18,13 +18,4 @@
         <item name="android:contentDescription">@string/rich_text_swatch</item>
     </style>
 
-    <style name="RichTextToolbarDivider">
-        <item name="android:layout_width">1dp</item>
-        <item name="android:layout_height">match_parent</item>
-        <item name="android:layout_marginLeft">4dp</item>
-        <item name="android:layout_marginRight">4dp</item>
-        <item name="android:layout_marginTop">10dp</item>
-        <item name="android:layout_marginBottom">10dp</item>
-        <item name="android:background">?attr/colorControlHighlight</item>
-    </style>
 </resources>

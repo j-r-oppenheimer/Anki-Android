@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<resources>
+    <!-- Matches note_editor_toolbar_button, so the rich text bar and the HTML bar
+         are the same height and the editor keeps its shape across the toggle. -->
+    <dimen name="rich_text_toolbar_height">44dp</dimen>
+</resources>
