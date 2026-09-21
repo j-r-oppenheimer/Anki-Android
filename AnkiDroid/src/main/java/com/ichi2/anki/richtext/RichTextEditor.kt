@@ -154,6 +154,12 @@ class RichTextEditor(
         toggle: Boolean,
     ) = whenLoaded { paint("textColor", color, toggle) }
 
+    /** Puts [prefix] and [suffix] either side of the selection. */
+    fun wrap(
+        prefix: String,
+        suffix: String,
+    ) = whenLoaded { call("wrapSelection", prefix, suffix) }
+
     /**
      * Runs a list button. Each press steps out one level of nesting, and the last
      * one drops the list; off a list it starts one.

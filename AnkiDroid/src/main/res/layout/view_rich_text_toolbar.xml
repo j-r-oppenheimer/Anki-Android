@@ -68,5 +68,21 @@
             style="@style/RichTextToolbarButton"
             android:src="@drawable/ic_format_list_numbered_24dp"
             android:contentDescription="@string/rich_text_numbered_list" />
+
+        <!-- Only for cloze note types; the descriptions are Anki's own wording,
+             so they are set from code. -->
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/rich_cloze_new"
+            style="@style/RichTextToolbarButton"
+            android:tint="?attr/colorControlNormal"
+            android:src="@drawable/ic_cloze_new_card"
+            android:visibility="gone" />
+
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/rich_cloze_same"
+            style="@style/RichTextToolbarButton"
+            android:tint="?attr/colorControlNormal"
+            android:src="@drawable/ic_cloze_same_card"
+            android:visibility="gone" />
     </LinearLayout>
 </HorizontalScrollView>

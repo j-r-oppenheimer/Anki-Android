@@ -277,6 +277,46 @@
         return out.trim() === '' ? '' : out;
       }
 
+      /**
+       * Puts text either side of the selection, leaving what is inside it alone.
+       * Cloze markers stay as the {{c1::...}} text Anki reads, because there is
+       * nothing to show instead: the deletion is not a style, it is the answer.
+       */
+      function wrapSelection(prefix, suffix) {
+        if (!active) return;
+        active.focus();
+        var sel = window.getSelection();
+        if (!sel || sel.rangeCount === 0) return;
+        var range = sel.getRangeAt(0);
+        var collapsed = range.collapsed;
+
+        // The closing text goes in first: adding the opening text first would
+        // shift every offset after it, including the end of the selection.
+        var tail = range.cloneRange();
+        tail.collapse(false);
+        var close = document.createTextNode(suffix);
+        tail.insertNode(close);
+
+        var head = range.cloneRange();
+        head.collapse(true);
+        var open = document.createTextNode(prefix);
+        head.insertNode(open);
+
+        var caret = document.createRange();
+        if (collapsed) {
+          caret.setStartAfter(open);
+        } else {
+          caret.setStartAfter(close);
+        }
+        caret.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(caret);
+
+        flush(active);
+        reportHeight();
+        reportCaret();
+      }
+
       function flush(editor) {
         post('onFieldChanged', editor.dataset.index + ':' + normalise(editor.innerHTML));
       }

@@ -1206,6 +1206,11 @@ class NoteEditorFragment :
     }
 
     private fun insertCloze(addClozeType: AddClozeType) {
+        // In rich text mode the focus is on the page, not on a field.
+        if (richTextActive) {
+            insertRichCloze(addClozeType)
+            return
+        }
         val v = requireActivity().currentFocus as? FieldEditText ?: return
         convertSelectedTextToCloze(v, addClozeType)
     }
@@ -2421,9 +2426,41 @@ class NoteEditorFragment :
             button.setOnClickListener { richTextEditor?.list(list.first, list.second) }
             button.onHold { showIndentBubble(button) }
         }
+        root.findViewById<View>(R.id.rich_cloze_new).setOnClickListener {
+            insertRichCloze(AddClozeType.INCREMENT_NUMBER)
+        }
+        root.findViewById<View>(R.id.rich_cloze_same).setOnClickListener {
+            insertRichCloze(AddClozeType.SAME_NUMBER)
+        }
         palettes.forEach { it.attachTo(root) }
         toolbarRoots.add(root)
         palettes.forEach { it.refresh() }
+        updateClozeButtons()
+    }
+
+    /**
+     * Wraps the selection in a cloze marker, the way the HTML toolbar's buttons
+     * do. The numbering reads the fields, which the page keeps up to date, so
+     * both editors carry on from the same place.
+     */
+    private fun insertRichCloze(type: AddClozeType) {
+        var index = nextClozeIndex
+        if (type == AddClozeType.SAME_NUMBER) index -= 1
+        richTextEditor?.wrap("{{c" + max(1, index) + "::", "}}")
+    }
+
+    private fun updateClozeButtons() {
+        val isCloze = editorNote?.notetype?.isCloze == true
+        for (root in toolbarRoots) {
+            root.findViewById<View>(R.id.rich_cloze_new).apply {
+                isVisible = isCloze
+                contentDescription = TR.editingClozeDeletion()
+            }
+            root.findViewById<View>(R.id.rich_cloze_same).apply {
+                isVisible = isCloze
+                contentDescription = TR.editingClozeDeletionRepeat()
+            }
+        }
     }
 
     private fun detachToolbar(root: View) {
@@ -2714,6 +2751,7 @@ class NoteEditorFragment :
         updateToolbar()
         if (!active) return
 
+        updateClozeButtons()
         val editor = richTextEditor ?: createRichTextEditor(webView)
         editor.setFields(
             names = currentFields.map { it.name },
