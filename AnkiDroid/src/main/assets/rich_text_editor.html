@@ -306,7 +306,7 @@
       // Pasting rich content from another app drags along fonts and colours that
       // do not belong in a note; keep the text and let the toolbar do formatting.
       document.addEventListener('paste', function (e) {
-        if (!e.target.classList || !e.target.classList.contains('editor')) return;
+        if (!e.target.closest || !e.target.closest('.editor')) return;
         var text = e.clipboardData && e.clipboardData.getData('text/plain');
         if (text === null || text === undefined) return;
         e.preventDefault();
@@ -322,15 +322,29 @@
         lastPointerType = e.pointerType || '';
       }, true);
 
-      // A right click on a selection asks for the toolbar where the text is,
-      // rather than the browser's own menu.
+      // Pressing the right button inside a selection would otherwise put the caret
+      // where it was clicked, throwing the selection away before the toolbar could
+      // act on it. Refusing the default press keeps it.
+      document.addEventListener('mousedown', function (e) {
+        if (e.button !== 2) return;
+        if (!e.target.closest || !e.target.closest('.editor')) return;
+        e.preventDefault();
+      }, true);
+
+      // A right click asks for the toolbar where the text is, rather than the
+      // browser's own menu.
       document.addEventListener('contextmenu', function (e) {
-        if (!e.target.classList || !e.target.classList.contains('editor')) return;
+        // The click lands on whatever is under the pointer, which inside a
+        // formatted run is a <b> or a highlight's <span>, not the field itself.
+        var field = e.target.closest && e.target.closest('.editor');
+        if (!field) return;
         if (lastPointerType !== 'mouse' && e.button !== 2) return;
         var sel = window.getSelection();
-        if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+        if (!sel || sel.rangeCount === 0) return;
         e.preventDefault();
         var rect = sel.getRangeAt(0).getBoundingClientRect();
+        // A caret with nothing selected has no width or height to sit above.
+        if (!rect.height) rect = field.getBoundingClientRect();
         post('onContextMenu',
              Math.round(rect.left + window.scrollX) + ':' + Math.round(rect.top + window.scrollY));
       });
