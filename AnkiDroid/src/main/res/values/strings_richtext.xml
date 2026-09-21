@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
 <resources>
-    <string name="rich_text_switch_to_rich">Rich text editor</string>
-    <string name="rich_text_switch_to_html">HTML editor</string>
+    <string name="rich_text_switch_to_rich" maxLength="28" comment="Note editor menu entry. Switches the fields to the rich text editor.">Rich text editor</string>
+    <string name="rich_text_switch_to_html" maxLength="28" comment="Note editor menu entry. Switches the fields back to editing the raw HTML.">HTML editor</string>
     <string name="rich_text_bold">Bold</string>
     <string name="rich_text_italic">Italic</string>
     <string name="rich_text_underline">Underline</string>

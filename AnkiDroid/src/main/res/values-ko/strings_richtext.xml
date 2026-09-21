@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
 <resources>
-    <string name="rich_text_switch_to_rich">서식 편집기</string>
-    <string name="rich_text_switch_to_html">HTML 편집기</string>
+    <string name="rich_text_switch_to_rich" maxLength="28" comment="Note editor menu entry. Switches the fields to the rich text editor.">서식 편집기</string>
+    <string name="rich_text_switch_to_html" maxLength="28" comment="Note editor menu entry. Switches the fields back to editing the raw HTML.">HTML 편집기</string>
     <string name="rich_text_bold">굵게</string>
     <string name="rich_text_italic">기울임</string>
     <string name="rich_text_underline">밑줄</string>
