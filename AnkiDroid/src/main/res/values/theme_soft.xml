@@ -18,27 +18,27 @@
 <resources>
 
     <!-- ========================= Sand: 따뜻한 베이지 ========================= -->
-    <color name="sand_appbar">#797067</color>
-    <color name="sand_appbar_dark">#665F56</color>
-    <color name="sand_fab">#8D8071</color>
-    <color name="sand_fab_pressed">#7B6F62</color>
-    <color name="sand_accent">#85796A</color>
-    <color name="sand_bg">#F4F2EE</color>
-    <color name="sand_text">#3C3732</color>
+    <color name="sand_appbar">#7E7062</color>
+    <color name="sand_appbar_dark">#6B5F51</color>
+    <color name="sand_fab">#94816A</color>
+    <color name="sand_fab_pressed">#82705B</color>
+    <color name="sand_accent">#8C7A63</color>
+    <color name="sand_bg">#F6F2EC</color>
+    <color name="sand_text">#3E3730</color>
 
-    <color name="sand_again_text">#7C534A</color>
-    <color name="sand_again_bg">#E7DAD6</color>
-    <color name="sand_hard_text">#7C684A</color>
-    <color name="sand_hard_bg">#E9E1D4</color>
-    <color name="sand_good_text">#576451</color>
-    <color name="sand_good_bg">#DEE2D8</color>
-    <color name="sand_easy_text">#55626A</color>
-    <color name="sand_easy_bg">#DDE1E3</color>
+    <color name="sand_again_text">#8A4A3C</color>
+    <color name="sand_again_bg">#EBD8D2</color>
+    <color name="sand_hard_text">#8A6A3C</color>
+    <color name="sand_hard_bg">#EFE2CE</color>
+    <color name="sand_good_text">#55694C</color>
+    <color name="sand_good_bg">#DEE4D6</color>
+    <color name="sand_easy_text">#4F6470</color>
+    <color name="sand_easy_bg">#DBE1E5</color>
 
-    <color name="sand_count_new">#666E80</color>
-    <color name="sand_count_learn">#9B7669</color>
-    <color name="sand_count_review">#6E7D6B</color>
-    <color name="sand_show_bg">#D7CFC3</color>
+    <color name="sand_count_new">#5F6C87</color>
+    <color name="sand_count_learn">#A8705C</color>
+    <color name="sand_count_review">#6B8266</color>
+    <color name="sand_show_bg">#DCD0BE</color>
 
     <style name="Base.Theme.Light.Sand">
         <item name="colorPrimary">@color/sand_appbar</item>
@@ -50,13 +50,13 @@
 
         <item name="android:colorBackground">@color/sand_bg</item>
         <item name="android:windowBackground">@color/sand_bg</item>
-        <item name="alternativeBackgroundColor">#EFEBE5</item>
-        <item name="currentDeckBackgroundColor">#EAE5DD</item>
-        <item name="focusedRowBackgroundColor">#EAE5DD</item>
-        <item name="colorSurfaceContainerHigh">#F1EDE8</item>
-        <item name="colorSurfaceContainer">#F1EDE8</item>
-        <item name="colorSecondaryContainer">#E6E1DA</item>
-        <item name="toolbarBackgroundColor">#E2DDD6</item>
+        <item name="alternativeBackgroundColor">#F1ECE3</item>
+        <item name="currentDeckBackgroundColor">#EDE6DA</item>
+        <item name="focusedRowBackgroundColor">#EDE6DA</item>
+        <item name="colorSurfaceContainerHigh">#F3EEE6</item>
+        <item name="colorSurfaceContainer">#F3EEE6</item>
+        <item name="colorSecondaryContainer">#EAE2D6</item>
+        <item name="toolbarBackgroundColor">#E6DED2</item>
         <item name="topBarColor">@color/sand_bg</item>
 
         <!-- 앱바는 진하게, 그 위 글자는 밝게 (AnkiDroid 기본 배치 유지) -->
@@ -79,11 +79,11 @@
         <item name="incrementerButtonBackground">@color/sand_accent</item>
         <!-- 노트 편집기의 태그/카드 박스가 쓰는 색입니다.
              원본은 테마와 무관한 회색이라 여기서 테마 톤으로 맞춥니다. -->
-        <item name="buttonForegroundColor">#D7D4D0</item>
-        <item name="buttonShadowColor">#B7B4B0</item>
+        <item name="buttonForegroundColor">#D9D4CE</item>
+        <item name="buttonShadowColor">#B9B4AE</item>
         <item name="buttonRippleColor">@color/sand_accent</item>
-        <item name="clozeColor">#736857</item>
-        <item name="editTextHighlightColor">#DCD5CC</item>
+        <item name="clozeColor">#7A6A50</item>
+        <item name="editTextHighlightColor">#E0D6C8</item>
 
         <item name="newCountColor">@color/sand_count_new</item>
         <item name="learnCountColor">@color/sand_count_learn</item>
@@ -114,44 +114,44 @@
         <item name="hardTextColor">@color/sand_hard_text</item>
         <item name="goodTextColor">@color/sand_good_text</item>
         <item name="easyTextColor">@color/sand_easy_text</item>
-        <item name="maxTimerColor">#A2786D</item>
+        <item name="maxTimerColor">#B0705F</item>
 
-        <item name="suspendedColor">#E9E2CD</item>
-        <item name="buriedColor">#E1D6C5</item>
-        <item name="selectedColor">#DFD9D2</item>
-        <item name="markedColor">#DCD1DE</item>
-        <item name="dynDeckColor">#687088</item>
-        <item name="duplicateColor">#E7D7D7</item>
-        <item name="badgeErrorColor">#A26D5E</item>
-        <item name="badgeWarningColor">#AA8962</item>
-        <item name="reminderTroubleshootingOk">#667A67</item>
-        <item name="reminderTroubleshootingWarning">#9F8661</item>
+        <item name="suspendedColor">#F0E6C6</item>
+        <item name="buriedColor">#E9D7BD</item>
+        <item name="selectedColor">#E2DACF</item>
+        <item name="markedColor">#DECDE2</item>
+        <item name="dynDeckColor">#5F6B91</item>
+        <item name="duplicateColor">#EBD3D3</item>
+        <item name="badgeErrorColor">#B5624B</item>
+        <item name="badgeWarningColor">#BE8A4E</item>
+        <item name="reminderTroubleshootingOk">#617F62</item>
+        <item name="reminderTroubleshootingWarning">#B08A50</item>
     </style>
 
     <style name="Theme_Light_Sand" parent="Base.Theme.Light.Sand"/>
 
     <!-- ========================= Sage: 차분한 청록빛 회색 ========================= -->
-    <color name="sage_appbar">#617269</color>
-    <color name="sage_appbar_dark">#526059</color>
-    <color name="sage_fab">#72857C</color>
-    <color name="sage_fab_pressed">#62756C</color>
-    <color name="sage_accent">#64756D</color>
-    <color name="sage_bg">#F2F4F3</color>
-    <color name="sage_text">#313835</color>
+    <color name="sage_appbar">#5D7669</color>
+    <color name="sage_appbar_dark">#4E6459</color>
+    <color name="sage_fab">#6D8A7D</color>
+    <color name="sage_fab_pressed">#5D7A6C</color>
+    <color name="sage_accent">#5F7A6E</color>
+    <color name="sage_bg">#F1F5F3</color>
+    <color name="sage_text">#2F3A35</color>
 
-    <color name="sage_again_text">#79524B</color>
-    <color name="sage_again_bg">#E5DCD9</color>
-    <color name="sage_hard_text">#76684F</color>
-    <color name="sage_hard_bg">#E5E1D8</color>
-    <color name="sage_good_text">#4B5C51</color>
-    <color name="sage_good_bg">#D9E1DB</color>
-    <color name="sage_easy_text">#4C5D65</color>
-    <color name="sage_easy_bg">#D8DFE1</color>
+    <color name="sage_again_text">#85493F</color>
+    <color name="sage_again_bg">#E8DAD6</color>
+    <color name="sage_hard_text">#816A45</color>
+    <color name="sage_hard_bg">#E9E3D4</color>
+    <color name="sage_good_text">#47604F</color>
+    <color name="sage_good_bg">#D7E3DA</color>
+    <color name="sage_easy_text">#46606B</color>
+    <color name="sage_easy_bg">#D6E0E3</color>
 
-    <color name="sage_count_new">#5E6C7D</color>
-    <color name="sage_count_learn">#8C6E68</color>
-    <color name="sage_count_review">#5C7467</color>
-    <color name="sage_show_bg">#CCD5D1</color>
+    <color name="sage_count_new">#566B85</color>
+    <color name="sage_count_learn">#96685E</color>
+    <color name="sage_count_review">#567A66</color>
+    <color name="sage_show_bg">#C9D8D1</color>
 
     <style name="Base.Theme.Light.Sage">
         <item name="colorPrimary">@color/sage_appbar</item>
@@ -163,13 +163,13 @@
 
         <item name="android:colorBackground">@color/sage_bg</item>
         <item name="android:windowBackground">@color/sage_bg</item>
-        <item name="alternativeBackgroundColor">#ECF0EE</item>
-        <item name="currentDeckBackgroundColor">#E2E8E5</item>
-        <item name="focusedRowBackgroundColor">#E2E8E5</item>
-        <item name="colorSurfaceContainerHigh">#EBEFED</item>
-        <item name="colorSurfaceContainer">#EBEFED</item>
-        <item name="colorSecondaryContainer">#DEE4E1</item>
-        <item name="toolbarBackgroundColor">#DEE3E1</item>
+        <item name="alternativeBackgroundColor">#EBF1EE</item>
+        <item name="currentDeckBackgroundColor">#E1E9E5</item>
+        <item name="focusedRowBackgroundColor">#E1E9E5</item>
+        <item name="colorSurfaceContainerHigh">#EAF0ED</item>
+        <item name="colorSurfaceContainer">#EAF0ED</item>
+        <item name="colorSecondaryContainer">#DCE6E1</item>
+        <item name="toolbarBackgroundColor">#DCE5E1</item>
         <item name="topBarColor">@color/sage_bg</item>
 
         <!-- 앱바는 진하게, 그 위 글자는 밝게 (AnkiDroid 기본 배치 유지) -->
@@ -192,11 +192,11 @@
         <item name="incrementerButtonBackground">@color/sage_accent</item>
         <!-- 노트 편집기의 태그/카드 박스가 쓰는 색입니다.
              원본은 테마와 무관한 회색이라 여기서 테마 톤으로 맞춥니다. -->
-        <item name="buttonForegroundColor">#D3D6D5</item>
-        <item name="buttonShadowColor">#B2B6B4</item>
+        <item name="buttonForegroundColor">#D2D7D5</item>
+        <item name="buttonShadowColor">#B1B7B4</item>
         <item name="buttonRippleColor">@color/sage_accent</item>
-        <item name="clozeColor">#546961</item>
-        <item name="editTextHighlightColor">#D5DEDA</item>
+        <item name="clozeColor">#4F6E62</item>
+        <item name="editTextHighlightColor">#D3E0DA</item>
 
         <item name="newCountColor">@color/sage_count_new</item>
         <item name="learnCountColor">@color/sage_count_learn</item>
@@ -227,18 +227,18 @@
         <item name="hardTextColor">@color/sage_hard_text</item>
         <item name="goodTextColor">@color/sage_good_text</item>
         <item name="easyTextColor">@color/sage_easy_text</item>
-        <item name="maxTimerColor">#997169</item>
+        <item name="maxTimerColor">#A6685C</item>
 
-        <item name="suspendedColor">#E3E2CC</item>
-        <item name="buriedColor">#DCD6C2</item>
-        <item name="selectedColor">#D9DFDA</item>
-        <item name="markedColor">#D6D0DD</item>
-        <item name="dynDeckColor">#576A76</item>
-        <item name="duplicateColor">#E4D9D8</item>
-        <item name="badgeErrorColor">#9C6A60</item>
-        <item name="badgeWarningColor">#A38661</item>
-        <item name="reminderTroubleshootingOk">#647967</item>
-        <item name="reminderTroubleshootingWarning">#998360</item>
+        <item name="suspendedColor">#E9E7C6</item>
+        <item name="buriedColor">#E3DABB</item>
+        <item name="selectedColor">#D8E0D9</item>
+        <item name="markedColor">#D6CDE0</item>
+        <item name="dynDeckColor">#4F6C7E</item>
+        <item name="duplicateColor">#E8D6D4</item>
+        <item name="badgeErrorColor">#AC6050</item>
+        <item name="badgeWarningColor">#B5884F</item>
+        <item name="reminderTroubleshootingOk">#5E7F63</item>
+        <item name="reminderTroubleshootingWarning">#A98750</item>
     </style>
 
     <style name="Theme_Light_Sage" parent="Base.Theme.Light.Sage"/>
