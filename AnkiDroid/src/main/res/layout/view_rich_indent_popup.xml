@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- Held down on a list button: move the item out of, or further into, the list. -->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:background="@drawable/rich_colour_popup_background"
+    android:padding="4dp">
+
+    <androidx.appcompat.widget.AppCompatImageButton
+        android:id="@+id/rich_outdent"
+        style="@style/RichTextSwatch"
+        android:src="@drawable/ic_format_indent_decrease_24dp"
+        android:contentDescription="@string/rich_text_outdent" />
+
+    <androidx.appcompat.widget.AppCompatImageButton
+        android:id="@+id/rich_indent"
+        style="@style/RichTextSwatch"
+        android:src="@drawable/ic_format_indent_increase_24dp"
+        android:contentDescription="@string/rich_text_indent" />
+</LinearLayout>

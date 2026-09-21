@@ -272,7 +272,9 @@ class NoteEditorFragment :
     private var richTextPreference = false
     private var mediaDir: File? = null
     private var palettes = emptyList<ColourPalette>()
-    private var colourPalettePopup: PopupWindow? = null
+    private val toolbarRoots = mutableListOf<View>()
+    private var richBubble: PopupWindow? = null
+    private var floatingToolbar: PopupWindow? = null
 
     /**
      * Image occlusion notes hide two of their fields and drive them from the
@@ -674,7 +676,7 @@ class NoteEditorFragment :
     }
 
     override fun onDestroyView() {
-        dismissColourPalette()
+        dismissRichPopups()
         richTextEditor?.destroy()
         richTextEditor = null
         richTextWebView = null
@@ -2382,15 +2384,6 @@ class NoteEditorFragment :
     // ------------------------------------------------------------------ rich text
 
     private fun setupRichTextToolbar() {
-        val toolbar = richTextToolbar ?: return
-        for ((id, command) in RICH_TEXT_COMMANDS) {
-            toolbar.findViewById<View>(id).setOnClickListener { richTextEditor?.exec(command) }
-        }
-        for ((id, list) in RICH_TEXT_LISTS) {
-            toolbar.findViewById<View>(id).setOnClickListener {
-                richTextEditor?.list(list.first, list.second)
-            }
-        }
         palettes =
             listOf(
                 ColourPalette(
@@ -2410,7 +2403,44 @@ class NoteEditorFragment :
                     apply = { colour, toggle -> richTextEditor?.textColour(colour, toggle) },
                 ),
             )
-        palettes.forEach { it.attach() }
+        richTextToolbar?.let { attachToolbar(it) }
+    }
+
+    /**
+     * Wires up one copy of the toolbar. There can be two: the bar docked at the
+     * bottom, and the one that floats over a selection on a right click.
+     */
+    private fun attachToolbar(root: View) {
+        for ((id, command) in RICH_TEXT_COMMANDS) {
+            root.findViewById<View>(id).setOnClickListener { richTextEditor?.exec(command) }
+        }
+        for ((id, list) in RICH_TEXT_LISTS) {
+            val button = root.findViewById<View>(id)
+            button.setOnClickListener { richTextEditor?.list(list.first, list.second) }
+            button.onHold { showIndentBubble(button) }
+        }
+        palettes.forEach { it.attachTo(root) }
+        toolbarRoots.add(root)
+        palettes.forEach { it.refresh() }
+    }
+
+    private fun detachToolbar(root: View) {
+        toolbarRoots.remove(root)
+    }
+
+    /**
+     * Runs [action] on a long press, and on a right click from a mouse. The two
+     * are the same gesture to a tablet user, but Android reports them apart.
+     */
+    private fun View.onHold(action: () -> Unit) {
+        setOnLongClickListener {
+            action()
+            true
+        }
+        setOnContextClickListener {
+            action()
+            true
+        }
     }
 
     /** How a palette draws its colour: behind the letter, or under it. */
@@ -2450,24 +2480,19 @@ class NoteEditorFragment :
 
         private fun slotKey(index: Int) = "$prefKey$index"
 
-        fun attach() {
-            val button = richTextToolbar?.findViewById<View>(buttonId) ?: return
+        fun attachTo(root: View) {
+            val button = root.findViewById<View>(buttonId)
             button.setOnClickListener { apply(current, true) }
-            button.setOnLongClickListener {
-                showPalette(button)
-                true
-            }
-            refresh()
+            button.onHold { showPalette(button) }
         }
 
         fun setActive(active: Boolean) {
-            richTextToolbar?.findViewById<View>(buttonId)?.isSelected = active
+            toolbarRoots.forEach { it.findViewById<View>(buttonId).isSelected = active }
         }
 
         fun refresh() {
-            richTextToolbar
-                ?.findViewById<ImageButton>(buttonId)
-                ?.setImageDrawable(buttonIcon(current, style))
+            val icon = buttonIcon(current, style)
+            toolbarRoots.forEach { it.findViewById<ImageButton>(buttonId).setImageDrawable(icon) }
         }
 
         private fun showPalette(anchor: View) {
@@ -2478,19 +2503,18 @@ class NoteEditorFragment :
                 swatch.setOnClickListener {
                     choose(slots[index])
                     apply(slots[index], false)
-                    dismissColourPalette()
+                    dismissBubble()
                 }
-                swatch.setOnLongClickListener {
+                swatch.onHold {
                     requireContext().showRichColourPicker(slots[index]) { picked ->
                         slots[index] = picked
                         requireContext().sharedPrefs().edit { putInt(slotKey(index), picked) }
                         swatch.setImageDrawable(swatchIcon(picked))
                         refresh()
                     }
-                    true
                 }
             }
-            showColourPalette(anchor, content)
+            showBubble(anchor, content)
         }
 
         private fun choose(
@@ -2502,34 +2526,85 @@ class NoteEditorFragment :
         }
     }
 
+    private fun showIndentBubble(anchor: View) {
+        val content = layoutInflater.inflate(R.layout.view_rich_indent_popup, null)
+        content.findViewById<View>(R.id.rich_outdent).setOnClickListener {
+            richTextEditor?.exec("outdent")
+        }
+        content.findViewById<View>(R.id.rich_indent).setOnClickListener {
+            richTextEditor?.exec("indent")
+        }
+        showBubble(anchor, content)
+    }
+
     /**
-     * Floats [content] above [anchor]. The window deliberately does not take focus:
-     * the page would drop the very selection the palette is about to paint.
+     * Floats [content] above [anchor]. None of these windows take focus: the page
+     * would drop the very selection they are about to act on.
      */
-    private fun showColourPalette(
+    private fun showBubble(
         anchor: View,
         content: View,
     ) {
-        dismissColourPalette()
-        val unspecified = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-        content.measure(unspecified, unspecified)
+        dismissBubble()
+        val size = measureFloating(content)
         val gap = (8 * resources.displayMetrics.density).toInt()
-        colourPalettePopup =
-            PopupWindow(content, WRAP_CONTENT, WRAP_CONTENT, false).apply {
-                isOutsideTouchable = true
-                elevation = 8 * resources.displayMetrics.density
-                setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-                showAsDropDown(
-                    anchor,
-                    anchor.width / 2 - content.measuredWidth / 2,
-                    -anchor.height - content.measuredHeight - gap,
-                )
+        richBubble =
+            floatingWindow(content).apply {
+                showAsDropDown(anchor, anchor.width / 2 - size.first / 2, -anchor.height - size.second - gap)
             }
     }
 
-    private fun dismissColourPalette() {
-        colourPalettePopup?.dismiss()
-        colourPalettePopup = null
+    /**
+     * Puts a copy of the toolbar just above the selection, for a right click in the
+     * text. [x] and [y] are where the selection starts inside the page.
+     */
+    private fun showFloatingToolbar(
+        x: Int,
+        y: Int,
+    ) {
+        val webView = richTextWebView ?: return
+        dismissFloatingToolbar()
+        val content = layoutInflater.inflate(R.layout.view_rich_text_toolbar, null)
+        content.isVisible = true
+        attachToolbar(content)
+        val size = measureFloating(content)
+        val gap = (8 * resources.displayMetrics.density).toInt()
+        val left = (x - size.first / 2).coerceIn(0, (webView.width - size.first).coerceAtLeast(0))
+        floatingToolbar =
+            floatingWindow(content).apply {
+                setOnDismissListener { detachToolbar(content) }
+                // showAsDropDown measures from the anchor's bottom edge.
+                showAsDropDown(webView, left, y - webView.height - size.second - gap)
+            }
+        palettes.forEach { it.refresh() }
+    }
+
+    private fun measureFloating(content: View): Pair<Int, Int> {
+        val unspecified = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        content.measure(unspecified, unspecified)
+        return content.measuredWidth to content.measuredHeight
+    }
+
+    private fun floatingWindow(content: View) =
+        PopupWindow(content, WRAP_CONTENT, WRAP_CONTENT, false).apply {
+            isOutsideTouchable = true
+            elevation = 8 * resources.displayMetrics.density
+            setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        }
+
+    private fun dismissBubble() {
+        richBubble?.dismiss()
+        richBubble = null
+    }
+
+    private fun dismissFloatingToolbar() {
+        floatingToolbar?.dismiss()
+        floatingToolbar = null
+    }
+
+    private fun dismissRichPopups() {
+        dismissBubble()
+        dismissFloatingToolbar()
     }
 
     /**
@@ -2607,7 +2682,7 @@ class NoteEditorFragment :
     private fun applyRichTextMode() {
         val webView = richTextWebView ?: return
         val active = richTextActive
-        if (!active) dismissColourPalette()
+        if (!active) dismissRichPopups()
         webView.isVisible = active
         richTextToolbar?.isVisible = active
         fieldsLayoutContainer?.isVisible = !active
@@ -2633,6 +2708,7 @@ class NoteEditorFragment :
                 },
                 onFormatStateChanged = ::onRichTextFormatState,
                 onCaretMoved = ::scrollRichTextCaretIntoView,
+                onContextMenu = ::showFloatingToolbar,
             )
         editor.load(mediaDir)
         applyRichTextTheme(editor)
@@ -2678,12 +2754,13 @@ class NoteEditorFragment :
     }
 
     private fun onRichTextFormatState(commands: Set<String>) {
-        val toolbar = richTextToolbar ?: return
-        for ((id, command) in RICH_TEXT_COMMANDS) {
-            toolbar.findViewById<View>(id).isSelected = command in commands
-        }
-        for ((id, list) in RICH_TEXT_LISTS) {
-            toolbar.findViewById<View>(id).isSelected = list.first in commands
+        for (root in toolbarRoots) {
+            for ((id, command) in RICH_TEXT_COMMANDS) {
+                root.findViewById<View>(id).isSelected = command in commands
+            }
+            for ((id, list) in RICH_TEXT_LISTS) {
+                root.findViewById<View>(id).isSelected = list.first in commands
+            }
         }
         palettes.forEach { it.setActive(it.state in commands) }
     }

@@ -268,8 +268,17 @@
         }
       });
 
+      // A contenteditable block is never truly empty: the browser parks a <br> in
+      // it to give the caret somewhere to sit, and one sits after the last line of
+      // any block. Neither is content, and leaving them in means a field that looks
+      // empty here shows up as "<br>" in the HTML editor.
+      function normalise(html) {
+        var out = html.replace(/<br\s*\/?>\s*$/i, '');
+        return out.trim() === '' ? '' : out;
+      }
+
       function flush(editor) {
-        post('onFieldChanged', editor.dataset.index + ':' + editor.innerHTML);
+        post('onFieldChanged', editor.dataset.index + ':' + normalise(editor.innerHTML));
       }
 
       function flushAll() {
@@ -302,6 +311,18 @@
         if (text === null || text === undefined) return;
         e.preventDefault();
         document.execCommand('insertText', false, text);
+      });
+
+      // A right click on a selection asks for the toolbar where the text is,
+      // rather than the browser's own menu.
+      document.addEventListener('contextmenu', function (e) {
+        if (!e.target.classList || !e.target.classList.contains('editor')) return;
+        var sel = window.getSelection();
+        if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+        e.preventDefault();
+        var rect = sel.getRangeAt(0).getBoundingClientRect();
+        post('onContextMenu',
+             Math.round(rect.left + window.scrollX) + ':' + Math.round(rect.top + window.scrollY));
       });
 
       window.addEventListener('resize', reportHeight);

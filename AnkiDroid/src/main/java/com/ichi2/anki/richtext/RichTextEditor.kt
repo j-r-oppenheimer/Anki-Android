@@ -37,6 +37,7 @@ class RichTextEditor(
     private val onHeightChanged: (heightPx: Int) -> Unit,
     private val onFormatStateChanged: (commands: Set<String>) -> Unit,
     private val onCaretMoved: (topPx: Int) -> Unit,
+    private val onContextMenu: (xPx: Int, yPx: Int) -> Unit,
 ) {
     private val handler = Handler(Looper.getMainLooper())
     private var loaded = false
@@ -211,6 +212,15 @@ class RichTextEditor(
         fun onFormatState(commands: String) {
             val set = commands.split(',').filter { it.isNotEmpty() }.toSet()
             handler.post { this@RichTextEditor.onFormatStateChanged(set) }
+        }
+
+        @JavascriptInterface
+        fun onContextMenu(payload: String) {
+            val parts = payload.split(':')
+            if (parts.size != 2) return
+            val x = parts[0].toIntOrNull() ?: return
+            val y = parts[1].toIntOrNull() ?: return
+            handler.post { this@RichTextEditor.onContextMenu(toDevicePixels(x), toDevicePixels(y)) }
         }
 
         @JavascriptInterface
