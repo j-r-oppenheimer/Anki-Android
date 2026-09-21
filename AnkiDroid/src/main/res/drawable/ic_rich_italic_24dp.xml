@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Material Symbols "format_italic", for the rich text toolbar. AnkiDroid's own
+     ic_format_*_black_24dp are the older Material Icons and stay as they are:
+     they belong to the HTML toolbar, and replacing them would edit a file
+     upstream still owns. The source viewBox runs from -960 to 0 on the y axis,
+     which a vector drawable cannot express, so the group shifts it back. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="960"
+    android:viewportHeight="960"
+    android:tint="?attr/colorControlNormal">
+  <group android:translateY="960">
+    <path
+        android:fillColor="@android:color/black"
+        android:pathData="M200,-200v-100h160l120,-360H320v-100h400v100H580L460,-300h140v100H200Z"/>
+  </group>
+</vector>

@@ -24,19 +24,19 @@
         <androidx.appcompat.widget.AppCompatImageButton
             android:id="@+id/rich_bold"
             style="@style/RichTextToolbarButton"
-            android:src="@drawable/ic_format_bold_black_24dp"
+            android:src="@drawable/ic_rich_bold_24dp"
             android:contentDescription="@string/rich_text_bold" />
 
         <androidx.appcompat.widget.AppCompatImageButton
             android:id="@+id/rich_italic"
             style="@style/RichTextToolbarButton"
-            android:src="@drawable/ic_format_italic_black_24dp"
+            android:src="@drawable/ic_rich_italic_24dp"
             android:contentDescription="@string/rich_text_italic" />
 
         <androidx.appcompat.widget.AppCompatImageButton
             android:id="@+id/rich_underline"
             style="@style/RichTextToolbarButton"
-            android:src="@drawable/ic_format_underlined_black_24dp"
+            android:src="@drawable/ic_rich_underlined_24dp"
             android:contentDescription="@string/rich_text_underline" />
 
         <View style="@style/RichTextToolbarDivider" />
