@@ -2655,16 +2655,17 @@ class NoteEditorFragment :
                         shape = GradientDrawable.RECTANGLE
                         setColor(onEditorBackground(colour))
                     }
-                // 14dp wide and 2dp tall, as in Material's own text_format, but
-                // resting on the bottom of the 24dp box: that is where the
-                // highlighter's block ends, so the two buttons line up.
+                // The letter and its bar read as one mark, so they are centred
+                // together in the 24dp box rather than the letter alone. A pair of
+                // opposite insets lifts the letter without resizing it.
                 LayerDrawable(arrayOf(letter, bar)).apply {
+                    setLayerInset(0, 0, -(2 * density).toInt(), 0, (2 * density).toInt())
                     setLayerInset(
                         1,
                         (5 * density).toInt(),
-                        (22 * density).toInt(),
+                        (18 * density).toInt(),
                         (5 * density).toInt(),
-                        0,
+                        (4 * density).toInt(),
                     )
                 }
             }
