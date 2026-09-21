@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- The picker behind a long press on a colour swatch. Each slider carries the
+     value it controls on its right, so a colour can be typed as well as dragged. -->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingHorizontal="20dp"
+    android:paddingTop="8dp">
+
+    <com.skydoves.colorpickerview.ColorPickerView
+        android:id="@+id/colour_wheel"
+        android:layout_width="match_parent"
+        android:layout_height="220dp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginTop="20dp">
+
+        <com.skydoves.colorpickerview.sliders.BrightnessSlideBar
+            android:id="@+id/colour_brightness_bar"
+            android:layout_width="0dp"
+            android:layout_height="28dp"
+            android:layout_weight="1" />
+
+        <EditText
+            android:id="@+id/colour_hex"
+            android:layout_width="104dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:inputType="textNoSuggestions|textCapCharacters"
+            android:maxLength="7"
+            android:singleLine="true"
+            android:hint="@string/rich_text_colour_code" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginTop="12dp">
+
+        <com.skydoves.colorpickerview.sliders.AlphaSlideBar
+            android:id="@+id/colour_alpha_bar"
+            android:layout_width="0dp"
+            android:layout_height="28dp"
+            android:layout_weight="1" />
+
+        <EditText
+            android:id="@+id/colour_alpha"
+            android:layout_width="104dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:inputType="number"
+            android:maxLength="3"
+            android:singleLine="true"
+            android:hint="@string/rich_text_opacity" />
+    </LinearLayout>
+</LinearLayout>

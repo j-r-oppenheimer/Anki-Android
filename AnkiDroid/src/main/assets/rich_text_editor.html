@@ -178,9 +178,11 @@
         }
       }
 
-      // Applying a colour to a run that already has one takes it off again.
-      function paint(command, prop, cssProp, offValue, sentinels, color) {
-        if (inlineStyleAt(prop)) {
+      // The toolbar button toggles: colouring a run that already has a colour takes
+      // it off. Picking a colour from the popup always paints, so that choosing a
+      // different one recolours the run instead of clearing it.
+      function paint(command, prop, cssProp, offValue, sentinels, color, toggle) {
+        if (toggle && inlineStyleAt(prop)) {
           exec(command, offValue);
           if (active) strip(active, prop, cssProp, sentinels);
           flush(active);
@@ -190,14 +192,81 @@
         reportState();
       }
 
-      function highlight(color) {
+      function highlight(color, toggle) {
         paint('hiliteColor', 'backgroundColor', 'background-color', 'transparent',
-              ['transparent', 'rgba(0, 0, 0, 0)'], color);
+              ['transparent', 'rgba(0, 0, 0, 0)'], color, toggle);
       }
 
-      function textColor(color) {
-        paint('foreColor', 'color', 'color', SENTINEL, [SENTINEL, SENTINEL_RGB], color);
+      function textColor(color, toggle) {
+        paint('foreColor', 'color', 'color', SENTINEL, [SENTINEL, SENTINEL_RGB], color, toggle);
       }
+
+      // ----------------------------------------------------------------- lists
+
+      /** The list the selection sits in: its tag and how deep it is nested. */
+      function listInfo() {
+        var sel = window.getSelection();
+        if (!sel || sel.rangeCount === 0) return null;
+        var node = sel.getRangeAt(0).startContainer;
+        if (node.nodeType === 3) node = node.parentNode;
+        var tag = null;
+        var depth = 0;
+        while (node && node.nodeType === 1 && !node.classList.contains('editor')) {
+          if (node.tagName === 'UL' || node.tagName === 'OL') {
+            if (!tag) tag = node.tagName;
+            depth++;
+          }
+          node = node.parentNode;
+        }
+        return tag ? { tag: tag, depth: depth } : null;
+      }
+
+      // Pressing the button walks back out one level at a time, and the last press
+      // drops the list altogether. A different list type converts straight over.
+      function listAction(command, tag) {
+        var info = listInfo();
+        if (info && info.tag === tag && info.depth > 1) {
+          exec('outdent');
+        } else {
+          exec(command);
+        }
+      }
+
+      function listCommandFor(tag) {
+        return tag === 'OL' ? 'insertOrderedList' : 'insertUnorderedList';
+      }
+
+      /** True when the caret sits at the very start of its list item. */
+      function atItemStart() {
+        var sel = window.getSelection();
+        if (!sel || sel.rangeCount === 0 || !sel.isCollapsed) return false;
+        var range = sel.getRangeAt(0);
+        var item = range.startContainer;
+        if (item.nodeType === 3) item = item.parentNode;
+        while (item && item.tagName !== 'LI' && !item.classList.contains('editor')) item = item.parentNode;
+        if (!item || item.tagName !== 'LI') return false;
+        var before = range.cloneRange();
+        before.selectNodeContents(item);
+        before.setEnd(range.startContainer, range.startOffset);
+        return before.toString().length === 0;
+      }
+
+      document.addEventListener('keydown', function (e) {
+        if (!e.target.classList || !e.target.classList.contains('editor')) return;
+        var info = listInfo();
+        if (e.key === 'Tab' && info) {
+          e.preventDefault();
+          exec(e.shiftKey ? 'outdent' : 'indent');
+          return;
+        }
+        // Backspace against the front of an item steps out of the list rather than
+        // pulling the item's text up into the one above it.
+        if (e.key === 'Backspace' && info && atItemStart()) {
+          e.preventDefault();
+          if (info.depth > 1) exec('outdent');
+          else exec(listCommandFor(info.tag));
+        }
+      });
 
       function flush(editor) {
         post('onFieldChanged', editor.dataset.index + ':' + editor.innerHTML);

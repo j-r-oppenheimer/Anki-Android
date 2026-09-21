@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- The palette that pops up over a colour button. Tapping a swatch paints with
+     it, a long press opens the picker to change that swatch. -->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/rich_colour_popup"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:background="@drawable/rich_colour_popup_background"
+    android:padding="4dp">
+
+    <androidx.appcompat.widget.AppCompatImageButton
+        android:id="@+id/rich_swatch_0"
+        style="@style/RichTextSwatch" />
+
+    <androidx.appcompat.widget.AppCompatImageButton
+        android:id="@+id/rich_swatch_1"
+        style="@style/RichTextSwatch" />
+
+    <androidx.appcompat.widget.AppCompatImageButton
+        android:id="@+id/rich_swatch_2"
+        style="@style/RichTextSwatch" />
+
+    <androidx.appcompat.widget.AppCompatImageButton
+        android:id="@+id/rich_swatch_3"
+        style="@style/RichTextSwatch" />
+
+    <androidx.appcompat.widget.AppCompatImageButton
+        android:id="@+id/rich_swatch_4"
+        style="@style/RichTextSwatch" />
+</LinearLayout>

@@ -137,15 +137,36 @@ class RichTextEditor(
         value: String? = null,
     ) = whenLoaded { call("exec", command, value) }
 
-    /** Highlights the selection, or clears the highlight if it already has one. */
+    /**
+     * Highlights the selection. With [toggle] the highlight comes off again when the
+     * selection already has one, which is what the toolbar button does; picking a
+     * colour from the popup passes false so it recolours instead.
+     */
     fun highlight(
         @ColorInt color: Int,
-    ) = whenLoaded { call("highlight", rgba(color)) }
+        toggle: Boolean,
+    ) = whenLoaded { paint("highlight", color, toggle) }
 
-    /** Colours the selection's text, or clears the colour if it already has one. */
+    /** Colours the selection's text. [toggle] behaves as it does for [highlight]. */
     fun textColour(
         @ColorInt color: Int,
-    ) = whenLoaded { call("textColor", rgba(color)) }
+        toggle: Boolean,
+    ) = whenLoaded { paint("textColor", color, toggle) }
+
+    /**
+     * Runs a list button. Each press steps out one level of nesting, and the last
+     * one drops the list; off a list it starts one.
+     */
+    fun list(
+        command: String,
+        tag: String,
+    ) = whenLoaded { call("listAction", command, tag) }
+
+    private fun paint(
+        function: String,
+        @ColorInt color: Int,
+        toggle: Boolean,
+    ) = webView.evaluateJavascript("$function(${JSONObject.quote(rgba(color))}, $toggle)", null)
 
     fun focusField(index: Int) = whenLoaded { webView.evaluateJavascript("focusField($index)", null) }
 
