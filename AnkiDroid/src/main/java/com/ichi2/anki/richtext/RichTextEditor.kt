@@ -4,16 +4,24 @@ package com.ichi2.anki.richtext
 
 import android.annotation.SuppressLint
 import android.graphics.Color
+import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.view.View
 import android.webkit.JavascriptInterface
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.annotation.ColorInt
+import com.ichi2.anki.customfont.CustomFont
 import org.json.JSONArray
 import org.json.JSONObject
 import timber.log.Timber
 import java.io.File
+import java.io.FileInputStream
+import java.net.URLConnection
+import java.util.Locale
 
 /**
  * Drives the contenteditable page behind the note editor's rich text mode.
@@ -35,13 +43,13 @@ class RichTextEditor(
 
     /** Calls made before the page finished loading, replayed in order once it has. */
     private val pending = mutableListOf<() -> Unit>()
+    private var mediaDir: File? = null
 
     @SuppressLint("SetJavaScriptEnabled")
     fun load(mediaDir: File?) {
+        this.mediaDir = mediaDir
         webView.settings.apply {
             javaScriptEnabled = true
-            // Field HTML may reference collection media by bare filename.
-            allowFileAccess = true
             domStorageEnabled = false
         }
         webView.isVerticalScrollBarEnabled = false
@@ -49,21 +57,45 @@ class RichTextEditor(
         webView.setBackgroundColor(Color.TRANSPARENT)
         webView.addJavascriptInterface(Bridge(), "AnkiRich")
         webView.webViewClient =
-            object : android.webkit.WebViewClient() {
+            object : WebViewClient() {
+                override fun shouldInterceptRequest(
+                    view: WebView?,
+                    request: WebResourceRequest,
+                ): WebResourceResponse? = CustomFont.interceptPageFontRequest(request) ?: serveMedia(request)
+
                 override fun onPageFinished(
                     view: WebView?,
                     url: String?,
                 ) {
                     loaded = true
+                    CustomFont.injectIntoPage(webView)
                     pending.forEach { it() }
                     pending.clear()
                 }
             }
 
         val html = webView.context.assets.open(ASSET).bufferedReader().use { it.readText() }
-        // A base URL inside the media folder is what makes <img src="foo.jpg"> resolve.
-        val baseUrl = mediaDir?.let { "file://${it.absolutePath}/" }
-        webView.loadDataWithBaseURL(baseUrl, html, "text/html", "utf-8", null)
+        // The page needs a real origin, not file://, or the custom font is refused
+        // as a cross-origin request. Bare <img src="foo.jpg"> then resolves under
+        // BASE_URL and comes back through serveMedia.
+        webView.loadDataWithBaseURL(BASE_URL, html, "text/html", "utf-8", null)
+    }
+
+    /** Serves a file from the collection's media folder to the page. */
+    private fun serveMedia(request: WebResourceRequest): WebResourceResponse? {
+        val dir = mediaDir ?: return null
+        val path = request.url.path ?: return null
+        if (!path.startsWith(MEDIA_PATH)) return null
+        return try {
+            val file = File(dir, Uri.decode(path.removePrefix(MEDIA_PATH)))
+            // A field could name "../secret"; keep the lookup inside the media folder.
+            if (!file.canonicalPath.startsWith(dir.canonicalPath) || !file.isFile) return null
+            val mime = URLConnection.guessContentTypeFromName(file.name) ?: "application/octet-stream"
+            WebResourceResponse(mime, null, FileInputStream(file))
+        } catch (e: Exception) {
+            Timber.w(e, "failed to serve media to the rich text editor")
+            null
+        }
     }
 
     fun setTheme(
@@ -105,6 +137,16 @@ class RichTextEditor(
         value: String? = null,
     ) = whenLoaded { call("exec", command, value) }
 
+    /** Highlights the selection, or clears the highlight if it already has one. */
+    fun highlight(
+        @ColorInt color: Int,
+    ) = whenLoaded { call("highlight", rgba(color)) }
+
+    /** Colours the selection's text, or clears the colour if it already has one. */
+    fun textColour(
+        @ColorInt color: Int,
+    ) = whenLoaded { call("textColor", rgba(color)) }
+
     fun focusField(index: Int) = whenLoaded { webView.evaluateJavascript("focusField($index)", null) }
 
     /** Pushes every field back out, for the moment before a save or a mode switch. */
@@ -126,7 +168,7 @@ class RichTextEditor(
 
     private fun css(
         @ColorInt color: Int,
-    ) = String.format("#%06X", 0xFFFFFF and color)
+    ) = String.format(Locale.ROOT, "#%06X", 0xFFFFFF and color)
 
     private inner class Bridge {
         @JavascriptInterface
@@ -171,8 +213,47 @@ class RichTextEditor(
 
     companion object {
         private const val ASSET = "rich_text_editor.html"
+        private const val MEDIA_PATH = "/media/"
+        private const val BASE_URL = "https://appassets.androidplatform.net$MEDIA_PATH"
 
-        /** The highlighter colour, matching the marker pen on the toolbar button. */
-        const val HIGHLIGHT_COLOR = "#FFF59D"
+        /**
+         * The highlighter's starting colours. They are translucent so the highlight
+         * blends with whatever background the card is rendered on, rather than
+         * sitting on the page as a solid block.
+         */
+        val DEFAULT_HIGHLIGHTS =
+            listOf(
+                0x66FFF59D.toInt(), // yellow
+                0x66A5D6A7.toInt(), // green
+                0x6690CAF9.toInt(), // blue
+                0x66F48FB1.toInt(), // pink
+                0x66CE93D8.toInt(), // purple
+            )
+
+        /**
+         * The text colours to start from. Unlike the highlights these are opaque,
+         * and mid-toned so they stay legible whether the card is light or dark.
+         */
+        val DEFAULT_TEXT_COLOURS =
+            listOf(
+                0xFFE53935.toInt(), // red
+                0xFFFB8C00.toInt(), // orange
+                0xFF43A047.toInt(), // green
+                0xFF1E88E5.toInt(), // blue
+                0xFF8E24AA.toInt(), // purple
+            )
+
+        /** CSS needs the alpha as a 0..1 fraction, which no hex form gives us. */
+        fun rgba(
+            @ColorInt color: Int,
+        ): String =
+            String.format(
+                Locale.ROOT,
+                "rgba(%d, %d, %d, %.3f)",
+                Color.red(color),
+                Color.green(color),
+                Color.blue(color),
+                Color.alpha(color) / 255f,
+            )
     }
 }

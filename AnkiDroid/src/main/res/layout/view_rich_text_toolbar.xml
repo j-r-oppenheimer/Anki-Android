@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
 <!-- The formatting bar for the note editor's rich text mode. Each button runs a
-     document.execCommand against the current selection. -->
+     document.execCommand against the current selection. The two colour groups
+     draw their own swatches at runtime, so a button always shows the colour it
+     will paint; a long press on a slot opens a picker to change that slot. -->
 <HorizontalScrollView
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/rich_text_toolbar"
@@ -37,11 +39,71 @@
             android:src="@drawable/ic_format_underlined_black_24dp"
             android:contentDescription="@string/rich_text_underline" />
 
+        <View style="@style/RichTextToolbarDivider" />
+
         <androidx.appcompat.widget.AppCompatImageButton
             android:id="@+id/rich_highlight"
             style="@style/RichTextToolbarButton"
-            android:src="@drawable/ic_format_highlight_24dp"
             android:contentDescription="@string/rich_text_highlight" />
+
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/rich_highlight_slot_0"
+            style="@style/RichTextToolbarSlot"
+            android:contentDescription="@string/rich_text_highlight_slot" />
+
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/rich_highlight_slot_1"
+            style="@style/RichTextToolbarSlot"
+            android:contentDescription="@string/rich_text_highlight_slot" />
+
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/rich_highlight_slot_2"
+            style="@style/RichTextToolbarSlot"
+            android:contentDescription="@string/rich_text_highlight_slot" />
+
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/rich_highlight_slot_3"
+            style="@style/RichTextToolbarSlot"
+            android:contentDescription="@string/rich_text_highlight_slot" />
+
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/rich_highlight_slot_4"
+            style="@style/RichTextToolbarSlot"
+            android:contentDescription="@string/rich_text_highlight_slot" />
+
+        <View style="@style/RichTextToolbarDivider" />
+
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/rich_text_colour"
+            style="@style/RichTextToolbarButton"
+            android:contentDescription="@string/rich_text_text_colour" />
+
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/rich_colour_slot_0"
+            style="@style/RichTextToolbarSlot"
+            android:contentDescription="@string/rich_text_colour_slot" />
+
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/rich_colour_slot_1"
+            style="@style/RichTextToolbarSlot"
+            android:contentDescription="@string/rich_text_colour_slot" />
+
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/rich_colour_slot_2"
+            style="@style/RichTextToolbarSlot"
+            android:contentDescription="@string/rich_text_colour_slot" />
+
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/rich_colour_slot_3"
+            style="@style/RichTextToolbarSlot"
+            android:contentDescription="@string/rich_text_colour_slot" />
+
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/rich_colour_slot_4"
+            style="@style/RichTextToolbarSlot"
+            android:contentDescription="@string/rich_text_colour_slot" />
+
+        <View style="@style/RichTextToolbarDivider" />
 
         <androidx.appcompat.widget.AppCompatImageButton
             android:id="@+id/rich_bulleted_list"
@@ -54,11 +116,5 @@
             style="@style/RichTextToolbarButton"
             android:src="@drawable/ic_format_list_numbered_24dp"
             android:contentDescription="@string/rich_text_numbered_list" />
-
-        <androidx.appcompat.widget.AppCompatImageButton
-            android:id="@+id/rich_clear_format"
-            style="@style/RichTextToolbarButton"
-            android:src="@drawable/ic_format_clear_24dp"
-            android:contentDescription="@string/rich_text_clear_format" />
     </LinearLayout>
 </HorizontalScrollView>

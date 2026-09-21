@@ -7,7 +7,9 @@
     <string name="rich_text_italic">기울임</string>
     <string name="rich_text_underline">밑줄</string>
     <string name="rich_text_highlight">형광펜</string>
+    <string name="rich_text_highlight_slot">형광펜 색</string>
+    <string name="rich_text_text_colour">글자 색</string>
+    <string name="rich_text_colour_slot">글자 색</string>
     <string name="rich_text_bulleted_list">글머리 기호 목록</string>
     <string name="rich_text_numbered_list">번호 매기기 목록</string>
-    <string name="rich_text_clear_format">서식 지우기</string>
 </resources>

@@ -7,7 +7,9 @@
     <string name="rich_text_italic">Italic</string>
     <string name="rich_text_underline">Underline</string>
     <string name="rich_text_highlight">Highlight</string>
+    <string name="rich_text_highlight_slot">Highlight colour</string>
+    <string name="rich_text_text_colour">Text colour</string>
+    <string name="rich_text_colour_slot">Text colour</string>
     <string name="rich_text_bulleted_list">Bulleted list</string>
     <string name="rich_text_numbered_list">Numbered list</string>
-    <string name="rich_text_clear_format">Clear formatting</string>
 </resources>

@@ -8,4 +8,17 @@
         <item name="android:scaleType">centerInside</item>
         <item name="android:padding">8dp</item>
     </style>
+
+    <style name="RichTextToolbarSlot" parent="RichTextToolbarButton">
+        <item name="android:layout_width">36dp</item>
+        <item name="android:padding">6dp</item>
+    </style>
+
+    <style name="RichTextToolbarDivider">
+        <item name="android:layout_width">1dp</item>
+        <item name="android:layout_height">match_parent</item>
+        <item name="android:layout_marginHorizontal">4dp</item>
+        <item name="android:layout_marginVertical">10dp</item>
+        <item name="android:background">?attr/colorControlHighlight</item>
+    </style>
 </resources>

@@ -64,6 +64,8 @@
         ['bold', 'italic', 'underline', 'insertUnorderedList', 'insertOrderedList'].forEach(function (c) {
           try { if (document.queryCommandState(c)) state.push(c); } catch (e) { /* unsupported */ }
         });
+        if (inlineStyleAt('backgroundColor')) state.push('highlight');
+        if (inlineStyleAt('color')) state.push('textColor');
         post('onFormatState', state.join(','));
       }
 
@@ -135,6 +137,66 @@
         if (!applied && command === 'hiliteColor') document.execCommand('backColor', false, value);
         flush(active);
         reportState();
+      }
+
+      // A colour the user would never pick. execCommand does the hard part of
+      // splitting the selection out of its surrounding span; painting with the
+      // sentinel and then stripping it is what actually removes a colour, since
+      // execCommand has no way to unset one.
+      var SENTINEL = '#010203';
+      var SENTINEL_RGB = 'rgb(1, 2, 3)';
+      var NO_COLOUR = ['', 'transparent', 'rgba(0, 0, 0, 0)'];
+
+      /** The inline colour on or above the selection, or null when there is none. */
+      function inlineStyleAt(prop) {
+        var sel = window.getSelection();
+        if (!sel || sel.rangeCount === 0) return null;
+        var node = sel.getRangeAt(0).startContainer;
+        if (node.nodeType === 3) node = node.parentNode;
+        while (node && node.nodeType === 1 && !node.classList.contains('editor')) {
+          var value = node.style && node.style[prop];
+          if (value && NO_COLOUR.indexOf(value) === -1) return value;
+          if (prop === 'color' && node.tagName === 'FONT' && node.getAttribute('color')) {
+            return node.getAttribute('color');
+          }
+          node = node.parentNode;
+        }
+        return null;
+      }
+
+      function strip(root, prop, cssProp, sentinels) {
+        var spans = root.querySelectorAll('span[style]');
+        for (var i = spans.length - 1; i >= 0; i--) {
+          var span = spans[i];
+          if (sentinels.indexOf(span.style[prop]) === -1) continue;
+          span.style.removeProperty(cssProp);
+          if (span.getAttribute('style')) continue;
+          var parent = span.parentNode;
+          while (span.firstChild) parent.insertBefore(span.firstChild, span);
+          parent.removeChild(span);
+          parent.normalize();
+        }
+      }
+
+      // Applying a colour to a run that already has one takes it off again.
+      function paint(command, prop, cssProp, offValue, sentinels, color) {
+        if (inlineStyleAt(prop)) {
+          exec(command, offValue);
+          if (active) strip(active, prop, cssProp, sentinels);
+          flush(active);
+        } else {
+          exec(command, color);
+        }
+        reportState();
+      }
+
+      function highlight(color) {
+        paint('hiliteColor', 'backgroundColor', 'background-color', 'transparent',
+              ['transparent', 'rgba(0, 0, 0, 0)'], color);
+      }
+
+      function textColor(color) {
+        paint('foreColor', 'color', 'color', SENTINEL, [SENTINEL, SENTINEL_RGB], color);
       }
 
       function flush(editor) {

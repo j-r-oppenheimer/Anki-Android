@@ -15,6 +15,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Color
+import android.graphics.drawable.Drawable
+import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.LayerDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -48,6 +51,7 @@ import androidx.annotation.ColorInt
 import androidx.annotation.DrawableRes
 import androidx.annotation.VisibleForTesting
 import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.content.res.AppCompatResources
 import androidx.appcompat.widget.AppCompatButton
 import androidx.core.content.FileProvider
 import androidx.core.content.edit
@@ -161,6 +165,7 @@ import com.ichi2.anki.snackbar.SnackbarBuilder
 import com.ichi2.anki.snackbar.showSnackbar
 import com.ichi2.anki.ui.internationalization.sentenceCase
 import com.ichi2.anki.ui.setupNoteTypeSpinner
+import com.ichi2.anki.ui.windows.reviewer.whiteboard.showColorPickerDialog
 import com.ichi2.anki.utils.RunOnlyOnce
 import com.ichi2.anki.utils.bottomCornerSideClearance
 import com.ichi2.anki.utils.doOnApplyWindowInsets
@@ -262,6 +267,7 @@ class NoteEditorFragment :
     private var richTextToolbar: View? = null
     private var richTextPreference = false
     private var mediaDir: File? = null
+    private var palettes = emptyList<ColourPalette>()
 
     /**
      * Image occlusion notes hide two of their fields and drive them from the
@@ -2371,23 +2377,160 @@ class NoteEditorFragment :
 
     private fun setupRichTextToolbar() {
         val toolbar = richTextToolbar ?: return
-        // `hiliteColor` is the only command that needs a value; the rest toggle.
-        val commands =
-            listOf(
-                R.id.rich_bold to "bold",
-                R.id.rich_italic to "italic",
-                R.id.rich_underline to "underline",
-                R.id.rich_bulleted_list to "insertUnorderedList",
-                R.id.rich_numbered_list to "insertOrderedList",
-                R.id.rich_clear_format to "removeFormat",
-            )
-        for ((id, command) in commands) {
+        for ((id, command) in RICH_TEXT_COMMANDS) {
             toolbar.findViewById<View>(id).setOnClickListener { richTextEditor?.exec(command) }
         }
-        toolbar.findViewById<View>(R.id.rich_highlight).setOnClickListener {
-            richTextEditor?.exec("hiliteColor", RichTextEditor.HIGHLIGHT_COLOR)
+        palettes =
+            listOf(
+                ColourPalette(
+                    buttonId = R.id.rich_highlight,
+                    slotIds = RICH_TEXT_HIGHLIGHT_SLOTS,
+                    prefKey = PREF_NOTE_EDITOR_HIGHLIGHT,
+                    defaults = RichTextEditor.DEFAULT_HIGHLIGHTS,
+                    state = "highlight",
+                    style = SwatchStyle.BLOCK,
+                    apply = { colour -> richTextEditor?.highlight(colour) },
+                ),
+                ColourPalette(
+                    buttonId = R.id.rich_text_colour,
+                    slotIds = RICH_TEXT_COLOUR_SLOTS,
+                    prefKey = PREF_NOTE_EDITOR_TEXT_COLOUR,
+                    defaults = RichTextEditor.DEFAULT_TEXT_COLOURS,
+                    state = "textColor",
+                    style = SwatchStyle.UNDERLINE,
+                    apply = { colour -> richTextEditor?.textColour(colour) },
+                ),
+            )
+        palettes.forEach { it.attach() }
+    }
+
+    /** How a palette draws its colour: behind the letter, or under it. */
+    private enum class SwatchStyle { BLOCK, UNDERLINE }
+
+    /**
+     * One of the toolbar's colour groups: a button that paints with the colour last
+     * used, and the slots it is chosen from. Tapping a slot paints with it, a long
+     * press opens a picker to change it, and both survive restarts.
+     */
+    private inner class ColourPalette(
+        private val buttonId: Int,
+        private val slotIds: List<Int>,
+        private val prefKey: String,
+        defaults: List<Int>,
+        val state: String,
+        private val style: SwatchStyle,
+        private val apply: (Int) -> Unit,
+    ) {
+        private val slots: MutableList<Int>
+
+        @ColorInt
+        private var current: Int
+
+        init {
+            val prefs = requireContext().sharedPrefs()
+            slots = defaults.mapIndexed { index, fallback -> prefs.getInt(slotKey(index), fallback) }.toMutableList()
+            current = prefs.getInt(prefKey, slots.first())
+        }
+
+        private fun slotKey(index: Int) = "$prefKey$index"
+
+        fun attach() {
+            val toolbar = richTextToolbar ?: return
+            toolbar.findViewById<View>(buttonId).setOnClickListener { apply(current) }
+            slotIds.forEachIndexed { index, id ->
+                val slot = toolbar.findViewById<View>(id)
+                slot.setOnClickListener {
+                    current = slots[index]
+                    requireContext().sharedPrefs().edit { putInt(prefKey, current) }
+                    refresh()
+                    apply(current)
+                }
+                slot.setOnLongClickListener {
+                    requireContext().showColorPickerDialog(slots[index]) { picked ->
+                        slots[index] = picked
+                        requireContext().sharedPrefs().edit { putInt(slotKey(index), picked) }
+                        refresh()
+                    }
+                    true
+                }
+            }
+            refresh()
+        }
+
+        fun setActive(active: Boolean) {
+            richTextToolbar?.findViewById<View>(buttonId)?.isSelected = active
+        }
+
+        fun refresh() {
+            val toolbar = richTextToolbar ?: return
+            toolbar.findViewById<ImageButton>(buttonId).setImageDrawable(buttonIcon(current, style))
+            slotIds.forEachIndexed { index, id ->
+                toolbar.findViewById<ImageButton>(id).setImageDrawable(slotIcon(slots[index]))
+            }
         }
     }
+
+    /**
+     * The letter a colour button paints, over its colour for a highlight and above
+     * a bar of it for a text colour.
+     */
+    private fun buttonIcon(
+        @ColorInt colour: Int,
+        style: SwatchStyle,
+    ): Drawable? {
+        val letter =
+            AppCompatResources.getDrawable(requireContext(), R.drawable.ic_rich_highlight_letter)?.mutate()
+                ?: return null
+        val density = resources.displayMetrics.density
+        val size = (24 * density).toInt()
+        return when (style) {
+            SwatchStyle.BLOCK -> {
+                val block =
+                    GradientDrawable().apply {
+                        shape = GradientDrawable.RECTANGLE
+                        cornerRadius = 3 * density
+                        setColor(onEditorBackground(colour))
+                        setSize(size, size)
+                    }
+                LayerDrawable(arrayOf(block, letter))
+            }
+            SwatchStyle.UNDERLINE -> {
+                val barHeight = (4 * density).toInt()
+                val bar =
+                    GradientDrawable().apply {
+                        shape = GradientDrawable.RECTANGLE
+                        setColor(onEditorBackground(colour))
+                        setSize(size, barHeight)
+                    }
+                LayerDrawable(arrayOf(letter, bar)).apply {
+                    setLayerInset(1, 0, size - barHeight, 0, 0)
+                }
+            }
+        }
+    }
+
+    private fun slotIcon(
+        @ColorInt colour: Int,
+    ): Drawable {
+        val density = resources.displayMetrics.density
+        val size = (24 * density).toInt()
+        return GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(onEditorBackground(colour))
+            setStroke(density.toInt(), themeColor(android.R.attr.textColorSecondary, Color.GRAY))
+            setSize(size, size)
+        }
+    }
+
+    /**
+     * Highlights are translucent, so a swatch only shows the colour the user will
+     * actually see once it is laid over the background the field is edited on.
+     */
+    @ColorInt
+    private fun onEditorBackground(
+        @ColorInt colour: Int,
+    ) = ColorUtils.compositeColors(colour, themeColor(android.R.attr.colorBackground, Color.WHITE))
+
 
     private fun toggleRichTextMode() {
         // Pull anything still only in the page before the fields take over again.
@@ -2472,17 +2615,10 @@ class NoteEditorFragment :
 
     private fun onRichTextFormatState(commands: Set<String>) {
         val toolbar = richTextToolbar ?: return
-        val states =
-            listOf(
-                R.id.rich_bold to "bold",
-                R.id.rich_italic to "italic",
-                R.id.rich_underline to "underline",
-                R.id.rich_bulleted_list to "insertUnorderedList",
-                R.id.rich_numbered_list to "insertOrderedList",
-            )
-        for ((id, command) in states) {
+        for ((id, command) in RICH_TEXT_COMMANDS) {
             toolbar.findViewById<View>(id).isSelected = command in commands
         }
+        palettes.forEach { it.setActive(it.state in commands) }
     }
 
     /** Keeps the caret on screen: the page has no scroller of its own. */
@@ -2997,6 +3133,36 @@ class NoteEditorFragment :
         const val PREF_NOTE_EDITOR_SCROLL_TOOLBAR = "noteEditorScrollToolbar"
         private const val PREF_NOTE_EDITOR_SHOW_TOOLBAR = "noteEditorShowToolbar"
         private const val PREF_NOTE_EDITOR_RICH_TEXT = "noteEditorRichText"
+        private const val PREF_NOTE_EDITOR_HIGHLIGHT = "noteEditorHighlightColour"
+        private const val PREF_NOTE_EDITOR_TEXT_COLOUR = "noteEditorTextColour"
+
+        /** Toolbar buttons that map straight onto a `document.execCommand`. */
+        private val RICH_TEXT_COMMANDS =
+            listOf(
+                R.id.rich_bold to "bold",
+                R.id.rich_italic to "italic",
+                R.id.rich_underline to "underline",
+                R.id.rich_bulleted_list to "insertUnorderedList",
+                R.id.rich_numbered_list to "insertOrderedList",
+            )
+
+        private val RICH_TEXT_HIGHLIGHT_SLOTS =
+            listOf(
+                R.id.rich_highlight_slot_0,
+                R.id.rich_highlight_slot_1,
+                R.id.rich_highlight_slot_2,
+                R.id.rich_highlight_slot_3,
+                R.id.rich_highlight_slot_4,
+            )
+
+        private val RICH_TEXT_COLOUR_SLOTS =
+            listOf(
+                R.id.rich_colour_slot_0,
+                R.id.rich_colour_slot_1,
+                R.id.rich_colour_slot_2,
+                R.id.rich_colour_slot_3,
+                R.id.rich_colour_slot_4,
+            )
         private const val PREF_NOTE_EDITOR_NEWLINE_REPLACE = "noteEditorNewlineReplace"
         private const val PREF_NOTE_EDITOR_CAPITALIZE = "note_editor_capitalize"
         private const val PREF_NOTE_EDITOR_FONT_SIZE = "note_editor_font_size"

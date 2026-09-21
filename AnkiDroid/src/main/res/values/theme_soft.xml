@@ -357,10 +357,10 @@
     <style name="Theme_Light_Mist" parent="Base.Theme.Light.Mist"/>
 
     <!-- ========================= Sand Night: 따뜻한 어두운 갈색 ========================= -->
-    <color name="sandnight_appbar">#2E2924</color>
-    <color name="sandnight_appbar_dark">#1A1714</color>
+    <color name="sandnight_appbar">#2B2927</color>
+    <color name="sandnight_appbar_dark">#181716</color>
     <color name="sandnight_accent">#C3B299</color>
-    <color name="sandnight_bg">#211E1A</color>
+    <color name="sandnight_bg">#1F1E1C</color>
     <color name="sandnight_text">#E6E5E3</color>
 
     <color name="sandnight_again_text">#D4B0A6</color>
@@ -375,7 +375,7 @@
     <color name="sandnight_count_new">#A6B2C7</color>
     <color name="sandnight_count_learn">#CDA698</color>
     <color name="sandnight_count_review">#A7BCA9</color>
-    <color name="sandnight_show_bg">#332E27</color>
+    <color name="sandnight_show_bg">#2F2D2B</color>
 
     <style name="Base.Theme.Dark.SandNight">
         <!-- 다크 테마에서 colorPrimary 는 밝은 쪽이어야 합니다.
@@ -391,13 +391,13 @@
 
         <item name="android:colorBackground">@color/sandnight_bg</item>
         <item name="android:windowBackground">@color/sandnight_bg</item>
-        <item name="alternativeBackgroundColor">#282420</item>
-        <item name="currentDeckBackgroundColor">#332E27</item>
-        <item name="focusedRowBackgroundColor">#332E27</item>
-        <item name="colorSurfaceContainerHigh">#3A342C</item>
-        <item name="colorSurfaceContainer">#3A342C</item>
-        <item name="colorSecondaryContainer">#4A4034</item>
-        <item name="toolbarBackgroundColor">#3A342C</item>
+        <item name="alternativeBackgroundColor">#252423</item>
+        <item name="currentDeckBackgroundColor">#2F2D2B</item>
+        <item name="focusedRowBackgroundColor">#2F2D2B</item>
+        <item name="colorSurfaceContainerHigh">#353331</item>
+        <item name="colorSurfaceContainer">#353331</item>
+        <item name="colorSecondaryContainer">#433F3B</item>
+        <item name="toolbarBackgroundColor">#353331</item>
         <item name="topBarColor">@color/sandnight_bg</item>
 
         <!-- 앱바는 진하게, 그 위 글자는 밝게 (AnkiDroid 기본 배치 유지) -->
@@ -424,7 +424,7 @@
         <item name="buttonShadowColor">#9B968E</item>
         <item name="buttonRippleColor">@color/sandnight_accent</item>
         <item name="clozeColor">#C3B299</item>
-        <item name="editTextHighlightColor">#4A4034</item>
+        <item name="editTextHighlightColor">#433F3B</item>
 
         <item name="newCountColor">@color/sandnight_count_new</item>
         <item name="learnCountColor">@color/sandnight_count_learn</item>
@@ -459,7 +459,7 @@
 
         <item name="suspendedColor">#4A452F</item>
         <item name="buriedColor">#45392B</item>
-        <item name="selectedColor">#3A342C</item>
+        <item name="selectedColor">#353331</item>
         <item name="markedColor">#463A52</item>
         <item name="dynDeckColor">#A6B2C7</item>
         <item name="duplicateColor">#45332F</item>
@@ -472,10 +472,10 @@
     <style name="Theme_Dark_SandNight" parent="Base.Theme.Dark.SandNight"/>
 
     <!-- ========================= Sage Night: 차분한 어두운 청록 ========================= -->
-    <color name="sagenight_appbar">#242E29</color>
-    <color name="sagenight_appbar_dark">#141A17</color>
+    <color name="sagenight_appbar">#272B29</color>
+    <color name="sagenight_appbar_dark">#161817</color>
     <color name="sagenight_accent">#A0BCAF</color>
-    <color name="sagenight_bg">#1A211E</color>
+    <color name="sagenight_bg">#1C1F1E</color>
     <color name="sagenight_text">#E3E7E5</color>
 
     <color name="sagenight_again_text">#D1AEA7</color>
@@ -490,7 +490,7 @@
     <color name="sagenight_count_new">#A3B0C4</color>
     <color name="sagenight_count_learn">#C7A397</color>
     <color name="sagenight_count_review">#A1BBAF</color>
-    <color name="sagenight_show_bg">#28332E</color>
+    <color name="sagenight_show_bg">#2C2F2E</color>
 
     <style name="Base.Theme.Dark.SageNight">
         <!-- 다크 테마에서 colorPrimary 는 밝은 쪽이어야 합니다.
@@ -506,13 +506,13 @@
 
         <item name="android:colorBackground">@color/sagenight_bg</item>
         <item name="android:windowBackground">@color/sagenight_bg</item>
-        <item name="alternativeBackgroundColor">#202823</item>
-        <item name="currentDeckBackgroundColor">#28332E</item>
-        <item name="focusedRowBackgroundColor">#28332E</item>
-        <item name="colorSurfaceContainerHigh">#2E3A34</item>
-        <item name="colorSurfaceContainer">#2E3A34</item>
-        <item name="colorSecondaryContainer">#344A40</item>
-        <item name="toolbarBackgroundColor">#2E3A34</item>
+        <item name="alternativeBackgroundColor">#232524</item>
+        <item name="currentDeckBackgroundColor">#2C2F2E</item>
+        <item name="focusedRowBackgroundColor">#2C2F2E</item>
+        <item name="colorSurfaceContainerHigh">#323634</item>
+        <item name="colorSurfaceContainer">#323634</item>
+        <item name="colorSecondaryContainer">#3B433F</item>
+        <item name="toolbarBackgroundColor">#323634</item>
         <item name="topBarColor">@color/sagenight_bg</item>
 
         <!-- 앱바는 진하게, 그 위 글자는 밝게 (AnkiDroid 기본 배치 유지) -->
@@ -539,7 +539,7 @@
         <item name="buttonShadowColor">#919A95</item>
         <item name="buttonRippleColor">@color/sagenight_accent</item>
         <item name="clozeColor">#A0BCAF</item>
-        <item name="editTextHighlightColor">#34443C</item>
+        <item name="editTextHighlightColor">#393F3C</item>
 
         <item name="newCountColor">@color/sagenight_count_new</item>
         <item name="learnCountColor">@color/sagenight_count_learn</item>
@@ -574,7 +574,7 @@
 
         <item name="suspendedColor">#454630</item>
         <item name="buriedColor">#40382B</item>
-        <item name="selectedColor">#2E3A34</item>
+        <item name="selectedColor">#323634</item>
         <item name="markedColor">#42394F</item>
         <item name="dynDeckColor">#A3B0C4</item>
         <item name="duplicateColor">#41312E</item>
