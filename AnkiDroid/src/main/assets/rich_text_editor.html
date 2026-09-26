@@ -343,14 +343,101 @@
         reportState();
       });
 
-      // Pasting rich content from another app drags along fonts and colours that
-      // do not belong in a note; keep the text and let the toolbar do formatting.
+      // ------------------------------------------------------------------ paste
+
+      var PASTE_SKIP = { HEAD: 1, META: 1, TITLE: 1, STYLE: 1, SCRIPT: 1, IMG: 1 };
+      var PASTE_BLOCKS = { DIV: 'div', P: 'div', LI: 'li', UL: 'ul', OL: 'ol' };
+
+      /** A colour in the one form the browser reports it in, so two can be compared. */
+      function canonicalColour(value) {
+        var probe = document.createElement('span');
+        probe.style.color = value;
+        return probe.style.color;
+      }
+
+      /**
+       * Rebuilds pasted HTML out of what the toolbar itself writes: bold, italic,
+       * underline, highlight and text colour, line breaks and lists. Copying out of
+       * a field puts the page's own font, size and colours on every run; those, and
+       * whatever else another app brings, are left behind.
+       */
+      function cleanPastedHtml(html) {
+        var pageFg = canonicalColour(getComputedStyle(document.body).color);
+        var pageBg = canonicalColour(getComputedStyle(document.body).backgroundColor);
+        var source = document.createElement('template');
+        source.innerHTML = html;
+
+        function keepColour(value, page) {
+          if (!value) return null;
+          var colour = canonicalColour(value);
+          return colour && colour !== page && NO_COLOUR.indexOf(colour) === -1 ? colour : null;
+        }
+
+        function copyChildren(from, to) {
+          for (var child = from.firstChild; child; child = child.nextSibling) {
+            var cleaned = clean(child);
+            if (cleaned) to.appendChild(cleaned);
+          }
+          return to;
+        }
+
+        function clean(node) {
+          if (node.nodeType === 3) return document.createTextNode(node.nodeValue);
+          if (node.nodeType !== 1 || PASTE_SKIP[node.tagName]) return null;
+          if (node.tagName === 'BR') return document.createElement('br');
+
+          var style = node.style;
+          var weight = style.fontWeight;
+          var bold = weight === 'bold' || weight === 'bolder' || parseInt(weight, 10) >= 600 ||
+              (!weight && (node.tagName === 'B' || node.tagName === 'STRONG'));
+          var italic = style.fontStyle === 'italic' ||
+              (!style.fontStyle && (node.tagName === 'I' || node.tagName === 'EM'));
+          var decoration = style.textDecorationLine || style.textDecoration || '';
+          var underline = decoration.indexOf('underline') !== -1 || node.tagName === 'U';
+          var background = keepColour(style.backgroundColor, pageBg);
+          var colour = keepColour(style.color || (node.tagName === 'FONT' && node.getAttribute('color')), pageFg);
+
+          var inner = copyChildren(node, document.createDocumentFragment());
+          if (colour || background) {
+            var span = document.createElement('span');
+            if (background) span.style.backgroundColor = background;
+            if (colour) span.style.color = colour;
+            span.appendChild(inner);
+            inner = span;
+          }
+          [[underline, 'u'], [italic, 'i'], [bold, 'b']].forEach(function (wrap) {
+            if (!wrap[0]) return;
+            var el = document.createElement(wrap[1]);
+            el.appendChild(inner);
+            inner = el;
+          });
+          var block = PASTE_BLOCKS[node.tagName];
+          if (block) {
+            var wrapper = document.createElement(block);
+            wrapper.appendChild(inner);
+            inner = wrapper;
+          }
+          return inner;
+        }
+
+        return copyChildren(source.content, document.createElement('div')).innerHTML;
+      }
+
+      // Keep the formatting a note can hold, so bold and highlights survive a copy
+      // and paste between fields; the rest of a pasted page's styling is dropped.
       document.addEventListener('paste', function (e) {
         if (!e.target.closest || !e.target.closest('.editor')) return;
-        var text = e.clipboardData && e.clipboardData.getData('text/plain');
-        if (text === null || text === undefined) return;
-        e.preventDefault();
-        document.execCommand('insertText', false, text);
+        var data = e.clipboardData;
+        if (!data) return;
+        var html = data.getData('text/html');
+        var text = data.getData('text/plain');
+        if (html) {
+          e.preventDefault();
+          document.execCommand('insertHTML', false, cleanPastedHtml(html));
+        } else if (text) {
+          e.preventDefault();
+          document.execCommand('insertText', false, text);
+        }
       });
 
       // A long press fires contextmenu too, so remember what the last press came
