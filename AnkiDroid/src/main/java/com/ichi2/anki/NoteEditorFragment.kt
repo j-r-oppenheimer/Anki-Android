@@ -8,7 +8,6 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.Activity.RESULT_CANCELED
 import android.content.ActivityNotFoundException
-import android.content.ClipData
 import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
@@ -173,7 +172,6 @@ import com.ichi2.anki.snackbar.SnackbarBuilder
 import com.ichi2.anki.snackbar.showSnackbar
 import com.ichi2.anki.ui.internationalization.sentenceCase
 import com.ichi2.anki.ui.setupNoteTypeSpinner
-import com.ichi2.anki.ui.windows.reviewer.whiteboard.showColorPickerDialog
 import com.ichi2.anki.utils.RunOnlyOnce
 import com.ichi2.anki.utils.bottomCornerSideClearance
 import com.ichi2.anki.utils.doOnApplyWindowInsets
@@ -186,7 +184,6 @@ import com.ichi2.imagecropper.ImageCropper
 import com.ichi2.imagecropper.ImageCropper.Companion.CROP_IMAGE_RESULT
 import com.ichi2.imagecropper.ImageCropperLauncher
 import com.ichi2.utils.AndroidUiUtils.showSoftInput
-import com.ichi2.utils.ClipboardUtil
 import com.ichi2.utils.ClipboardUtil.MEDIA_MIME_TYPES
 import com.ichi2.utils.ClipboardUtil.hasMedia
 import com.ichi2.utils.ClipboardUtil.items
@@ -203,6 +200,10 @@ import com.ichi2.utils.positiveButton
 import com.ichi2.utils.show
 import com.ichi2.utils.title
 import dev.androidbroadcast.vbpd.viewBinding
+import kotlinx.coroutines.launch
+import net.ankiweb.rsdroid.Backend
+import org.json.JSONArray
+import timber.log.Timber
 import java.io.File
 import java.util.LinkedList
 import java.util.Locale
@@ -210,11 +211,6 @@ import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
-import kotlinx.coroutines.launch
-import net.ankiweb.rsdroid.Backend
-import org.json.JSONArray
-import timber.log.Timber
-
 import com.ichi2.anki.common.android.R as CommonR
 
 const val CALLER_KEY = "caller"
@@ -720,7 +716,8 @@ class NoteEditorFragment :
         fieldsLayoutContainer = requireView().findViewById(R.id.CardEditorEditFieldsLayout)
         richTextWebView = requireView().findViewById(R.id.RichTextEditorWebView)
         richTextToolbar = requireView().findViewById(R.id.rich_text_toolbar)
-        mediaDir = col.media.dir
+        // An in-memory collection has no media folder; the page then shows no images.
+        mediaDir = runCatching { col.media.dir }.getOrNull()
         richTextPreference = requireContext().sharedPrefs().getBoolean(PREF_NOTE_EDITOR_RICH_TEXT, false)
         setupRichTextToolbar()
         tagsButton = requireView().findViewById(R.id.CardEditorTagButton)
@@ -2769,7 +2766,6 @@ class NoteEditorFragment :
     private fun onEditorBackground(
         @ColorInt colour: Int,
     ) = ColorUtils.compositeColors(colour, themeColor(android.R.attr.colorBackground, Color.WHITE))
-
 
     private fun toggleRichTextMode() {
         // Pull anything still only in the page before the fields take over again.
