@@ -7,6 +7,8 @@ on:
     # Ignore merge queue branches on push; avoids merge_group+push concurrency race since ref is same
     branches-ignore:
       - 'gh-readonly-queue/**'
+      # Dependabot branches are already checked by the pull_request trigger.
+      - 'dependabot/**'
   merge_group:
 
 permissions:
@@ -57,7 +59,7 @@ jobs:
       - name: Run Lint Debug
         # "lintAll" opts in all modules in 1 flavor to lint, pinning :AnkiDroid to lintFullDebug
         # update workflows/README.md when modifying this line
-        run: ./gradlew lintAll ktLintCheck lint-rules:test --daemon
+        run: ./gradlew lintAll ktlintCheck lint-rules:test --daemon
 
   # update workflows/README.md when modifying commands
   lintJavascript:

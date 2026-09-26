@@ -75,6 +75,7 @@ import com.ichi2.testutils.revokeWritePermissions
 import com.ichi2.testutils.withBooleanPreference
 import com.ichi2.testutils.withDeniedPermissions
 import com.ichi2.testutils.withWritePermissions
+import com.ichi2.ui.AccessibleSearchView
 import kotlinx.coroutines.flow.merge
 import net.ankiweb.rsdroid.BackendException.BackendDbException.BackendDbCorruptException
 import org.hamcrest.MatcherAssert.assertThat
@@ -621,6 +622,62 @@ class DeckPickerTest : RobolectricTest() {
     }
 
     @Test
+    fun `deck search stays open while filtering`() {
+        addBasicNote()
+        repeat(10) { addDeck("Test Deck $it") }
+
+        deckPicker {
+            advanceRobolectricLooper()
+            val searchItem = menu().findItem(R.id.deck_picker_action_filter)
+            assertTrue(searchItem.isVisible)
+            assertTrue(searchItem.expandActionView())
+            val searchView = searchItem.actionView as AccessibleSearchView
+
+            for ((query, expectedCount) in listOf("s" to 10, "Test Deck 1" to 1, "missing" to 0, "" to 11)) {
+                searchView.setQuery(query, false)
+                advanceRobolectricLooper()
+
+                val currentSearchItem = menu().findItem(R.id.deck_picker_action_filter)
+                assertTrue(currentSearchItem.isActionViewExpanded, "Search should stay open for '$query'")
+                assertEquals(query, (currentSearchItem.actionView as AccessibleSearchView).query.toString())
+                advanceRobolectricLooperUntil { visibleDeckCount == expectedCount }
+            }
+        }
+    }
+
+    @Test
+    fun `study options follows the selected deck`() {
+        assumeTrue("We are running on a tablet", qualifiers!!.contains("xlarge"))
+        val deckId = addDeck("Another Deck")
+
+        deckPicker {
+            viewModel.selectDeck(deckId).join()
+            advanceRobolectricLooper()
+
+            assertEquals(deckId, assertNotNull(fragment).viewModel.selectedDeckId)
+            assertEquals("Another Deck", findViewById<TextView>(R.id.studyoptions_deck_name).text.toString())
+        }
+    }
+
+    @Test
+    fun `study options updates after reloading deck counts`() {
+        assumeTrue("We are running on a tablet", qualifiers!!.contains("xlarge"))
+        addBasicNote()
+
+        deckPicker {
+            val initialState = assertNotNull(fragment).viewModel.state
+            assertEquals(1, initialState.dataOrNull()?.numberOfCardsInDeck)
+
+            addBasicNote()
+            viewModel.reloadDeckCounts().join()
+            advanceRobolectricLooper()
+
+            val updatedState = assertNotNull(fragment).viewModel.state
+            assertEquals(2, updatedState.dataOrNull()?.numberOfCardsInDeck)
+        }
+    }
+
+    @Test
     fun `study options menu items are only displayed in fragmented mode`() {
         deckPickerEx {
             val isTablet = fragmented
@@ -1053,7 +1110,7 @@ class DeckPickerTest : RobolectricTest() {
                     equalTo(
                         mapOf(
                             "Alt+1" to "Deck picker",
-                            "Alt+2" to "Card Browser",
+                            "Alt+2" to "Card browser",
                             "Alt+3" to "Open statistics",
                             "Alt+4" to "More",
                         ),
