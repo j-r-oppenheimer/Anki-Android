@@ -2790,9 +2790,18 @@ class NoteEditorFragment :
         val editor = richTextEditor ?: createRichTextEditor(webView)
         editor.setFields(
             names = currentFields.map { it.name },
-            values = editFields.orEmpty().map { it.fieldText ?: "" },
+            values = richTextFieldValues,
         )
     }
+
+    /**
+     * The fields as the rich text page should show them. With newline replacement
+     * on, a field holds a plain line break where the note has a `<br>`, and HTML
+     * folds a plain line break into a space.
+     */
+    @VisibleForTesting
+    internal val richTextFieldValues: List<String>
+        get() = editFields.orEmpty().map { convertToHtmlNewline(it.fieldText ?: "", shouldReplaceNewlines()) }
 
     private fun createRichTextEditor(webView: WebView): RichTextEditor {
         val editor =

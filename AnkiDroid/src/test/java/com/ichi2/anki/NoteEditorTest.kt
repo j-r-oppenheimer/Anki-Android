@@ -757,6 +757,16 @@ class NoteEditorTest : RobolectricTest() {
         }
 
     @Test
+    fun `rich text editor keeps the note's line breaks`() {
+        // the field shows a <br> in the note as a plain line break
+        val editor =
+            getNoteEditorAdding(NoteType.BASIC)
+                .withFirstField("hello" + FieldEditText.NEW_LINE + "world")
+                .build()
+        assertThat(editor.richTextFieldValues[0], equalTo("hello<br>world"))
+    }
+
+    @Test
     fun `hasUnsavedChanges - sticky field content alone is not an unsaved change`() =
         runTest {
             val basic = makeNoteForType(NoteType.BASIC)
