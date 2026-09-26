@@ -309,6 +309,8 @@ open class DeckPicker :
         }
     override val baseSnackbarBuilder: SnackbarBuilder = {
         anchorView = floatingActionButtonBinding.fabMain.takeIf { it.isVisible }
+        // Follow the FAB as it moves when the keyboard opens or closes.
+        isAnchorViewLayoutListenerEnabled = true
         addCallback(activeSnackbarCallback)
     }
 
@@ -709,17 +711,16 @@ open class DeckPicker :
                 bottom = maxOf(bars.bottom + bottomNavOffset, withKeyboard.bottom),
             )
 
-            setRecyclerViewBottomPaddingAbove(listAnchor())
             insets
         }
-        floatingActionButtonBinding.fabMain.addOnLayoutChangeListener { v, _, _, _, _, _, _, _, _ ->
-            setRecyclerViewBottomPaddingAbove(v)
+        // Insets move the FAB's ancestors without changing the FAB's bounds within its parent.
+        // Wait until the whole hierarchy is laid out before reading positions in the window.
+        deckPickerBinding.root.viewTreeObserver.addOnGlobalLayoutListener {
+            setRecyclerViewBottomPaddingAbove(listAnchor())
         }
         deckPickerBinding.reviewSummaryTextView.addOnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
             // exclude paddingBottom: it holds the edge-to-edge inset, which is already applied
             raiseFabAboveSummary(view.height - view.paddingBottom)
-            // a hidden FAB has no layout passes to follow: the list rests above the summary line
-            if (listAnchor() === view) setRecyclerViewBottomPaddingAbove(view)
         }
         // The summary is hidden until the collection loads.
         // Assume the summary takes up a single line, so it does not 'jump' up on load
@@ -866,14 +867,15 @@ open class DeckPicker :
         }
 
         fun onDeckListChanged(deckList: FlattenedDeckList) {
+            // Filtering must not recreate the study options fragment: its menu invalidation closes search.
             deckListAdapter.submit(
                 data = deckList.data,
                 hasSubDecks = deckList.hasSubDecks,
             )
-            tryShowStudyOptionsPanel()
         }
 
         fun onFocusedDeckChanged(deckId: DeckId?) {
+            if (deckId != null) tryShowStudyOptionsPanel()
             val position = deckId?.let { viewModel.findDeckPosition(it) } ?: 0
 
             // Skip centering if the deck is already on screen.
@@ -889,6 +891,7 @@ open class DeckPicker :
 
         fun onDecksReloaded(param: Unit) {
             hideProgressBar()
+            tryShowStudyOptionsPanel()
         }
 
         fun onStartupResponse(response: StartupResponse) {
