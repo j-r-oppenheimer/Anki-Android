@@ -471,7 +471,7 @@
         e.preventDefault();
       }, true);
 
-      // A right click asks for the toolbar where the text is, rather than the
+      // A right click asks for the toolbar where the click was, rather than the
       // browser's own menu.
       document.addEventListener('contextmenu', function (e) {
         // The click lands on whatever is under the pointer, which inside a
@@ -482,11 +482,10 @@
         var sel = window.getSelection();
         if (!sel || sel.rangeCount === 0) return;
         e.preventDefault();
-        var rect = sel.getRangeAt(0).getBoundingClientRect();
-        // A caret with nothing selected has no width or height to sit above.
-        if (!rect.height) rect = field.getBoundingClientRect();
+        // Centred over the pointer, not the selection: a long selection starts
+        // well away from where the mouse is.
         post('onContextMenu',
-             Math.round(rect.left + window.scrollX) + ':' + Math.round(rect.top + window.scrollY));
+             Math.round(e.clientX + window.scrollX) + ':' + Math.round(e.clientY + window.scrollY));
       });
 
       window.addEventListener('resize', reportHeight);
