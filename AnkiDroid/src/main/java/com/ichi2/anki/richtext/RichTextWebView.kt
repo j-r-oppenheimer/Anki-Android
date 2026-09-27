@@ -14,6 +14,10 @@ import android.webkit.WebView
  * it never has anything of its own to scroll. A [WebView] still answers a mouse
  * wheel, swallowing it and leaving the fields around it stuck, so the wheel is
  * handed back to the view above.
+ *
+ * A mouse drag goes the other way. It selects text, but the scrolling view takes
+ * any drag that strays off the horizontal as a scroll, so it is kept out of it.
+ * A finger still scrolls the fields as before.
  */
 class RichTextWebView
     @JvmOverloads
@@ -24,5 +28,12 @@ class RichTextWebView
         override fun onGenericMotionEvent(event: MotionEvent): Boolean {
             if (event.action == MotionEvent.ACTION_SCROLL) return false
             return super.onGenericMotionEvent(event)
+        }
+
+        override fun onTouchEvent(event: MotionEvent): Boolean {
+            if (event.actionMasked == MotionEvent.ACTION_DOWN && event.getToolType(0) == MotionEvent.TOOL_TYPE_MOUSE) {
+                parent?.requestDisallowInterceptTouchEvent(true)
+            }
+            return super.onTouchEvent(event)
         }
     }
