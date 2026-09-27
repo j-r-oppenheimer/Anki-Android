@@ -38,10 +38,6 @@ private const val SHARE_CACHE_DIR = "shared_images"
 
 object CardImageSaver {
     /**
-     * @return 이미지를 처리했으면 true. false면 WebView의 기본 롱프레스 동작(텍스트 선택 등)이
-     *         그대로 진행되므로 기존 동작을 방해하지 않습니다.
-     */
-    /**
      * [root] 안에 있는 첫 웹뷰를 찾아 이미지 길게 누르기를 붙입니다.
      *
      * 학습 화면은 웹뷰를 직접 만들지만 카드 미리보기는 SafeWebViewLayout 이라는
@@ -66,6 +62,10 @@ object CardImageSaver {
         return null
     }
 
+    /**
+     * @return 이미지를 처리했으면 true. false면 WebView의 기본 롱프레스 동작(텍스트 선택 등)이
+     *         그대로 진행되므로 기존 동작을 방해하지 않습니다.
+     */
     fun handleLongPress(
         context: Context,
         webView: WebView,

@@ -331,8 +331,7 @@ object CustomFont {
      * 때문에, !important 없이 그냥 얹으면 순서에서 밀려 무시됩니다.
      * color 는 body 에만 걸리므로 노트 안에서 색을 직접 지정한 글자는 그대로 남습니다.
      */
-    private fun cardBackgroundEnabled(context: Context) =
-        context.sharedPrefs().getBoolean(KEY_CARD_BACKGROUND, false)
+    private fun cardBackgroundEnabled(context: Context) = context.sharedPrefs().getBoolean(KEY_CARD_BACKGROUND, false)
 
     /**
      * 카드에 쓸 배경색과 글자색.
@@ -386,13 +385,6 @@ object CustomFont {
     }
 
     /**
-     * 카드 배경을 앱 테마 색으로 쓸 때, 웹뷰가 페이지를 그리지 않는 영역까지 덮습니다.
-     *
-     * 태블릿처럼 화면이 큰 기기에서 CSS 만으로는 화면 일부만 칠해지는 경우가 있어,
-     * 웹뷰를 담고 있는 네이티브 컨테이너와 웹뷰 자체의 배경도 같이 맞춰 줍니다.
-     * [root] 아래에서만 동작하므로 통계나 설정 화면의 웹뷰에는 영향이 없습니다.
-     */
-    /**
      * 학습 화면에서 카드 배경색이 닿아야 하는 네이티브 겹.
      *
      * 화면이 한 겹이 아니라서, 어느 겹이 남는지 기기마다 다르게 보입니다.
@@ -427,6 +419,13 @@ object CustomFont {
         }
     }
 
+    /**
+     * 카드 배경을 앱 테마 색으로 쓸 때, 웹뷰가 페이지를 그리지 않는 영역까지 덮습니다.
+     *
+     * 태블릿처럼 화면이 큰 기기에서 CSS 만으로는 화면 일부만 칠해지는 경우가 있어,
+     * 웹뷰를 담고 있는 네이티브 컨테이너와 웹뷰 자체의 배경도 같이 맞춰 줍니다.
+     * [root] 아래에서만 동작하므로 통계나 설정 화면의 웹뷰에는 영향이 없습니다.
+     */
     fun applyCardBackgroundTo(root: View?) {
         if (root == null) return
         val context = root.context
