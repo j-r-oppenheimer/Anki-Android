@@ -114,6 +114,17 @@ class RichTextWebViewTest {
         assertFalse(RichTextWebView(context).revealOnFocusHint)
     }
 
+    @Test
+    fun `the page hands a scroll of its own to the fields`() {
+        val (scrollView, webView) = scrollingPage()
+
+        // what the engine does to reveal a selection, such as a double-clicked word
+        webView.scrollTo(0, 300)
+
+        assertThat("the page stays at its top, where the wheel can reach it", webView.scrollY, equalTo(0))
+        assertThat("the fields show the same place instead", scrollView.scrollY, equalTo(300))
+    }
+
     /**
      * A page ten times taller than the scrolling view it sits in, as in the note
      * editor. It has to be on screen: a detached view never runs its animation.

@@ -31,6 +31,11 @@ import android.widget.ScrollView
  * Focus is the last thing kept from the scrolling view. It scrolls a newly focused
  * child into view, and for a page taller than the screen that means its top,
  * wherever the tap was. The page already scrolls its own caret into view.
+ *
+ * The engine can still scroll the page itself, to reveal a selection such as a
+ * double-clicked word. The wheel goes to the scrolling view, so nothing would
+ * ever scroll the page back: everything above the field stays hidden. That
+ * scroll is handed to the scrolling view instead, which shows the same place.
  */
 class RichTextWebView
     @JvmOverloads
@@ -78,6 +83,18 @@ class RichTextWebView
                     postOnAnimation(this)
                 }
             }
+
+        override fun onScrollChanged(
+            l: Int,
+            t: Int,
+            oldl: Int,
+            oldt: Int,
+        ) {
+            super.onScrollChanged(l, t, oldl, oldt)
+            if (t == 0) return
+            scrollTo(scrollX, 0)
+            scroller()?.scrollBy(0, t)
+        }
 
         override fun onGenericMotionEvent(event: MotionEvent): Boolean {
             if (event.action == MotionEvent.ACTION_SCROLL) return false
