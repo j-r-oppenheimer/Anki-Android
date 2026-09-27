@@ -3,6 +3,7 @@
 package com.ichi2.anki.richtext
 
 import android.content.Context
+import android.os.Build
 import android.os.SystemClock
 import android.util.AttributeSet
 import android.view.MotionEvent
@@ -26,6 +27,10 @@ import android.widget.ScrollView
  * Since the page has nothing to scroll, dragging a selection to the top or bottom
  * of the screen would stop there. The scrolling view is moved on the page's
  * behalf instead, and the selection follows it.
+ *
+ * Focus is the last thing kept from the scrolling view. It scrolls a newly focused
+ * child into view, and for a page taller than the screen that means its top,
+ * wherever the tap was. The page already scrolls its own caret into view.
  */
 class RichTextWebView
     @JvmOverloads
@@ -41,6 +46,10 @@ class RichTextWebView
 
         /** The part of a pixel the edge scroll owes, so a slow scroll still moves. */
         private var edgeCarry = 0f
+
+        init {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) revealOnFocusHint = false
+        }
 
         private val edgeScroll =
             object : Runnable {

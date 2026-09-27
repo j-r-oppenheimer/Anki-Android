@@ -105,6 +105,15 @@ class RichTextWebViewTest {
         assertThat(scrollView.scrollY / seconds, lessThanOrEqualTo(MAX_SPEED_PX_PER_SECOND))
     }
 
+    @Test
+    fun `focusing the page does not make the fields jump to it`() {
+        // A ScrollView scrolls a newly focused child into view. The page is taller
+        // than the screen, so that would put its top at the top of the screen
+        // wherever the tap was. Robolectric lays a WebView out with no height, so
+        // the jump itself cannot be shown here; the flag that stops it can.
+        assertFalse(RichTextWebView(context).revealOnFocusHint)
+    }
+
     /**
      * A page ten times taller than the scrolling view it sits in, as in the note
      * editor. It has to be on screen: a detached view never runs its animation.

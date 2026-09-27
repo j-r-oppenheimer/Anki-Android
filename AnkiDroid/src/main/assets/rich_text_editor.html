@@ -72,11 +72,22 @@
       function reportCaret() {
         var sel = window.getSelection();
         if (!sel || sel.rangeCount === 0) return;
-        var rect = sel.getRangeAt(0).getBoundingClientRect();
-        // A collapsed range at the start of an empty line has a zero rect; fall
-        // back to the field itself so the caret still gets scrolled into view.
-        var top = rect.height ? rect.top : (active ? active.getBoundingClientRect().top : 0);
-        post('onCaret', Math.round(top + window.scrollY));
+        post('onCaret', Math.round(caretTop(sel.getRangeAt(0)) + window.scrollY));
+      }
+
+      /**
+       * Where the caret's line starts. A caret on an empty line has no rect of its
+       * own, so the line it sits in stands in for it; the whole field would send a
+       * long field back to its first line.
+       */
+      function caretTop(range) {
+        var rect = range.getBoundingClientRect();
+        if (rect.height) return rect.top;
+        var node = range.startContainer;
+        if (node.nodeType === 3) node = node.parentNode;
+        var child = node.childNodes[range.startOffset];
+        var line = child && child.nodeType === 1 ? child : node;
+        return line.getBoundingClientRect().top;
       }
 
       function setFields(fields) {
@@ -336,7 +347,9 @@
         if (!e.target.classList.contains('editor')) return;
         active = e.target;
         reportState();
-        reportCaret();
+        // Focus arrives before the tap has moved the caret. Reporting it now would
+        // scroll to wherever the caret last was, so wait for the tap to finish.
+        setTimeout(reportCaret, 0);
       });
 
       document.addEventListener('selectionchange', function () {
