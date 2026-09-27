@@ -10,8 +10,6 @@ import android.view.MotionEvent.PointerCoords
 import android.view.MotionEvent.PointerProperties
 import android.webkit.WebView
 import android.widget.ScrollView
-import kotlin.math.ceil
-import kotlin.math.floor
 
 /**
  * The note editor's rich text page.
@@ -38,19 +36,36 @@ class RichTextWebView
         /** The latest event of a mouse drag, held while the button is down. */
         private var drag: MotionEvent? = null
 
+        /** When the edge scroll last moved, or 0 while it is not running. */
+        private var lastEdgeFrame = 0L
+
+        /** The part of a pixel the edge scroll owes, so a slow scroll still moves. */
+        private var edgeCarry = 0f
+
         private val edgeScroll =
             object : Runnable {
                 override fun run() {
-                    val event = drag ?: return
-                    val scroller = scroller() ?: return
-                    val step = edgeStep(scroller, event.rawY)
-                    if (step == 0 || !scroller.canScrollVertically(step)) return
-                    scroller.scrollBy(0, step)
-                    // The page moved under a mouse that did not; tell it where the
-                    // pointer now sits so the selection keeps up.
-                    val moved = movedTo(event)
-                    super@RichTextWebView.onTouchEvent(moved)
-                    moved.recycle()
+                    val event = drag ?: return stopEdgeScroll()
+                    val scroller = scroller() ?: return stopEdgeScroll()
+                    val speed = edgeSpeed(scroller, event.rawY)
+                    if (speed == 0f || !scroller.canScrollVertically(if (speed > 0) 1 else -1)) {
+                        return stopEdgeScroll()
+                    }
+                    // Move by time, not by frame, so a 120 Hz screen is no faster.
+                    val now = SystemClock.uptimeMillis()
+                    val elapsed = if (lastEdgeFrame == 0L) FRAME_MS else (now - lastEdgeFrame).coerceIn(0L, MAX_FRAME_MS)
+                    lastEdgeFrame = now
+                    edgeCarry += speed * elapsed / 1000f
+                    val step = edgeCarry.toInt()
+                    edgeCarry -= step
+                    if (step != 0) {
+                        scroller.scrollBy(0, step)
+                        // The page moved under a mouse that did not; tell it where the
+                        // pointer now sits so the selection keeps up.
+                        val moved = movedTo(event)
+                        super@RichTextWebView.onTouchEvent(moved)
+                        moved.recycle()
+                    }
                     postOnAnimation(this)
                 }
             }
@@ -88,8 +103,14 @@ class RichTextWebView
 
         private fun stopDrag() {
             removeCallbacks(edgeScroll)
+            stopEdgeScroll()
             drag?.recycle()
             drag = null
+        }
+
+        private fun stopEdgeScroll() {
+            lastEdgeFrame = 0L
+            edgeCarry = 0f
         }
 
         override fun onDetachedFromWindow() {
@@ -100,13 +121,14 @@ class RichTextWebView
         private fun scroller(): ScrollView? = generateSequence(parent) { it.parent }.filterIsInstance<ScrollView>().firstOrNull()
 
         /**
-         * How far to scroll this frame for a pointer at [rawY]: nothing away from the
-         * edges, and faster the further into an edge, or past it, the pointer goes.
+         * How fast to scroll, in pixels a second, for a pointer at [rawY]: not at all
+         * away from the edges, and faster the further into an edge, or past it, the
+         * pointer goes.
          */
-        private fun edgeStep(
+        private fun edgeSpeed(
             scroller: ScrollView,
             rawY: Float,
-        ): Int {
+        ): Float {
             val top = IntArray(2).also { scroller.getLocationOnScreen(it) }[1]
             val density = resources.displayMetrics.density
             val edge = EDGE_DP * density
@@ -116,10 +138,9 @@ class RichTextWebView
                 when {
                     below > 0 -> below
                     above > 0 -> -above
-                    else -> return 0
+                    else -> return 0f
                 }
-            val step = (depth / edge).coerceIn(-1f, 1f) * MAX_STEP_DP * density
-            return if (step > 0) ceil(step).toInt() else floor(step).toInt()
+            return (depth / edge).coerceIn(-1f, 1f) * MAX_SPEED_DP * density
         }
 
         /** [event] again, now, at the same place on screen after the page has moved. */
@@ -154,7 +175,13 @@ class RichTextWebView
             /** How close to the top or bottom of the fields a drag starts scrolling them. */
             private const val EDGE_DP = 40f
 
-            /** The fastest the fields scroll, per frame. */
-            private const val MAX_STEP_DP = 16f
+            /** The fastest the fields scroll, per second: with the pointer past the edge. */
+            private const val MAX_SPEED_DP = 400f
+
+            /** A frame at 60 Hz, for the first step before there is a frame to time. */
+            private const val FRAME_MS = 16L
+
+            /** A stalled frame should not jump the fields by the whole wait. */
+            private const val MAX_FRAME_MS = 50L
         }
     }

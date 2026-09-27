@@ -5,6 +5,7 @@ package com.ichi2.anki.richtext
 import android.app.Activity
 import android.content.Context
 import android.os.Looper
+import android.os.SystemClock
 import android.view.InputDevice
 import android.view.MotionEvent
 import android.view.MotionEvent.PointerCoords
@@ -16,6 +17,7 @@ import androidx.test.core.app.ApplicationProvider
 import org.hamcrest.MatcherAssert.assertThat
 import org.hamcrest.Matchers.equalTo
 import org.hamcrest.Matchers.greaterThan
+import org.hamcrest.Matchers.lessThanOrEqualTo
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -85,14 +87,32 @@ class RichTextWebViewTest {
         assertThat(scrollView.scrollY, equalTo(stoppedAt))
     }
 
+    @Test
+    fun `edge scrolling keeps to a readable speed`() {
+        // tall enough that the scroll never reaches the end while it is timed
+        val (scrollView, webView) = scrollingPage(pageHeight = 100_000)
+
+        webView.onTouchEvent(scrollView.mouse(MotionEvent.ACTION_DOWN, y = 50f))
+        // past the bottom of the fields, which is the fastest it goes
+        webView.onTouchEvent(scrollView.mouse(MotionEvent.ACTION_MOVE, y = 150f))
+        val start = SystemClock.uptimeMillis()
+        // Robolectric keeps running frames past the time asked for, so the speed
+        // is measured against the time that actually went by
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1))
+        val seconds = (SystemClock.uptimeMillis() - start) / 1000f
+
+        assertThat(scrollView.scrollY, greaterThan(0))
+        assertThat(scrollView.scrollY / seconds, lessThanOrEqualTo(MAX_SPEED_PX_PER_SECOND))
+    }
+
     /**
      * A page ten times taller than the scrolling view it sits in, as in the note
      * editor. It has to be on screen: a detached view never runs its animation.
      */
-    private fun scrollingPage(): Pair<ScrollView, RichTextWebView> {
+    private fun scrollingPage(pageHeight: Int = 1000): Pair<ScrollView, RichTextWebView> {
         val webView = RichTextWebView(context)
         val column = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
-        column.addView(webView, LinearLayout.LayoutParams(200, 1000))
+        column.addView(webView, LinearLayout.LayoutParams(200, pageHeight))
         val scrollView = ScrollView(context).apply { addView(column) }
         val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
         activity.setContentView(scrollView, FrameLayout.LayoutParams(200, 100))
@@ -159,5 +179,10 @@ class RichTextWebViewTest {
             disallowed = disallowIntercept
             super.requestDisallowInterceptTouchEvent(disallowIntercept)
         }
+    }
+
+    companion object {
+        /** The test runs at mdpi, so a dp is a pixel. */
+        private const val MAX_SPEED_PX_PER_SECOND = 400f
     }
 }
