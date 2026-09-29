@@ -678,8 +678,10 @@ class NoteEditorFragment :
     }
 
     override fun onPause() {
-        // Guards against the process being killed with edits only in the page.
-        richTextEditor?.flush()
+        // Guards against the process being killed with edits only in the page. A
+        // page that is not showing still holds the fields from when it last was,
+        // and would put those back over anything since done in the HTML editor.
+        if (richTextActive) richTextEditor?.flush()
         super.onPause()
     }
 
@@ -2767,7 +2769,8 @@ class NoteEditorFragment :
         @ColorInt colour: Int,
     ) = ColorUtils.compositeColors(colour, themeColor(android.R.attr.colorBackground, Color.WHITE))
 
-    private fun toggleRichTextMode() {
+    @VisibleForTesting
+    internal fun toggleRichTextMode() {
         // Pull anything still only in the page before the fields take over again.
         if (richTextActive) richTextEditor?.flush()
         richTextPreference = !richTextPreference
@@ -3386,7 +3389,9 @@ class NoteEditorFragment :
         // preferences keys
         const val PREF_NOTE_EDITOR_SCROLL_TOOLBAR = "noteEditorScrollToolbar"
         private const val PREF_NOTE_EDITOR_SHOW_TOOLBAR = "noteEditorShowToolbar"
-        private const val PREF_NOTE_EDITOR_RICH_TEXT = "noteEditorRichText"
+
+        @VisibleForTesting
+        internal const val PREF_NOTE_EDITOR_RICH_TEXT = "noteEditorRichText"
         private const val PREF_NOTE_EDITOR_HIGHLIGHT = "noteEditorHighlightColour"
         private const val PREF_NOTE_EDITOR_TEXT_COLOUR = "noteEditorTextColour"
 

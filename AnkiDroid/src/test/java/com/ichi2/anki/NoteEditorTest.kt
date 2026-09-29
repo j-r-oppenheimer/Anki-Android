@@ -13,9 +13,11 @@ import android.os.Parcel
 import android.os.Parcelable
 import android.util.SparseArray
 import android.view.View
+import android.webkit.WebView
 import android.widget.EditText
 import android.widget.Spinner
 import android.widget.TextView
+import androidx.core.content.edit
 import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.assertion.ViewAssertions.matches
@@ -33,6 +35,7 @@ import com.ichi2.anki.common.annotations.DuplicatedCode
 import com.ichi2.anki.common.destinations.NoteEditorDestination
 import com.ichi2.anki.common.destinations.toBundle
 import com.ichi2.anki.common.destinations.toIntent
+import com.ichi2.anki.common.preferences.sharedPrefs
 import com.ichi2.anki.common.ui.TransitionDirection.DEFAULT
 import com.ichi2.anki.libanki.Consts
 import com.ichi2.anki.libanki.DeckId
@@ -764,6 +767,33 @@ class NoteEditorTest : RobolectricTest() {
                 .withFirstField("hello" + FieldEditText.NEW_LINE + "world")
                 .build()
         assertThat(editor.richTextFieldValues[0], equalTo("hello<br>world"))
+    }
+
+    @Test
+    fun `pausing in the HTML editor keeps its edits`() {
+        // the rich text page was used, then left: it still holds the fields as they were
+        val editor = richTextEditorWithLoadedPage()
+        editor.toggleRichTextMode()
+        editor.setFieldValueFromUi(0, "edited in the HTML editor")
+        val webView = editor.requireView().findViewById<WebView>(R.id.RichTextEditorWebView)
+        webView.evaluateJavascript("marker()", null)
+
+        editor.onPause()
+
+        assertThat(
+            "the hidden page must not push its old fields back",
+            shadowOf(webView).lastEvaluatedJavascript,
+            equalTo("marker()"),
+        )
+    }
+
+    /** A note editor in rich text mode whose page has finished loading. */
+    private fun richTextEditorWithLoadedPage(): NoteEditorFragment {
+        targetContext.sharedPrefs().edit { putBoolean(NoteEditorFragment.PREF_NOTE_EDITOR_RICH_TEXT, true) }
+        val editor = getNoteEditorAdding(NoteType.BASIC).build()
+        val webView = editor.requireView().findViewById<WebView>(R.id.RichTextEditorWebView)
+        shadowOf(webView).webViewClient.onPageFinished(webView, null)
+        return editor
     }
 
     @Test
