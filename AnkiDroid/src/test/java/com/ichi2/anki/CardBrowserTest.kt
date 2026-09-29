@@ -507,6 +507,29 @@ class CardBrowserTest : RobolectricTest() {
     }
 
     @Test
+    fun cardCountIsShownAfterRecreation() {
+        ensureCollectionLoadIsSynchronous()
+        addBasicNote("dog", "barks")
+        addBasicNote("cat", "meows")
+
+        fun CardBrowser.subtitle() = findViewById<TextView>(R.id.subtitle).text.toString()
+
+        ActivityScenario.launch(CardBrowser::class.java).use { scenario ->
+            advanceRobolectricLooper()
+            scenario.onActivity { browser ->
+                assertThat("card count before recreation", browser.subtitle(), equalTo("2 cards shown"))
+            }
+
+            scenario.recreate()
+            advanceRobolectricLooper()
+
+            scenario.onActivity { browser ->
+                assertThat("card count after recreation", browser.subtitle(), equalTo("2 cards shown"))
+            }
+        }
+    }
+
+    @Test
     fun tagWithBracketsDisplaysProperly() =
         runTest {
             val n = addBasicNote("Hello", "World")
@@ -1739,6 +1762,7 @@ class CardBrowserTest : RobolectricTest() {
                     R.id.action_capitalize to true,
                     R.id.action_show_toolbar to true,
                     R.id.action_scroll_toolbar to true,
+                    R.id.action_toggle_previewer to false,
                 )
 
             assertMenusEqual(expectedMenuItems, menu)
@@ -1782,6 +1806,7 @@ class CardBrowserTest : RobolectricTest() {
                     R.id.action_capitalize to true,
                     R.id.action_show_toolbar to true,
                     R.id.action_scroll_toolbar to true,
+                    R.id.action_toggle_previewer to false,
                 )
 
             assertMenusEqual(expectedMenuItems, menu)

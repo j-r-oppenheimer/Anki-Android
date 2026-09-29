@@ -31,6 +31,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.snackbar.Snackbar
 import com.ichi2.anki.CollectionManager.withCol
+import com.ichi2.anki.CommonString
 import com.ichi2.anki.R
 import com.ichi2.anki.canUserAccessDeck
 import com.ichi2.anki.databinding.FragmentScheduleRemindersBinding
@@ -276,8 +277,8 @@ class ScheduleRemindersFragment :
         }
         if (troubleshootingSnackbar?.isShown == true) return
         troubleshootingSnackbar =
-            showSnackbar(text = "Reminders are unavailable", duration = Snackbar.LENGTH_INDEFINITE) {
-                setAction("Fix") { openTroubleshootingScreen() }
+            showSnackbar(text = getString(CommonString.schedule_reminders_unavailable), duration = Snackbar.LENGTH_INDEFINITE) {
+                setAction(CommonString.schedule_reminders_fix) { openTroubleshootingScreen() }
             }
     }
 
@@ -290,7 +291,7 @@ class ScheduleRemindersFragment :
                 Lifecycle.State.RESUMED,
             )
             retrieveSubtitle { subtitle ->
-                setToolbarText(title = "Review reminders", subtitle = subtitle)
+                setToolbarText(title = getString(CommonString.review_reminders_title), subtitle = subtitle)
             }
             invalidateMenu()
         }
@@ -316,7 +317,7 @@ class ScheduleRemindersFragment :
                 Lifecycle.State.RESUMED,
             )
 
-            title = "Review reminders"
+            title = getString(CommonString.review_reminders_title)
             retrieveSubtitle { subtitle = it }
 
             setNavigationOnClickListener {
@@ -461,11 +462,11 @@ class ScheduleRemindersFragment :
         if (flowOfShowTroubleshooting.value) return // Don't override the troubleshooting snackbar, which is more important
         showSnackbar(
             when (modeOfFinishedDialog) {
-                is AddEditReminderDialog.DialogMode.Add -> "Successfully added new review reminder"
+                is AddEditReminderDialog.DialogMode.Add -> getString(CommonString.schedule_reminders_added)
                 is AddEditReminderDialog.DialogMode.Edit -> {
                     when (newOrModifiedReminder) {
-                        null -> "Successfully deleted review reminder"
-                        else -> "Successfully edited review reminder"
+                        null -> getString(CommonString.schedule_reminders_deleted)
+                        else -> getString(CommonString.schedule_reminders_edited)
                     }
                 }
             },

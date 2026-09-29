@@ -12,6 +12,8 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.PendingIntentCompat
 import androidx.core.content.getSystemService
 import com.ichi2.anki.CollectionManager.withCol
+import com.ichi2.anki.CommonPlurals
+import com.ichi2.anki.CommonString
 import com.ichi2.anki.DeckPicker
 import com.ichi2.anki.IntentHandler
 import com.ichi2.anki.NotificationChannel
@@ -34,7 +36,7 @@ import com.ichi2.anki.reviewreminders.reminderLogPrefix
 import com.ichi2.anki.runGloballyWithTimeout
 import com.ichi2.anki.settings.Prefs
 import com.ichi2.anki.utils.ext.getParcelableCompat
-import com.ichi2.anki.utils.remainingTime
+import com.ichi2.utils.LanguageUtil.withUnicodeIsolation
 import com.ichi2.widget.WidgetStatus
 import net.ankiweb.rsdroid.BackendException
 import timber.log.Timber
@@ -218,18 +220,23 @@ class NotificationService : AnkiBroadcastReceiver() {
 
             val title =
                 when (reviewReminder.scope) {
-                    is ReviewReminderScope.Global -> "It's time to study your cards"
+                    is ReviewReminderScope.Global -> context.getString(CommonString.review_reminder_notification_title_all_decks)
                     is ReviewReminderScope.DeckSpecific -> {
                         val fullDeckName = reviewReminder.scope.getDeckName()
                         val deckName =
                             Decks.basename(fullDeckName) // don't show the full path with "::" included
-                        "It's time to study $deckName"
+                        context.getString(
+                            CommonString.review_reminder_notification_title_deck,
+                            withUnicodeIsolation(deckName),
+                        )
                     }
                 }
-
-            val eta = withCol { sched.eta(dueCardsCount, false) }
-            val remainingTimeString = remainingTime(context, (eta * 60).toLong())
-            val description = "$dueCardsTotal cards due, $remainingTimeString"
+            val description =
+                context.resources.getQuantityString(
+                    CommonPlurals.review_reminder_notification_cards_due,
+                    dueCardsTotal,
+                    dueCardsTotal,
+                )
 
             fireReviewReminderNotification(context, reviewReminder, title, description, onClickIntent)
         }
@@ -271,8 +278,13 @@ class NotificationService : AnkiBroadcastReceiver() {
                     .setContentIntent(pendingIntent)
                     .setAutoCancel(true) // Dismiss on click
                     .setTicker(title) // Accessibility
-                    .addAction("Snooze 5m", fiveMinuteSnooze)
-                    .addAction("Snooze 1h", oneHourSnooze)
+                    .addAction(
+                        context.getString(CommonString.review_reminder_notification_snooze_button, 5.minutes.toString()),
+                        fiveMinuteSnooze,
+                    ).addAction(
+                        context.getString(CommonString.review_reminder_notification_snooze_button, 1.hours.toString()),
+                        oneHourSnooze,
+                    )
                     // Vibration and priority are set here for backwards compatibility; they are set via channel for API 33+
                     .setVibrate(longArrayOf(0, 500))
                     .setPriority(NotificationCompat.PRIORITY_DEFAULT)
@@ -355,7 +367,7 @@ class NotificationService : AnkiBroadcastReceiver() {
                 val cardsDueText =
                     context.resources
                         .getQuantityString(
-                            R.plurals.widget_minimum_cards_due_notification_ticker_text,
+                            CommonPlurals.widget_minimum_cards_due_notification_ticker_text,
                             dueCardsCount,
                             dueCardsCount,
                         )

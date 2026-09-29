@@ -15,6 +15,8 @@ import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.ichi2.anki.CollectionManager.TR
+import com.ichi2.anki.CommonString
+import com.ichi2.anki.R
 import com.ichi2.anki.databinding.ItemScheduleRemindersBinding
 import com.ichi2.anki.libanki.DeckId
 import com.ichi2.anki.ui.internationalization.sentenceCase
@@ -95,7 +97,7 @@ class ScheduleRemindersAdapter(
                         setTextViewStrikethrough(holder.timeTextView, false)
                         setViewHolderColors(holder, activeTextColor, activeTrackColor)
                     } else {
-                        holder.deckTextView.text = "Deck not found"
+                        holder.deckTextView.text = holder.context.getString(CommonString.schedule_reminders_deck_not_found)
                         setTextViewStrikethrough(holder.timeTextView, true)
                         setViewHolderColors(holder, inactiveTextColor, inactiveTrackColor)
                     }
