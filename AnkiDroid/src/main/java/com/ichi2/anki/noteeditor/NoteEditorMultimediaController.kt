@@ -201,6 +201,20 @@ internal class NoteEditorMultimediaController(
         description: ClipDescription,
         pasteAsPng: Boolean,
     ): Boolean {
+        val mediaTag = registerMedia(uri, description, pasteAsPng) ?: return false
+        fragment.insertStringInField(editText, mediaTag)
+        return true
+    }
+
+    /**
+     * Copies a pasted or dropped media [uri] into the collection, and returns the
+     * tag that shows it in a field, or null when it could not be added.
+     */
+    fun registerMedia(
+        uri: Uri,
+        description: ClipDescription,
+        pasteAsPng: Boolean,
+    ): String? {
         val context = fragment.requireContext()
         // 콘텐츠 제공자가 파일 이름도 MIME 타입도 알려주지 않는 경우가 있습니다.
         // 그러면 아래 파이프라인이 이름을 못 정해 예외를 던지고, 붙여넣기가 오류
@@ -208,17 +222,13 @@ internal class NoteEditorMultimediaController(
         // 묻지 않고 내용만 읽어 파일로 만들기 때문에 잘 동작합니다. 같은 방식으로
         // 먼저 파일을 만들어 두고, 그 파일을 넘깁니다.
         val (mediaUri, mediaDescription) = copyIfUnnamed(uri, description)
-        val mediaTag =
-            MediaRegistration.onPaste(
-                context,
-                mediaUri,
-                mediaDescription,
-                pasteAsPng,
-                showError = { type -> fragment.showSnackbar(type.toHumanReadableString(context)) },
-            ) ?: return false
-
-        fragment.insertStringInField(editText, mediaTag)
-        return true
+        return MediaRegistration.onPaste(
+            context,
+            mediaUri,
+            mediaDescription,
+            pasteAsPng,
+            showError = { type -> fragment.showSnackbar(type.toHumanReadableString(context)) },
+        )
     }
 
     /**
@@ -255,7 +265,10 @@ internal class NoteEditorMultimediaController(
 
         return try {
             // 내용의 머리 부분만 읽어 실제 형식을 알아냅니다.
-            val options = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            val options =
+                android.graphics.BitmapFactory
+                    .Options()
+                    .apply { inJustDecodeBounds = true }
             resolver.openInputStream(uri).use { header ->
                 android.graphics.BitmapFactory.decodeStream(header, null, options)
             }

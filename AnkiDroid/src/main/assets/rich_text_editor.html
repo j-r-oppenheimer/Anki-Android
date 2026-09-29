@@ -328,6 +328,30 @@
         reportCaret();
       }
 
+      /**
+       * Puts html where something was dropped: at the place in the text nearest
+       * (x, y), in the field there. With no text position to be found, it goes at
+       * the end of that field.
+       */
+      function insertAt(x, y, html) {
+        var target = document.elementFromPoint(x, y);
+        var editor = (target && target.closest && target.closest('.editor')) || active;
+        if (!editor) return;
+        var range = document.caretRangeFromPoint(x, y);
+        if (!range || !editor.contains(range.startContainer)) {
+          range = document.createRange();
+          range.selectNodeContents(editor);
+          range.collapse(false);
+        }
+        editor.focus();
+        var sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        document.execCommand('insertHTML', false, html);
+        flush(editor);
+        reportHeight();
+      }
+
       function flush(editor) {
         post('onFieldChanged', editor.dataset.index + ':' + normalise(editor.innerHTML));
       }

@@ -24,6 +24,7 @@ import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.ActionMode
+import android.view.DragEvent
 import android.view.KeyEvent
 import android.view.Menu
 import android.view.MenuInflater
@@ -2825,8 +2826,51 @@ class NoteEditorFragment :
             )
         editor.load(mediaDir)
         applyRichTextTheme(editor)
+        webView.setOnDragListener(::onRichTextDrag)
         richTextEditor = editor
         return editor
+    }
+
+    /**
+     * Takes media dragged in from another app, as [DropHelper] does for the HTML
+     * fields. Any other drag, such as text moved within the page, is left to the
+     * page, which places it itself.
+     */
+    private fun onRichTextDrag(
+        view: View,
+        event: DragEvent,
+    ): Boolean {
+        if (event.action == DragEvent.ACTION_DRAG_STARTED) {
+            val description = event.clipDescription ?: return false
+            return MEDIA_MIME_TYPES.any { description.hasMimeType(it) }
+        }
+        if (event.action == DragEvent.ACTION_DROP) dropIntoRichText(event)
+        return true
+    }
+
+    /** Adds the dropped media to the collection and puts it where it was dropped. */
+    private fun dropIntoRichText(event: DragEvent) {
+        val clip = event.clipData ?: return
+        val uris = (0 until clip.itemCount).mapNotNull { clip.getItemAt(it).uri }
+        if (uris.isEmpty()) return
+        // Another app's content can only be read while the drop's permission is held.
+        val permissions = requireActivity().requestDragAndDropPermissions(event)
+        // The page is laid out at initial-scale=1, so a CSS pixel is a dp.
+        val density = resources.displayMetrics.density
+        val x = event.x / density
+        val y = event.y / density
+        lifecycleScope.launch {
+            try {
+                val pasteAsPng = shouldPasteAsPng()
+                val tags = uris.mapNotNull { multimediaController.registerMedia(it, clip.description, pasteAsPng) }
+                if (tags.isNotEmpty()) richTextEditor?.insertAt(x, y, tags.joinToString(""))
+            } catch (e: Exception) {
+                Timber.w(e, "failed to drop media into the rich text editor")
+                CrashReportService.sendExceptionReport(e, "NoteEditor::dropIntoRichText")
+            } finally {
+                permissions?.release()
+            }
+        }
     }
 
     private fun applyRichTextTheme(editor: RichTextEditor) {

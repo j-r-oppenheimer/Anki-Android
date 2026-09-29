@@ -7,11 +7,13 @@ package com.ichi2.anki
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.ClipData
+import android.content.ClipDescription
 import android.content.Intent
 import android.os.Bundle
 import android.os.Parcel
 import android.os.Parcelable
 import android.util.SparseArray
+import android.view.DragEvent
 import android.view.View
 import android.webkit.WebView
 import android.widget.EditText
@@ -785,6 +787,30 @@ class NoteEditorTest : RobolectricTest() {
             shadowOf(webView).lastEvaluatedJavascript,
             equalTo("marker()"),
         )
+    }
+
+    @Test
+    fun `the rich text page takes an image dragged from another app`() {
+        val editor = richTextEditorWithLoadedPage()
+        val webView = editor.requireView().findViewById<WebView>(R.id.RichTextEditorWebView)
+        val drag = dragEvent(DragEvent.ACTION_DRAG_STARTED, ClipDescription("capture", arrayOf("image/png")))
+
+        assertTrue(webView.dispatchDragEvent(drag), "the page accepts the drag")
+    }
+
+    /**
+     * DragEvent has no public way to make one, and the framework reads its fields
+     * directly rather than through the getters a mock would answer.
+     */
+    private fun dragEvent(
+        action: Int,
+        description: ClipDescription,
+    ): DragEvent {
+        val type = DragEvent::class.java
+        val event = type.getDeclaredConstructor().apply { isAccessible = true }.newInstance()
+        type.getDeclaredField("mAction").apply { isAccessible = true }.setInt(event, action)
+        type.getDeclaredField("mClipDescription").apply { isAccessible = true }.set(event, description)
+        return event
     }
 
     /** A note editor in rich text mode whose page has finished loading. */

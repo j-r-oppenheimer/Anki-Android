@@ -75,7 +75,11 @@ class RichTextEditor(
                 }
             }
 
-        val html = webView.context.assets.open(ASSET).bufferedReader().use { it.readText() }
+        val html =
+            webView.context.assets
+                .open(ASSET)
+                .bufferedReader()
+                .use { it.readText() }
         // The page needs a real origin, not file://, or the custom font is refused
         // as a cross-origin request. Bare <img src="foo.jpg"> then resolves under
         // BASE_URL and comes back through serveMedia.
@@ -153,6 +157,16 @@ class RichTextEditor(
         @ColorInt color: Int,
         toggle: Boolean,
     ) = whenLoaded { paint("textColor", color, toggle) }
+
+    /**
+     * Puts [html] where something was dropped: at the place in the text nearest
+     * ([x], [y]), in CSS pixels from the page's top left.
+     */
+    fun insertAt(
+        x: Float,
+        y: Float,
+        html: String,
+    ) = whenLoaded { webView.evaluateJavascript("insertAt($x, $y, ${JSONObject.quote(html)})", null) }
 
     /** Puts [prefix] and [suffix] either side of the selection. */
     fun wrap(
@@ -235,8 +249,7 @@ class RichTextEditor(
         }
 
         /** The page is laid out at `initial-scale=1`, so a CSS pixel is a dp. */
-        private fun toDevicePixels(cssPixels: Int) =
-            (cssPixels * webView.resources.displayMetrics.density).toInt()
+        private fun toDevicePixels(cssPixels: Int) = (cssPixels * webView.resources.displayMetrics.density).toInt()
     }
 
     fun destroy() {
