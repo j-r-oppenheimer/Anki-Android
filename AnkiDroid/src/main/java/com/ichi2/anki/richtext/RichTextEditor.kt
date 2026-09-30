@@ -40,6 +40,7 @@ class RichTextEditor(
     private val onContextMenu: (xPx: Int, yPx: Int) -> Unit,
     private val onPageLoaded: () -> Unit = {},
     private val onFieldsShown: () -> Unit = {},
+    private val onPasteMedia: () -> Boolean = { false },
 ) {
     private val handler = Handler(Looper.getMainLooper())
     private var loaded = false
@@ -180,6 +181,9 @@ class RichTextEditor(
         html: String,
     ) = whenLoaded { webView.evaluateJavascript("insertAt($x, $y, ${JSONObject.quote(html)})", null) }
 
+    /** Puts [html] at the caret in the field being edited, as a paste would. */
+    fun insertAtCaret(html: String) = whenLoaded { call("insertHtml", html) }
+
     /** Puts [prefix] and [suffix] either side of the selection. */
     fun wrap(
         prefix: String,
@@ -254,6 +258,14 @@ class RichTextEditor(
             val y = parts[1].toIntOrNull() ?: return
             handler.post { this@RichTextEditor.onContextMenu(toDevicePixels(x), toDevicePixels(y)) }
         }
+
+        /**
+         * Asked by the page before it pastes. True when the clipboard holds media,
+         * which the app then adds and puts at the caret; the page's own paste would
+         * only put in the clipboard's text for it, an intent: link.
+         */
+        @JavascriptInterface
+        fun pasteMedia(): Boolean = this@RichTextEditor.onPasteMedia()
 
         /** The page has drawn the fields it was last given, and reported their height. */
         @JavascriptInterface

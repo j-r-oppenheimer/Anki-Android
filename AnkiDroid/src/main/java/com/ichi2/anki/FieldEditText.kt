@@ -22,6 +22,7 @@ import com.ichi2.anki.common.utils.annotation.KotlinCleanup
 import com.ichi2.anki.servicelayer.NoteService
 import com.ichi2.anki.snackbar.showSnackbar
 import com.ichi2.ui.FixedEditText
+import com.ichi2.utils.ClipboardUtil
 import com.ichi2.utils.ClipboardUtil.getDescription
 import com.ichi2.utils.ClipboardUtil.getPlainText
 import com.ichi2.utils.ClipboardUtil.getUri
@@ -172,28 +173,7 @@ class FieldEditText :
     private fun firstMediaItem(): Pair<Uri, ClipDescription>? {
         val clip = clipboard?.primaryClip ?: return null
         val resolver = context?.contentResolver ?: return null
-        val label = clip.description?.label ?: ""
-        var fallback: Uri? = null
-
-        for (index in 0 until clip.itemCount) {
-            val uri = clip.getItemAt(index).uri ?: continue
-            if (fallback == null) {
-                fallback = uri
-            }
-            val type =
-                try {
-                    resolver.getType(uri)
-                } catch (e: Exception) {
-                    Timber.w(e, "could not read the type of a clipboard item")
-                    null
-                } ?: continue
-            if (type.startsWith("image/") || type.startsWith("audio/") || type.startsWith("video/")) {
-                return uri to ClipDescription(label, arrayOf(type))
-            }
-        }
-
-        // 타입은 못 알아냈지만 URI 는 있는 경우. 이미지로 보고 시도합니다.
-        return fallback?.let { it to ClipDescription(label, arrayOf("image/*")) }
+        return ClipboardUtil.firstMediaItem(clip, resolver)
     }
 
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)

@@ -8,9 +8,11 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.ClipData
 import android.content.ClipDescription
+import android.content.ClipboardManager
 import android.content.ComponentName
 import android.content.Intent
 import android.content.IntentFilter
+import android.net.Uri
 import android.os.Bundle
 import android.os.Looper
 import android.os.Parcel
@@ -907,13 +909,34 @@ class NoteEditorTest : RobolectricTest() {
         assertThat(tags.alpha, equalTo(1f))
     }
 
+    @Test
+    fun `a copied image pasted in the rich text page is added by the app`() {
+        val editor = richTextEditorWithLoadedPage()
+        val webView = editor.requireView().findViewById<WebView>(R.id.RichTextEditorWebView)
+        // what a cut or copied picture leaves: a link to it, whose text is an intent: string
+        clipboard().setPrimaryClip(ClipData.newRawUri("picture", Uri.parse("content://media/external/images/media/1")))
+
+        assertEquals(true, callPage(webView, "pasteMedia"), "the app takes the paste, and the page leaves it alone")
+    }
+
+    @Test
+    fun `pasted text is left to the rich text page`() {
+        val editor = richTextEditorWithLoadedPage()
+        val webView = editor.requireView().findViewById<WebView>(R.id.RichTextEditorWebView)
+        clipboard().setPrimaryClip(ClipData.newPlainText("text", "hello"))
+
+        assertEquals(false, callPage(webView, "pasteMedia"))
+    }
+
+    private fun clipboard() = targetContext.getSystemService(ClipboardManager::class.java)
+
     /** Calls [method] on the page's bridge to the app, as the page's script would. */
     private fun callPage(
         webView: WebView,
         method: String,
-    ) {
+    ): Any? {
         val bridge = assertNotNull(shadowOf(webView).getJavascriptInterface("AnkiRich"))
-        bridge.javaClass
+        return bridge.javaClass
             .getDeclaredMethod(method)
             .apply { isAccessible = true }
             .invoke(bridge)

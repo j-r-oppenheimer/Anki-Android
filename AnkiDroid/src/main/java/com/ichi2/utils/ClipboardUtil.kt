@@ -6,6 +6,7 @@ import android.app.Activity
 import android.content.ClipData
 import android.content.ClipDescription
 import android.content.ClipboardManager
+import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
 import android.os.Build
@@ -67,6 +68,41 @@ object ClipboardUtil {
         }
 
     fun getDescription(clipboard: ClipboardManager?): ClipDescription? = clipboard?.primaryClip?.description
+
+    /**
+     * The first media item on the clipboard, and a description with its real type.
+     *
+     * Some apps put the picture in a later item, or leave the clip's MIME type as
+     * something other than media, so every item is looked at and asked for its
+     * type. A URI whose type cannot be found is still tried as an image.
+     */
+    fun firstMediaItem(
+        clip: ClipData,
+        resolver: ContentResolver,
+    ): Pair<Uri, ClipDescription>? {
+        val label = clip.description?.label ?: ""
+        var fallback: Uri? = null
+
+        for (index in 0 until clip.itemCount) {
+            val uri = clip.getItemAt(index).uri ?: continue
+            if (fallback == null) {
+                fallback = uri
+            }
+            val type =
+                try {
+                    resolver.getType(uri)
+                } catch (e: Exception) {
+                    Timber.w(e, "could not read the type of a clipboard item")
+                    null
+                } ?: continue
+            if (type.startsWith("image/") || type.startsWith("audio/") || type.startsWith("video/")) {
+                return uri to ClipDescription(label, arrayOf(type))
+            }
+        }
+
+        // 타입은 못 알아냈지만 URI 는 있는 경우. 이미지로 보고 시도합니다.
+        return fallback?.let { it to ClipDescription(label, arrayOf("image/*")) }
+    }
 
     @CheckResult
     fun getPlainText(

@@ -188,6 +188,7 @@ import com.ichi2.imagecropper.ImageCropper
 import com.ichi2.imagecropper.ImageCropper.Companion.CROP_IMAGE_RESULT
 import com.ichi2.imagecropper.ImageCropperLauncher
 import com.ichi2.utils.AndroidUiUtils.showSoftInput
+import com.ichi2.utils.ClipboardUtil
 import com.ichi2.utils.ClipboardUtil.MEDIA_MIME_TYPES
 import com.ichi2.utils.ClipboardUtil.hasMedia
 import com.ichi2.utils.ClipboardUtil.items
@@ -2873,6 +2874,7 @@ class NoteEditorFragment :
                     webView.removeCallbacks(revealBelowRichText)
                     revealBelowRichText.run()
                 },
+                onPasteMedia = ::pasteMediaIntoRichText,
             )
         // The page has no height until it has loaded and drawn the fields, so the
         // tags and cards buttons would show first where the fields are about to go.
@@ -2908,6 +2910,29 @@ class NoteEditorFragment :
             return MEDIA_MIME_TYPES.any { description.hasMimeType(it) }
         }
         if (event.action == DragEvent.ACTION_DROP) dropIntoRichText(event)
+        return true
+    }
+
+    /**
+     * Adds media on the clipboard to the collection and puts it at the caret, as
+     * the HTML fields do on a paste. Called from the page's script thread; the
+     * adding happens on the main thread.
+     *
+     * @return whether the clipboard held media, so the page should not paste
+     */
+    private fun pasteMediaIntoRichText(): Boolean {
+        val context = context ?: return false
+        val clip = context.getSystemService(ClipboardManager::class.java)?.primaryClip ?: return false
+        val (uri, description) = ClipboardUtil.firstMediaItem(clip, context.contentResolver) ?: return false
+        lifecycleScope.launch {
+            try {
+                val tag = multimediaController.registerMedia(uri, description, shouldPasteAsPng()) ?: return@launch
+                richTextEditor?.insertAtCaret(tag)
+            } catch (e: Exception) {
+                Timber.w(e, "failed to paste media into the rich text editor")
+                CrashReportService.sendExceptionReport(e, "NoteEditor::pasteMediaIntoRichText")
+            }
+        }
         return true
     }
 

@@ -368,6 +368,25 @@
         reportHeight();
       }
 
+      /** Puts html at the caret in the field being edited, or at its end. */
+      function insertHtml(html) {
+        if (!active) return;
+        var sel = window.getSelection();
+        var range = sel && sel.rangeCount ? sel.getRangeAt(0) : null;
+        if (!range || !active.contains(range.startContainer)) {
+          range = document.createRange();
+          range.selectNodeContents(active);
+          range.collapse(false);
+        }
+        // Focusing can move the caret, so it is put back after.
+        active.focus();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        document.execCommand('insertHTML', false, html);
+        flush(active);
+        reportHeight();
+      }
+
       function flush(editor) {
         post('onFieldChanged', editor.dataset.index + ':' + normalise(editor.innerHTML));
       }
@@ -480,6 +499,12 @@
       // and paste between fields; the rest of a pasted page's styling is dropped.
       document.addEventListener('paste', function (e) {
         if (!e.target.closest || !e.target.closest('.editor')) return;
+        // A copied or cut picture is a link on the clipboard, and its text is an
+        // intent: string. The app adds the picture itself and puts it at the caret.
+        if (window.AnkiRich && window.AnkiRich.pasteMedia && window.AnkiRich.pasteMedia()) {
+          e.preventDefault();
+          return;
+        }
         var data = e.clipboardData;
         if (!data) return;
         var html = data.getData('text/html');
