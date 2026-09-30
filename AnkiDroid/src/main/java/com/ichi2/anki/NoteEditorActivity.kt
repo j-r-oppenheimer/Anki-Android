@@ -194,11 +194,7 @@ class NoteEditorActivity :
             if (isPreviewerVisible) {
                 // Defer previewer loading to avoid blocking onCreate
                 binding.previewerFrame!!.post {
-                    if (::noteEditorFragment.isInitialized) {
-                        noteEditorFragment.afterFieldsShown { loadNoteEditorPreviewer(true) }
-                    } else {
-                        loadNoteEditorPreviewer(true)
-                    }
+                    loadNoteEditorPreviewer(true)
                 }
             }
         }
