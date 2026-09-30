@@ -26,6 +26,7 @@ import com.ichi2.anki.libanki.Collection
 import com.ichi2.anki.noteeditor.NoteEditorFragmentDelegate
 import com.ichi2.anki.previewer.TemplatePreviewerArguments
 import com.ichi2.anki.previewer.TemplatePreviewerFragment
+import com.ichi2.anki.richtext.RichTextLoadTimeline
 import com.ichi2.anki.settings.Prefs
 import com.ichi2.anki.settings.enums.DayTheme
 import com.ichi2.anki.snackbar.BaseSnackbarBuilderProvider
@@ -70,6 +71,10 @@ class NoteEditorActivity :
      * Fragmentation is determined by this view's visibility after inflation.
      */
     private var previewerFrame: FragmentContainerView? = null
+
+    /** TEMPORARY: see [RichTextLoadTimeline]. */
+    var loadTimeline: RichTextLoadTimeline? = null
+        private set
 
     /**
      * The user's persisted previewer visibility preference.
@@ -138,6 +143,7 @@ class NoteEditorActivity :
         binding = ActivityNoteEditorBinding.inflate(layoutInflater)
         setContentView(binding.root)
         setupEdgeToEdge()
+        loadTimeline = RichTextLoadTimeline(this)
 
         previewerFrame = binding.previewerFrame
         previewerVisibilityPref = loadPreviewerVisibilityPreference()
@@ -250,6 +256,7 @@ class NoteEditorActivity :
         if (!isPreviewerVisible) {
             return
         }
+        loadTimeline?.mark("preview start")
 
         // Check if noteEditorFragment is initialized before proceeding
         if (!::noteEditorFragment.isInitialized) {
@@ -274,6 +281,7 @@ class NoteEditorActivity :
                     supportFragmentManager.commit {
                         replace(R.id.previewer_frame, previewerFragment)
                         runOnCommit {
+                            loadTimeline?.mark("preview added")
                             configurePreviewerTabs(previewerFragment)
                         }
                     }
