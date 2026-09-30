@@ -38,6 +38,8 @@ class RichTextEditor(
     private val onFormatStateChanged: (commands: Set<String>) -> Unit,
     private val onCaretMoved: (topPx: Int) -> Unit,
     private val onContextMenu: (xPx: Int, yPx: Int) -> Unit,
+    private val onPageLoaded: () -> Unit = {},
+    private val onFieldsShown: () -> Unit = {},
 ) {
     private val handler = Handler(Looper.getMainLooper())
     private var loaded = false
@@ -74,6 +76,7 @@ class RichTextEditor(
                     CustomFont.injectIntoPage(webView)
                     pending.forEach { it() }
                     pending.clear()
+                    onPageLoaded()
                 }
             }
 
@@ -250,6 +253,12 @@ class RichTextEditor(
             val x = parts[0].toIntOrNull() ?: return
             val y = parts[1].toIntOrNull() ?: return
             handler.post { this@RichTextEditor.onContextMenu(toDevicePixels(x), toDevicePixels(y)) }
+        }
+
+        /** The page has drawn the fields it was last given, and reported their height. */
+        @JavascriptInterface
+        fun onFieldsShown() {
+            handler.post { this@RichTextEditor.onFieldsShown() }
         }
 
         @JavascriptInterface

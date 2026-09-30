@@ -2810,7 +2810,11 @@ class NoteEditorFragment :
     private fun applyRichTextMode() {
         val webView = richTextWebView ?: return
         val active = richTextActive
-        if (!active) dismissRichPopups()
+        if (!active) {
+            dismissRichPopups()
+            // The HTML fields are there at once, so nothing below has anything to wait for.
+            revealBelowRichText.run()
+        }
         webView.isVisible = active
         richTextToolbar?.isVisible = active
         fieldsLayoutContainer?.isVisible = !active
@@ -2861,12 +2865,31 @@ class NoteEditorFragment :
                 onFormatStateChanged = ::onRichTextFormatState,
                 onCaretMoved = ::scrollRichTextCaretIntoView,
                 onContextMenu = ::showFloatingToolbar,
+                // In case the page never gets as far as showing its fields.
+                onPageLoaded = { webView.postDelayed(revealBelowRichText, REVEAL_BELOW_RICH_TEXT_MS) },
+                onFieldsShown = {
+                    webView.removeCallbacks(revealBelowRichText)
+                    revealBelowRichText.run()
+                },
             )
+        // The page has no height until it has loaded and drawn the fields, so the
+        // tags and cards buttons would show first where the fields are about to go.
+        // They come in with the fields instead, as they do with the HTML editor.
+        viewsBelowRichText().forEach { it.alpha = 0f }
         editor.load(mediaDir)
         applyRichTextTheme(editor)
         webView.setOnDragListener(::onRichTextDrag)
         richTextEditor = editor
         return editor
+    }
+
+    private val revealBelowRichText = Runnable { viewsBelowRichText().forEach { it.alpha = 1f } }
+
+    /** The tags and cards buttons, and anything else laid out after the page. */
+    private fun viewsBelowRichText(): List<View> {
+        val webView = richTextWebView ?: return emptyList()
+        val column = webView.parent as? ViewGroup ?: return emptyList()
+        return column.children.drop(column.indexOfChild(webView) + 1).toList()
     }
 
     /**
@@ -3472,6 +3495,9 @@ class NoteEditorFragment :
 
         @VisibleForTesting
         internal const val PREF_NOTE_EDITOR_RICH_TEXT = "noteEditorRichText"
+
+        /** How long the tags wait, after the page loads, for it to show the fields. */
+        private const val REVEAL_BELOW_RICH_TEXT_MS = 1000L
         private const val PREF_NOTE_EDITOR_HIGHLIGHT = "noteEditorHighlightColour"
         private const val PREF_NOTE_EDITOR_TEXT_COLOUR = "noteEditorTextColour"
 

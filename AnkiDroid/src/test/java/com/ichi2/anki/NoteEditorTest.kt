@@ -879,6 +879,46 @@ class NoteEditorTest : RobolectricTest() {
         assertThat("the page adds no text zoom of its own", webView.settings.textZoom, equalTo(100))
     }
 
+    @Test
+    fun `the tags wait for the rich text fields, and come in with them`() {
+        targetContext.sharedPrefs().edit { putBoolean(NoteEditorFragment.PREF_NOTE_EDITOR_RICH_TEXT, true) }
+        val editor = getNoteEditorAdding(NoteType.BASIC).build()
+        val tags = editor.requireView().findViewById<View>(R.id.CardEditorTagButton)
+        assertThat("the page is still loading, so the tags would sit where the fields go", tags.alpha, equalTo(0f))
+
+        val webView = editor.requireView().findViewById<WebView>(R.id.RichTextEditorWebView)
+        shadowOf(webView).webViewClient.onPageFinished(webView, null)
+        callPage(webView, "onFieldsShown")
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertThat(tags.alpha, equalTo(1f))
+    }
+
+    @Test
+    fun `the tags still show if the page never reports its fields`() {
+        targetContext.sharedPrefs().edit { putBoolean(NoteEditorFragment.PREF_NOTE_EDITOR_RICH_TEXT, true) }
+        val editor = getNoteEditorAdding(NoteType.BASIC).build()
+        val tags = editor.requireView().findViewById<View>(R.id.CardEditorTagButton)
+        val webView = editor.requireView().findViewById<WebView>(R.id.RichTextEditorWebView)
+
+        shadowOf(webView).webViewClient.onPageFinished(webView, null)
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(2))
+
+        assertThat(tags.alpha, equalTo(1f))
+    }
+
+    /** Calls [method] on the page's bridge to the app, as the page's script would. */
+    private fun callPage(
+        webView: WebView,
+        method: String,
+    ) {
+        val bridge = assertNotNull(shadowOf(webView).getJavascriptInterface("AnkiRich"))
+        bridge.javaClass
+            .getDeclaredMethod(method)
+            .apply { isAccessible = true }
+            .invoke(bridge)
+    }
+
     /** A note editor in rich text mode whose page has finished loading. */
     private fun richTextEditorWithLoadedPage(): NoteEditorFragment {
         targetContext.sharedPrefs().edit { putBoolean(NoteEditorFragment.PREF_NOTE_EDITOR_RICH_TEXT, true) }
