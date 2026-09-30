@@ -16,7 +16,9 @@
       html, body {
         margin: 0;
         padding: 0;
-        background: var(--bg);
+        /* The screen behind is the same colour. Left clear, the page draws nothing
+           before it is given the theme, rather than a white box. */
+        background: transparent;
         color: var(--fg);
         font-size: 16px;
         font-family: sans-serif;
@@ -435,7 +437,7 @@
        */
       function cleanPastedHtml(html) {
         var pageFg = canonicalColour(getComputedStyle(document.body).color);
-        var pageBg = canonicalColour(getComputedStyle(document.body).backgroundColor);
+        var pageBg = canonicalColour(getComputedStyle(document.documentElement).getPropertyValue('--bg').trim());
         var source = document.createElement('template');
         source.innerHTML = html;
 
