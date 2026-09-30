@@ -127,14 +127,7 @@ class FieldEditText :
         content: String?,
         replaceNewLine: Boolean,
     ) {
-        val text =
-            if (content == null) {
-                ""
-            } else if (replaceNewLine) {
-                content.replace("<br(\\s*/*)>".toRegex(), NEW_LINE)
-            } else {
-                content
-            }
+        val text = if (content == null) "" else convertBrToNewline(content, replaceNewLine)
         setText(text)
     }
 
@@ -251,5 +244,11 @@ class FieldEditText :
 
     companion object {
         val NEW_LINE: String = System.getProperty("line.separator")!!
+
+        /** Converts stored `<br>` HTML line breaks to [NEW_LINE], matching [setContent]'s handling. */
+        fun convertBrToNewline(
+            content: String,
+            replaceNewLine: Boolean,
+        ): String = if (replaceNewLine) content.replace("<br(\\s*/*)>".toRegex(), NEW_LINE) else content
     }
 }
