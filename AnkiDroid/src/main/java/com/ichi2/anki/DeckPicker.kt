@@ -184,6 +184,7 @@ import com.ichi2.anki.ui.internationalization.sentenceCase
 import com.ichi2.anki.ui.windows.permissions.PermissionsActivity
 import com.ichi2.anki.utils.Destination
 import com.ichi2.anki.utils.ShortcutUtils
+import com.ichi2.anki.utils.ext.DIALOG_FRAGMENT_TAG
 import com.ichi2.anki.utils.ext.dismissAllDialogFragments
 import com.ichi2.anki.utils.ext.doOnScrolled
 import com.ichi2.anki.utils.ext.launchCollectionInLifecycleScope
@@ -2041,7 +2042,12 @@ open class DeckPicker :
      */
     private fun tryShowStudyOptionsPanel(): Boolean {
         val containerId = binding.studyoptionsFragment?.id ?: return false
-        supportFragmentManager.popBackStack(null, FragmentManager.POP_BACK_STACK_INCLUSIVE)
+        // Dialogs sit on the back stack too. Clearing it while one is open closed it
+        // as soon as the deck list reloaded, such as the sync conflict dialog at the
+        // end of a sync.
+        if (supportFragmentManager.findFragmentByTag(DIALOG_FRAGMENT_TAG) == null) {
+            supportFragmentManager.popBackStack(null, FragmentManager.POP_BACK_STACK_INCLUSIVE)
+        }
         supportFragmentManager.commit {
             replace(containerId, StudyOptionsFragment())
         }

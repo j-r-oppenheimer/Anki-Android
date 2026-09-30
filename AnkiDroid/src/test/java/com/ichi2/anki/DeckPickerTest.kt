@@ -46,6 +46,7 @@ import com.ichi2.anki.dialogs.DeckPickerConfirmDeleteDeckDialog
 import com.ichi2.anki.dialogs.DeckPickerContextMenu.DeckPickerContextMenuOption
 import com.ichi2.anki.dialogs.DeckPickerContextMenuResult
 import com.ichi2.anki.dialogs.DeckSelectionDialog
+import com.ichi2.anki.dialogs.SyncErrorDialog
 import com.ichi2.anki.dialogs.setDeckPickerContextMenuResult
 import com.ichi2.anki.dialogs.utils.input
 import com.ichi2.anki.dialogs.utils.message
@@ -62,6 +63,7 @@ import com.ichi2.anki.ui.internationalization.sentenceCase
 import com.ichi2.anki.ui.windows.permissions.PermissionsActivity
 import com.ichi2.anki.ui.windows.permissions.PermissionsActivity.Companion.EXTRA_PERMISSIONS_SET
 import com.ichi2.anki.utils.Destination
+import com.ichi2.anki.utils.ext.DIALOG_FRAGMENT_TAG
 import com.ichi2.anki.utils.ext.defaultConfig
 import com.ichi2.anki.utils.ext.dismissAllDialogFragments
 import com.ichi2.anki.widgets.DeckAdapter
@@ -697,6 +699,27 @@ class DeckPickerTest : RobolectricTest() {
 
             assertEquals(deckId, assertNotNull(fragment).viewModel.selectedDeckId)
             assertEquals("Another Deck", findViewById<TextView>(R.id.studyoptions_deck_name).text.toString())
+        }
+    }
+
+    @Test
+    fun `a dialog stays open when the tablet's study options reload`() {
+        assumeTrue("We are running on a tablet", qualifiers!!.contains("xlarge"))
+
+        deckPicker {
+            advanceRobolectricLooper()
+            showSyncErrorDialog(SyncErrorDialog.Type.DIALOG_SYNC_CONFLICT_RESOLUTION)
+            advanceRobolectricLooper()
+            assertNotNull(supportFragmentManager.findFragmentByTag(DIALOG_FRAGMENT_TAG), "the dialog opened")
+
+            // what the end of a sync does: the deck list, and with it the side panel, reloads
+            viewModel.reloadDeckCounts().join()
+            advanceRobolectricLooper()
+
+            assertNotNull(
+                supportFragmentManager.findFragmentByTag(DIALOG_FRAGMENT_TAG),
+                "the sync conflict dialog is still there to answer",
+            )
         }
     }
 
