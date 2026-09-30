@@ -55,7 +55,9 @@ import com.ichi2.anki.libanki.testutils.AnkiTest
 import com.ichi2.anki.model.SelectableDeck
 import com.ichi2.anki.noteeditor.getNoteEditorFragment
 import com.ichi2.anki.noteeditor.openNoteEditorWithArgs
+import com.ichi2.anki.noteeditor.toIntent
 import com.ichi2.testutils.getString
+import com.ichi2.testutils.withQualifier
 import kotlinx.coroutines.runBlocking
 import org.hamcrest.MatcherAssert.assertThat
 import org.hamcrest.Matchers.contains
@@ -75,6 +77,7 @@ import java.util.concurrent.atomic.AtomicReference
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 @RunWith(AndroidJUnit4::class)
@@ -929,6 +932,29 @@ class NoteEditorTest : RobolectricTest() {
     }
 
     private fun clipboard() = targetContext.getSystemService(ClipboardManager::class.java)
+
+    @Test
+    fun `on a tablet the previewer waits for the rich text fields`() =
+        // the layout with the previewer pane is for sw720dp and up
+        withQualifier("sw720dp") {
+            targetContext.sharedPrefs().edit { putBoolean(NoteEditorFragment.PREF_NOTE_EDITOR_RICH_TEXT, true) }
+            val activity =
+                startActivityNormallyOpenCollectionWithIntent(
+                    NoteEditorActivity::class.java,
+                    NoteEditorDestination.AddNote().toIntent(targetContext),
+                )
+            advanceRobolectricLooper()
+            assertTrue(activity.hasPreviewerPane, "the previewer sits beside the editor")
+            // the two pages share one WebView engine, so the previewer's would hold up the fields
+            assertNull(activity.supportFragmentManager.findFragmentById(R.id.previewer_frame), "the previewer waits")
+
+            val webView = activity.findViewById<WebView>(R.id.RichTextEditorWebView)
+            shadowOf(webView).webViewClient.onPageFinished(webView, null)
+            callPage(webView, "onFieldsShown")
+            advanceRobolectricLooper()
+
+            assertNotNull(activity.supportFragmentManager.findFragmentById(R.id.previewer_frame), "then it loads")
+        }
 
     /** Calls [method] on the page's bridge to the app, as the page's script would. */
     private fun callPage(

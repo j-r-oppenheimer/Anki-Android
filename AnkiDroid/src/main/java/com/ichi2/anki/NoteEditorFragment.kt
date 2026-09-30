@@ -691,6 +691,7 @@ class NoteEditorFragment :
     }
 
     override fun onDestroyView() {
+        afterFieldsShown.clear()
         dismissRichPopups()
         richTextEditor?.destroy()
         richTextEditor = null
@@ -2887,7 +2888,27 @@ class NoteEditorFragment :
         return editor
     }
 
-    private val revealBelowRichText = Runnable { viewsBelowRichText().forEach { it.alpha = 1f } }
+    private val revealBelowRichText =
+        Runnable {
+            viewsBelowRichText().forEach { it.alpha = 1f }
+            richTextFieldsShown = true
+            val waiting = afterFieldsShown.toList()
+            afterFieldsShown.clear()
+            waiting.forEach { it() }
+        }
+
+    private var richTextFieldsShown = false
+    private val afterFieldsShown = mutableListOf<() -> Unit>()
+
+    /**
+     * Runs [block] once the rich text page has drawn its fields, or at once when
+     * there is no page to wait for. The editor's other WebViews, such as the
+     * tablet's previewer, share the page's engine: loading theirs first holds up
+     * the fields.
+     */
+    fun afterFieldsShown(block: () -> Unit) {
+        if (!richTextActive || richTextFieldsShown) block() else afterFieldsShown.add(block)
+    }
 
     /** The tags and cards buttons, and anything else laid out after the page. */
     private fun viewsBelowRichText(): List<View> {
