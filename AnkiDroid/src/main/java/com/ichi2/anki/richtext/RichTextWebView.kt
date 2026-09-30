@@ -6,6 +6,7 @@ import android.content.Context
 import android.os.Build
 import android.os.SystemClock
 import android.util.AttributeSet
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.MotionEvent.PointerCoords
 import android.view.MotionEvent.PointerProperties
@@ -94,6 +95,27 @@ class RichTextWebView
             if (t == 0) return
             scrollTo(scrollX, 0)
             scroller()?.scrollBy(0, t)
+        }
+
+        /**
+         * Sends undo and redo to the page's own history before the keyboard app sees
+         * them. A keyboard app can answer Ctrl+Z itself by taking back only the text
+         * it typed, which leaves anything else, such as a dropped picture, in place.
+         */
+        override fun dispatchKeyEventPreIme(event: KeyEvent): Boolean {
+            val command = historyCommand(event) ?: return super.dispatchKeyEventPreIme(event)
+            // The release is taken too, or the page would see a Ctrl+Z of its own.
+            if (event.action == KeyEvent.ACTION_DOWN) evaluateJavascript("document.execCommand('$command')", null)
+            return true
+        }
+
+        private fun historyCommand(event: KeyEvent): String? {
+            if (!event.isCtrlPressed || event.isAltPressed) return null
+            return when (event.keyCode) {
+                KeyEvent.KEYCODE_Z -> if (event.isShiftPressed) "redo" else "undo"
+                KeyEvent.KEYCODE_Y -> if (event.isShiftPressed) null else "redo"
+                else -> null
+            }
         }
 
         override fun onGenericMotionEvent(event: MotionEvent): Boolean {

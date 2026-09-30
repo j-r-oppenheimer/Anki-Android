@@ -7,6 +7,7 @@ import android.content.Context
 import android.os.Looper
 import android.os.SystemClock
 import android.view.InputDevice
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.MotionEvent.PointerCoords
 import android.view.MotionEvent.PointerProperties
@@ -124,6 +125,45 @@ class RichTextWebViewTest {
         assertThat("the page stays at its top, where the wheel can reach it", webView.scrollY, equalTo(0))
         assertThat("the fields show the same place instead", scrollView.scrollY, equalTo(300))
     }
+
+    @Test
+    fun `Ctrl+Z undoes in the page, ahead of the keyboard app`() {
+        val webView = RichTextWebView(context)
+
+        assertTrue(webView.dispatchKeyEventPreIme(key(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_Z, KeyEvent.META_CTRL_ON)))
+        assertThat(shadowOf(webView).lastEvaluatedJavascript, equalTo("document.execCommand('undo')"))
+        assertTrue(
+            "the release is taken too, so nothing undoes a second time",
+            webView.dispatchKeyEventPreIme(key(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_Z, KeyEvent.META_CTRL_ON)),
+        )
+    }
+
+    @Test
+    fun `Ctrl+Shift+Z and Ctrl+Y redo in the page`() {
+        val webView = RichTextWebView(context)
+
+        webView.dispatchKeyEventPreIme(key(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_Z, KeyEvent.META_CTRL_ON or KeyEvent.META_SHIFT_ON))
+        assertThat(shadowOf(webView).lastEvaluatedJavascript, equalTo("document.execCommand('redo')"))
+
+        webView.evaluateJavascript("marker()", null)
+        webView.dispatchKeyEventPreIme(key(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_Y, KeyEvent.META_CTRL_ON))
+        assertThat(shadowOf(webView).lastEvaluatedJavascript, equalTo("document.execCommand('redo')"))
+    }
+
+    @Test
+    fun `other keys still reach the keyboard app`() {
+        val webView = RichTextWebView(context)
+        webView.evaluateJavascript("marker()", null)
+
+        assertFalse(webView.dispatchKeyEventPreIme(key(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_Z, 0)))
+        assertThat(shadowOf(webView).lastEvaluatedJavascript, equalTo("marker()"))
+    }
+
+    private fun key(
+        action: Int,
+        code: Int,
+        meta: Int,
+    ) = KeyEvent(0L, 0L, action, code, 0, meta)
 
     /**
      * A page ten times taller than the scrolling view it sits in, as in the note
