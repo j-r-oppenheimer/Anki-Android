@@ -55,8 +55,12 @@
       // Every keystroke is pushed straight back so a save never races the editor.
       var active = null;
 
+      // The app finds a method by its name and its number of arguments, so one
+      // that takes none has to be called with none, not with an undefined.
       function post(name, arg) {
-        if (window.AnkiRich && window.AnkiRich[name]) window.AnkiRich[name](arg);
+        if (!window.AnkiRich || !window.AnkiRich[name]) return;
+        if (arguments.length < 2) window.AnkiRich[name]();
+        else window.AnkiRich[name](arg);
       }
 
       function reportHeight() {
