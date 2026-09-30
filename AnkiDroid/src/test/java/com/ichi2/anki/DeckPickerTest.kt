@@ -42,11 +42,13 @@ import com.ichi2.anki.databinding.ActivityHomescreenBinding
 import com.ichi2.anki.deckpicker.DeckPickerViewModel
 import com.ichi2.anki.dialogs.DatabaseErrorDialog
 import com.ichi2.anki.dialogs.DatabaseErrorDialog.DatabaseErrorDialogType
+import com.ichi2.anki.dialogs.DeckPickerConfirmDeleteDeckDialog
 import com.ichi2.anki.dialogs.DeckPickerContextMenu.DeckPickerContextMenuOption
 import com.ichi2.anki.dialogs.DeckPickerContextMenuResult
 import com.ichi2.anki.dialogs.DeckSelectionDialog
 import com.ichi2.anki.dialogs.setDeckPickerContextMenuResult
 import com.ichi2.anki.dialogs.utils.input
+import com.ichi2.anki.dialogs.utils.message
 import com.ichi2.anki.dialogs.utils.performPositiveClick
 import com.ichi2.anki.dialogs.utils.title
 import com.ichi2.anki.libanki.DeckId
@@ -106,6 +108,7 @@ import org.robolectric.shadows.ShadowDialog
 import org.robolectric.shadows.ShadowLooper
 import timber.log.Timber
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
@@ -269,9 +272,45 @@ class DeckPickerTest : RobolectricTest() {
     }
 
     @Test
+    fun `Delete shortcut requests confirmation only in tablet layout`() {
+        val deckName = "Deck to delete"
+        val deckId = addDeck(deckName, setAsSelected = true)
+        col.setDeck(listOf(addBasicNote().firstCard().id), deckId)
+
+        deckPicker {
+            val handled = onKeyUp(KeyEvent.KEYCODE_DEL, KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DEL))
+            if (!fragmented) {
+                assertFalse(handled)
+                assertTrue(supportFragmentManager.fragments.none { it is DeckPickerConfirmDeleteDeckDialog })
+                return@deckPicker
+            }
+
+            assertTrue(handled)
+            advanceRobolectricLooperUntil {
+                supportFragmentManager.fragments.any { it is DeckPickerConfirmDeleteDeckDialog && it.dialog?.isShowing == true }
+            }
+            val dialog =
+                supportFragmentManager.fragments
+                    .filterIsInstance<DeckPickerConfirmDeleteDeckDialog>()
+                    .single()
+                    .requireDialog() as AlertDialog
+            assertEquals(getString(CommonString.delete_deck_title), dialog.title)
+            assertThat(dialog.message, containsString(deckName))
+            assertEquals(deckId, col.decks.byName(deckName)?.id)
+            assertEquals(1, col.cardCount())
+
+            dialog.performPositiveClick()
+            advanceRobolectricLooperUntil { col.decks.byName(deckName) == null }
+            assertEquals(0, col.cardCount())
+        }
+    }
+
+    @Test
     fun databaseLockedTest() {
         // don't call .onCreate
-        val deckPicker = Robolectric.buildActivity(DeckPickerEx::class.java, Intent()).get()
+        val controller = Robolectric.buildActivity(DeckPickerEx::class.java, Intent())
+        saveControllerForCleanup(controller)
+        val deckPicker = controller.get()
         deckPicker.handleStartupFailure(InitialActivity.StartupFailure.DatabaseLocked)
         assertThat(
             deckPicker.databaseErrorDialog,
@@ -283,7 +322,9 @@ class DeckPickerTest : RobolectricTest() {
     @Test
     fun `storage undecided shows load-failure options rather than crashing`() {
         // don't call .onCreate
-        val deckPicker = Robolectric.buildActivity(DeckPickerEx::class.java, Intent()).get()
+        val controller = Robolectric.buildActivity(DeckPickerEx::class.java, Intent())
+        saveControllerForCleanup(controller)
+        val deckPicker = controller.get()
         deckPicker.handleStartupFailure(InitialActivity.StartupFailure.StorageUndecided)
         assertThat(
             deckPicker.databaseErrorDialog,
@@ -714,31 +755,32 @@ class DeckPickerTest : RobolectricTest() {
     @Test
     fun `restored study options fragment is pruned when recreated into single pane`() {
         assumeTrue("We are running on a tablet", qualifiers!!.contains("xlarge"))
-        val scenario = ActivityScenario.launch(DeckPicker::class.java)
-        advanceRobolectricLooper()
-        scenario.onActivity { deckPicker ->
-            assertThat(
-                "side panel fragment should be displayed on tablet",
-                deckPicker.supportFragmentManager.findFragmentById(R.id.studyoptions_fragment),
-                notNullValue(),
-            )
-        }
-        // Fold the device: the activity recreates into the single-pane layout, while
-        // FragmentManager restores the saved side panel fragment into it.
-        RuntimeEnvironment.setQualifiers("sw320dp")
-        scenario.recreate()
-        advanceRobolectricLooper()
-        scenario.onActivity { deckPicker ->
-            assertThat(
-                "restored side panel fragment must be pruned in single-pane layout",
-                deckPicker.supportFragmentManager.findFragmentById(R.id.studyoptions_fragment),
-                nullValue(),
-            )
-            assertThat(
-                "study options menu items must not leak into the single-pane toolbar",
-                deckPicker.menu().findItem(R.id.action_custom_study),
-                nullValue(),
-            )
+        ActivityScenario.launch(DeckPicker::class.java).use { scenario ->
+            advanceRobolectricLooper()
+            scenario.onActivity { deckPicker ->
+                assertThat(
+                    "side panel fragment should be displayed on tablet",
+                    deckPicker.supportFragmentManager.findFragmentById(R.id.studyoptions_fragment),
+                    notNullValue(),
+                )
+            }
+            // Fold the device: the activity recreates into the single-pane layout, while
+            // FragmentManager restores the saved side panel fragment into it.
+            RuntimeEnvironment.setQualifiers("sw320dp")
+            scenario.recreate()
+            advanceRobolectricLooper()
+            scenario.onActivity { deckPicker ->
+                assertThat(
+                    "restored side panel fragment must be pruned in single-pane layout",
+                    deckPicker.supportFragmentManager.findFragmentById(R.id.studyoptions_fragment),
+                    nullValue(),
+                )
+                assertThat(
+                    "study options menu items must not leak into the single-pane toolbar",
+                    deckPicker.menu().findItem(R.id.action_custom_study),
+                    nullValue(),
+                )
+            }
         }
     }
 
