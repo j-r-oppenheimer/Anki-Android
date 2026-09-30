@@ -1506,6 +1506,7 @@ open class DeckPicker :
             refreshState()
         }
         message?.let { dialogHandler.sendStoredMessage(it) }
+        NoteEditorFragment.warmRichTextPage(this)
     }
 
     fun refreshState() {
