@@ -167,7 +167,6 @@ import com.ichi2.anki.pages.viewmodel.ImageOcclusionArgs
 import com.ichi2.anki.previewer.TemplatePreviewerArguments
 import com.ichi2.anki.previewer.TemplatePreviewerPage
 import com.ichi2.anki.richtext.RichTextEditor
-import com.ichi2.anki.richtext.RichTextPreloader
 import com.ichi2.anki.richtext.showRichColourPicker
 import com.ichi2.anki.servicelayer.LanguageHintService.languageHint
 import com.ichi2.anki.servicelayer.NoteService
@@ -693,9 +692,6 @@ class NoteEditorFragment :
 
     override fun onDestroyView() {
         dismissRichPopups()
-        // The next note editor's page starts loading before this one goes, which
-        // keeps the page's engine running in between.
-        warmRichTextPage(requireContext())
         richTextEditor?.destroy()
         richTextEditor = null
         richTextWebView = null
@@ -2817,7 +2813,11 @@ class NoteEditorFragment :
     private fun applyRichTextMode() {
         val webView = richTextWebView ?: return
         val active = richTextActive
-        if (!active) dismissRichPopups()
+        if (!active) {
+            dismissRichPopups()
+            // The HTML fields are there at once, so nothing below has anything to wait for.
+            revealBelowRichText.run()
+        }
         webView.isVisible = active
         richTextToolbar?.isVisible = active
         fieldsLayoutContainer?.isVisible = !active
@@ -2852,59 +2852,48 @@ class NoteEditorFragment :
     internal val richTextFieldValues: List<String>
         get() = editFields.orEmpty().map { convertToHtmlNewline(it.fieldText ?: "", shouldReplaceNewlines()) }
 
-    private fun createRichTextEditor(layoutWebView: WebView): RichTextEditor {
-        // A page loaded ahead of time draws the fields at once; otherwise load one now.
+    private fun createRichTextEditor(webView: WebView): RichTextEditor {
         val editor =
-            RichTextPreloader.take(requireActivity())?.also { adoptRichTextPage(layoutWebView, it.webView) }
-                ?: RichTextEditor(layoutWebView).also { it.load() }
-        val webView = editor.webView
-        editor.mediaDir = mediaDir
-        editor.listener =
-            object : RichTextEditor.Listener {
-                override fun onFieldChanged(
-                    index: Int,
-                    html: String,
-                ) = onRichTextFieldChanged(index, html)
-
-                override fun onHeightChanged(heightPx: Int) {
+            RichTextEditor(
+                webView = webView,
+                onFieldChanged = ::onRichTextFieldChanged,
+                onHeightChanged = { contentHeight ->
                     // Resizing the view reflows the page, which reports a height
                     // again. Ignoring a pixel of drift stops the two chasing each
                     // other and jolting the list of fields while it happens.
-                    if (abs(webView.layoutParams.height - heightPx) > 1) {
-                        webView.updateLayoutParams { height = heightPx }
+                    if (abs(webView.layoutParams.height - contentHeight) > 1) {
+                        webView.updateLayoutParams { height = contentHeight }
                     }
-                }
-
-                override fun onFormatStateChanged(commands: Set<String>) = onRichTextFormatState(commands)
-
-                override fun onCaretMoved(topPx: Int) = scrollRichTextCaretIntoView(topPx)
-
-                override fun onContextMenu(
-                    xPx: Int,
-                    yPx: Int,
-                ) = showFloatingToolbar(xPx, yPx)
-
-                override fun onPasteMedia() = pasteMediaIntoRichText()
-            }
+                },
+                onFormatStateChanged = ::onRichTextFormatState,
+                onCaretMoved = ::scrollRichTextCaretIntoView,
+                onContextMenu = ::showFloatingToolbar,
+                // In case the page never gets as far as showing its fields.
+                onPageLoaded = { webView.postDelayed(revealBelowRichText, REVEAL_BELOW_RICH_TEXT_MS) },
+                onFieldsShown = {
+                    webView.removeCallbacks(revealBelowRichText)
+                    revealBelowRichText.run()
+                },
+                onPasteMedia = ::pasteMediaIntoRichText,
+            )
+        // The page has no height until it has loaded and drawn the fields, so the
+        // tags and cards buttons would show first where the fields are about to go.
+        // They come in with the fields instead, as they do with the HTML editor.
+        viewsBelowRichText().forEach { it.alpha = 0f }
+        editor.load(mediaDir)
         applyRichTextTheme(editor)
         webView.setOnDragListener(::onRichTextDrag)
         richTextEditor = editor
         return editor
     }
 
-    /** Puts [page], loaded ahead of time, where the layout's own page is. */
-    private fun adoptRichTextPage(
-        layoutWebView: WebView,
-        page: WebView,
-    ) {
-        val parent = layoutWebView.parent as ViewGroup
-        val index = parent.indexOfChild(layoutWebView)
-        page.id = layoutWebView.id
-        page.visibility = layoutWebView.visibility
-        parent.removeView(layoutWebView)
-        parent.addView(page, index, layoutWebView.layoutParams)
-        layoutWebView.destroy()
-        richTextWebView = page
+    private val revealBelowRichText = Runnable { viewsBelowRichText().forEach { it.alpha = 1f } }
+
+    /** The tags and cards buttons, and anything else laid out after the page. */
+    private fun viewsBelowRichText(): List<View> {
+        val webView = richTextWebView ?: return emptyList()
+        val column = webView.parent as? ViewGroup ?: return emptyList()
+        return column.children.drop(column.indexOfChild(webView) + 1).toList()
     }
 
     /**
@@ -3582,15 +3571,8 @@ class NoteEditorFragment :
         @VisibleForTesting
         internal const val PREF_NOTE_EDITOR_RICH_TEXT = "noteEditorRichText"
 
-        /**
-         * Loads a rich text page ahead of time, when the note editor uses the rich
-         * text mode, so that the next note editor draws its fields as soon as it opens.
-         */
-        fun warmRichTextPage(context: Context) {
-            if (!context.sharedPrefs().getBoolean(PREF_NOTE_EDITOR_RICH_TEXT, false)) return
-            RichTextPreloader.warm(context)
-        }
-
+        /** How long the tags wait, after the page loads, for it to show the fields. */
+        private const val REVEAL_BELOW_RICH_TEXT_MS = 1000L
         private const val PREF_NOTE_EDITOR_HIGHLIGHT = "noteEditorHighlightColour"
         private const val PREF_NOTE_EDITOR_TEXT_COLOUR = "noteEditorTextColour"
 

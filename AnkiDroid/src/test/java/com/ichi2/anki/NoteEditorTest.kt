@@ -55,7 +55,6 @@ import com.ichi2.anki.libanki.testutils.AnkiTest
 import com.ichi2.anki.model.SelectableDeck
 import com.ichi2.anki.noteeditor.getNoteEditorFragment
 import com.ichi2.anki.noteeditor.openNoteEditorWithArgs
-import com.ichi2.anki.richtext.RichTextPreloader
 import com.ichi2.testutils.getString
 import kotlinx.coroutines.runBlocking
 import org.hamcrest.MatcherAssert.assertThat
@@ -65,7 +64,6 @@ import org.hamcrest.Matchers.equalTo
 import org.hamcrest.Matchers.lessThan
 import org.hamcrest.Matchers.not
 import org.hamcrest.Matchers.startsWith
-import org.junit.After
 import org.junit.Ignore
 import org.junit.Test
 import org.junit.jupiter.api.assertDoesNotThrow
@@ -77,7 +75,6 @@ import java.util.concurrent.atomic.AtomicReference
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
-import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 @RunWith(AndroidJUnit4::class)
@@ -885,30 +882,32 @@ class NoteEditorTest : RobolectricTest() {
     }
 
     @Test
-    fun `the tags are not held back while the rich text page loads`() {
+    fun `the tags wait for the rich text fields, and come in with them`() {
         targetContext.sharedPrefs().edit { putBoolean(NoteEditorFragment.PREF_NOTE_EDITOR_RICH_TEXT, true) }
         val editor = getNoteEditorAdding(NoteType.BASIC).build()
+        val tags = editor.requireView().findViewById<View>(R.id.CardEditorTagButton)
+        assertThat("the page is still loading, so the tags would sit where the fields go", tags.alpha, equalTo(0f))
 
-        assertThat(editor.requireView().findViewById<View>(R.id.CardEditorTagButton).alpha, equalTo(1f))
+        val webView = editor.requireView().findViewById<WebView>(R.id.RichTextEditorWebView)
+        shadowOf(webView).webViewClient.onPageFinished(webView, null)
+        callPage(webView, "onFieldsShown")
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertThat(tags.alpha, equalTo(1f))
     }
 
     @Test
-    fun `a rich text page loaded ahead of time draws the fields at once`() {
+    fun `the tags still show if the page never reports its fields`() {
         targetContext.sharedPrefs().edit { putBoolean(NoteEditorFragment.PREF_NOTE_EDITOR_RICH_TEXT, true) }
-        NoteEditorFragment.warmRichTextPage(targetContext)
-        val waiting = assertNotNull(RichTextPreloader.waitingPage, "a page is loading for the next note editor")
-        shadowOf(waiting).webViewClient.onPageFinished(waiting, null)
-
         val editor = getNoteEditorAdding(NoteType.BASIC).build()
+        val tags = editor.requireView().findViewById<View>(R.id.CardEditorTagButton)
         val webView = editor.requireView().findViewById<WebView>(R.id.RichTextEditorWebView)
 
-        assertSame(waiting, webView, "the note editor uses the page loaded ahead of time")
-        // nothing waits on a load: the fields, then their size, went straight to the page
-        assertThat(shadowOf(webView).lastEvaluatedJavascript, startsWith("setFontSize("))
-    }
+        shadowOf(webView).webViewClient.onPageFinished(webView, null)
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(2))
 
-    @After
-    fun discardPreloadedRichTextPage() = RichTextPreloader.discard()
+        assertThat(tags.alpha, equalTo(1f))
+    }
 
     @Test
     fun `a copied image pasted in the rich text page is added by the app`() {

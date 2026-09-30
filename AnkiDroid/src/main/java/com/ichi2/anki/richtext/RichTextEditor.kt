@@ -30,56 +30,28 @@ import java.util.Locale
  * class pushes the field HTML into the page when the mode is entered, and pushes
  * every edit straight back out through [onFieldChanged]. Saving, duplicate
  * checking and the multimedia buttons therefore keep working untouched.
- *
- * The page can be loaded before any note editor exists, by [RichTextPreloader];
- * the editor that takes it over then sets [listener] and [mediaDir].
  */
 class RichTextEditor(
-    val webView: WebView,
+    private val webView: WebView,
+    private val onFieldChanged: (index: Int, html: String) -> Unit,
+    private val onHeightChanged: (heightPx: Int) -> Unit,
+    private val onFormatStateChanged: (commands: Set<String>) -> Unit,
+    private val onCaretMoved: (topPx: Int) -> Unit,
+    private val onContextMenu: (xPx: Int, yPx: Int) -> Unit,
+    private val onPageLoaded: () -> Unit = {},
+    private val onFieldsShown: () -> Unit = {},
+    private val onPasteMedia: () -> Boolean = { false },
 ) {
-    /** What the page reports to: the note editor showing it. */
-    interface Listener {
-        fun onFieldChanged(
-            index: Int,
-            html: String,
-        )
-
-        fun onHeightChanged(heightPx: Int)
-
-        fun onFormatStateChanged(commands: Set<String>)
-
-        fun onCaretMoved(topPx: Int)
-
-        fun onContextMenu(
-            xPx: Int,
-            yPx: Int,
-        )
-
-        /**
-         * Asked before the page pastes, on the page's script thread.
-         *
-         * @return whether the clipboard holds media, which the app then adds and
-         * puts at the caret; the page's own paste would only put in the clipboard's
-         * text for it, an intent: link
-         */
-        fun onPasteMedia(): Boolean
-    }
-
-    @Volatile
-    var listener: Listener? = null
-
-    /** The collection's media folder, which the page's pictures are served from. */
-    @Volatile
-    var mediaDir: File? = null
-
     private val handler = Handler(Looper.getMainLooper())
     private var loaded = false
 
     /** Calls made before the page finished loading, replayed in order once it has. */
     private val pending = mutableListOf<() -> Unit>()
+    private var mediaDir: File? = null
 
     @SuppressLint("SetJavaScriptEnabled")
-    fun load() {
+    fun load(mediaDir: File?) {
+        this.mediaDir = mediaDir
         webView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = false
@@ -105,6 +77,7 @@ class RichTextEditor(
                     CustomFont.injectIntoPage(webView)
                     pending.forEach { it() }
                     pending.clear()
+                    onPageLoaded()
                 }
             }
 
@@ -263,18 +236,18 @@ class RichTextEditor(
             if (separator < 0) return
             val index = payload.substring(0, separator).toIntOrNull() ?: return
             val html = payload.substring(separator + 1)
-            handler.post { listener?.onFieldChanged(index, html) }
+            handler.post { this@RichTextEditor.onFieldChanged(index, html) }
         }
 
         @JavascriptInterface
         fun onHeight(height: Int) {
-            handler.post { listener?.onHeightChanged(toDevicePixels(height)) }
+            handler.post { this@RichTextEditor.onHeightChanged(toDevicePixels(height)) }
         }
 
         @JavascriptInterface
         fun onFormatState(commands: String) {
             val set = commands.split(',').filter { it.isNotEmpty() }.toSet()
-            handler.post { listener?.onFormatStateChanged(set) }
+            handler.post { this@RichTextEditor.onFormatStateChanged(set) }
         }
 
         @JavascriptInterface
@@ -283,16 +256,26 @@ class RichTextEditor(
             if (parts.size != 2) return
             val x = parts[0].toIntOrNull() ?: return
             val y = parts[1].toIntOrNull() ?: return
-            handler.post { listener?.onContextMenu(toDevicePixels(x), toDevicePixels(y)) }
+            handler.post { this@RichTextEditor.onContextMenu(toDevicePixels(x), toDevicePixels(y)) }
         }
 
-        /** @see Listener.onPasteMedia */
+        /**
+         * Asked by the page before it pastes. True when the clipboard holds media,
+         * which the app then adds and puts at the caret; the page's own paste would
+         * only put in the clipboard's text for it, an intent: link.
+         */
         @JavascriptInterface
-        fun pasteMedia(): Boolean = listener?.onPasteMedia() ?: false
+        fun pasteMedia(): Boolean = this@RichTextEditor.onPasteMedia()
+
+        /** The page has drawn the fields it was last given, and reported their height. */
+        @JavascriptInterface
+        fun onFieldsShown() {
+            handler.post { this@RichTextEditor.onFieldsShown() }
+        }
 
         @JavascriptInterface
         fun onCaret(top: Int) {
-            handler.post { listener?.onCaretMoved(toDevicePixels(top)) }
+            handler.post { this@RichTextEditor.onCaretMoved(toDevicePixels(top)) }
         }
 
         /** The page is laid out at `initial-scale=1`, so a CSS pixel is a dp. */
@@ -300,7 +283,6 @@ class RichTextEditor(
     }
 
     fun destroy() {
-        listener = null
         try {
             webView.removeJavascriptInterface("AnkiRich")
             webView.destroy()
