@@ -635,7 +635,6 @@ class NoteEditorFragment :
         savedInstanceState: Bundle?,
     ) {
         super.onViewCreated(view, savedInstanceState)
-        timeline()?.mark("editor view")
         // Set up toolbar
         toolbar = binding.editorToolbar
         toolbar.apply {
@@ -2871,13 +2870,11 @@ class NoteEditorFragment :
         get() = editFields.orEmpty().map { convertToHtmlNewline(it.fieldText ?: "", shouldReplaceNewlines()) }
 
     private fun createRichTextEditor(webView: WebView): RichTextEditor {
-        timeline()?.mark("page load start")
         val editor =
             RichTextEditor(
                 webView = webView,
                 onFieldChanged = ::onRichTextFieldChanged,
                 onHeightChanged = { contentHeight ->
-                    timeline()?.mark("first height", "${contentHeight}px")
                     // Resizing the view reflows the page, which reports a height
                     // again. Ignoring a pixel of drift stops the two chasing each
                     // other and jolting the list of fields while it happens.
@@ -2889,13 +2886,8 @@ class NoteEditorFragment :
                 onCaretMoved = ::scrollRichTextCaretIntoView,
                 onContextMenu = ::showFloatingToolbar,
                 // In case the page never gets as far as showing its fields.
-                onPageLoaded = {
-                    timeline()?.mark("page loaded")
-                    webView.postDelayed(revealBelowRichText, REVEAL_BELOW_RICH_TEXT_MS)
-                },
+                onPageLoaded = { webView.postDelayed(revealBelowRichText, REVEAL_BELOW_RICH_TEXT_MS) },
                 onFieldsShown = {
-                    timeline()?.mark("fields placed", "width ${webView.width * 160 / resources.displayMetrics.densityDpi}dp")
-                    markFieldsDrawn(webView)
                     webView.removeCallbacks(revealBelowRichText)
                     revealBelowRichText.run()
                 },
@@ -2910,26 +2902,6 @@ class NoteEditorFragment :
         webView.setOnDragListener(::onRichTextDrag)
         richTextEditor = editor
         return editor
-    }
-
-    /** TEMPORARY: see [RichTextLoadTimeline]. */
-    private fun timeline() = (activity as? NoteEditorActivity)?.loadTimeline
-
-    /** TEMPORARY: when the fields reach the screen, and the page's own timings. */
-    private fun markFieldsDrawn(webView: WebView) {
-        webView.postVisualStateCallback(
-            0,
-            object : WebView.VisualStateCallback() {
-                override fun onComplete(requestId: Long) {
-                    timeline()?.mark("fields drawn")
-                }
-            },
-        )
-        val script =
-            "(function(){var t=performance.timing;" +
-                "return 'resp '+(t.responseEnd-t.navigationStart)+' dom '+(t.domContentLoadedEventEnd-t.navigationStart)+" +
-                "' now '+Math.round(performance.now());})()"
-        webView.evaluateJavascript(script) { result -> timeline()?.mark("page js", result.trim('"')) }
     }
 
     private val revealBelowRichText =
