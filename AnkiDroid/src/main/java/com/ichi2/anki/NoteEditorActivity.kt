@@ -72,6 +72,9 @@ class NoteEditorActivity :
      */
     private var previewerFrame: FragmentContainerView? = null
 
+    /** Whether a previewer load waiting on the rich text fields replaces the previewer; null when none waits. */
+    private var previewerWaitingToReplace: Boolean? = null
+
     /** TEMPORARY: see [RichTextLoadTimeline]. */
     var loadTimeline: RichTextLoadTimeline? = null
         private set
@@ -256,13 +259,29 @@ class NoteEditorActivity :
         if (!isPreviewerVisible) {
             return
         }
-        loadTimeline?.mark("preview start")
 
         // Check if noteEditorFragment is initialized before proceeding
         if (!::noteEditorFragment.isInitialized) {
             Timber.w("loadNoteEditorPreviewer called before noteEditorFragment was initialized")
             return
         }
+
+        // The previewer's page and the rich text fields share one WebView engine, so
+        // loading the previewer first holds the fields up. Every call waits, and
+        // calls made meanwhile are folded into one.
+        if (!noteEditorFragment.richTextFieldsReady) {
+            val waiting = previewerWaitingToReplace
+            previewerWaitingToReplace = (waiting ?: false) || forceReplace
+            if (waiting == null) {
+                noteEditorFragment.afterFieldsShown {
+                    val replace = previewerWaitingToReplace ?: false
+                    previewerWaitingToReplace = null
+                    loadNoteEditorPreviewer(replace)
+                }
+            }
+            return
+        }
+        loadTimeline?.mark("preview start")
 
         // Check if editorNote is available before proceeding
         val note =
