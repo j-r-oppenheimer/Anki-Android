@@ -12,6 +12,7 @@ import android.content.ComponentName
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Bundle
+import android.os.Looper
 import android.os.Parcel
 import android.os.Parcelable
 import android.provider.MediaStore
@@ -56,15 +57,18 @@ import com.ichi2.testutils.getString
 import kotlinx.coroutines.runBlocking
 import org.hamcrest.MatcherAssert.assertThat
 import org.hamcrest.Matchers.contains
+import org.hamcrest.Matchers.containsString
 import org.hamcrest.Matchers.equalTo
 import org.hamcrest.Matchers.lessThan
 import org.hamcrest.Matchers.not
+import org.hamcrest.Matchers.startsWith
 import org.junit.Ignore
 import org.junit.Test
 import org.junit.jupiter.api.assertDoesNotThrow
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import java.time.Duration
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -842,6 +846,26 @@ class NoteEditorTest : RobolectricTest() {
         type.getDeclaredField("mClipDescription").apply { isAccessible = true }.set(event, description)
         return event
     }
+
+    @Test
+    fun `adding a note clears the rich text page for the next one`() =
+        runTest {
+            val editor = richTextEditorWithLoadedPage()
+            val webView = editor.requireView().findViewById<WebView>(R.id.RichTextEditorWebView)
+            editor.setFieldValueFromUi(0, "Hello")
+            editor.setFieldValueFromUi(1, "World")
+            // out to the HTML editor and back, so the page shows the note about to be added
+            editor.toggleRichTextMode()
+            editor.toggleRichTextMode()
+
+            editor.saveNote()
+            // the fields are cleared once the first one has taken focus
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1))
+
+            val shown = shadowOf(webView).lastEvaluatedJavascript
+            assertThat("the page is given the cleared fields", shown, startsWith("setFields("))
+            assertThat(shown, not(containsString("Hello")))
+        }
 
     /** A note editor in rich text mode whose page has finished loading. */
     private fun richTextEditorWithLoadedPage(): NoteEditorFragment {

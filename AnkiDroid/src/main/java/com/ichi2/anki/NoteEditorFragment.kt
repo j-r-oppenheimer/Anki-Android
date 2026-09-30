@@ -2375,6 +2375,9 @@ class NoteEditorFragment :
                 if (addNote) {
                     addNoteFieldBaseline = editFields!!.map { it.text?.toString() ?: "" }
                 }
+                // The fields were cleared in place rather than rebuilt, so the page
+                // still shows the note just added.
+                if (richTextActive) showFieldsInRichText()
             }
         } else {
             populateEditFields(changeType)
@@ -2814,8 +2817,12 @@ class NoteEditorFragment :
         if (!active) return
 
         updateClozeButtons()
-        val editor = richTextEditor ?: createRichTextEditor(webView)
-        editor.setFields(
+        richTextEditor ?: createRichTextEditor(webView)
+        showFieldsInRichText()
+    }
+
+    private fun showFieldsInRichText() {
+        richTextEditor?.setFields(
             names = currentFields.map { it.name },
             values = richTextFieldValues,
         )
