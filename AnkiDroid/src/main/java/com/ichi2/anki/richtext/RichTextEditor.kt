@@ -52,6 +52,8 @@ class RichTextEditor(
         webView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = false
+            // The text is sized to match the HTML editor; a zoom would undo that.
+            textZoom = 100
         }
         webView.isVerticalScrollBarEnabled = false
         webView.overScrollMode = View.OVER_SCROLL_NEVER
@@ -120,8 +122,12 @@ class RichTextEditor(
         )
     }
 
-    /** Sets the fields' text size, in CSS pixels. */
-    fun setFontSize(cssPixels: Float) = whenLoaded { webView.evaluateJavascript("setFontSize($cssPixels)", null) }
+    /**
+     * Sets the fields' text size, in screen pixels. The page turns them into CSS
+     * pixels by the ratio it actually draws at, rather than trusting it to be the
+     * screen density.
+     */
+    fun setFontSize(screenPixels: Float) = whenLoaded { webView.evaluateJavascript("setFontSize($screenPixels)", null) }
 
     /** Replaces the page contents with [names] labelled fields holding [values]. */
     fun setFields(

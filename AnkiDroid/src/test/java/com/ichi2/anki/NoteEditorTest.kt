@@ -868,13 +868,15 @@ class NoteEditorTest : RobolectricTest() {
         }
 
     @Test
+    @Config(qualifiers = "xhdpi") // a screen pixel is not a dp, so the two cannot be mixed up
     fun `the rich text page uses the HTML editor's text size`() {
         val editor = richTextEditorWithLoadedPage()
         val webView = editor.requireView().findViewById<WebView>(R.id.RichTextEditorWebView)
-        // The page is laid out at initial-scale=1, so a CSS pixel is a dp.
-        val cssPixels = editor.getFieldForTest(0).textSize / editor.resources.displayMetrics.density
+        // in screen pixels: the page turns them into its own, by the ratio it really draws at
+        val screenPixels = editor.getFieldForTest(0).textSize
 
-        assertThat(shadowOf(webView).lastEvaluatedJavascript, equalTo("setFontSize($cssPixels)"))
+        assertThat(shadowOf(webView).lastEvaluatedJavascript, equalTo("setFontSize($screenPixels)"))
+        assertThat("the page adds no text zoom of its own", webView.settings.textZoom, equalTo(100))
     }
 
     /** A note editor in rich text mode whose page has finished loading. */

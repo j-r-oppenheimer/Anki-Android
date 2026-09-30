@@ -127,8 +127,10 @@
         s.setProperty('--accent', accent);
       }
 
-      function setFontSize(px) {
-        document.documentElement.style.setProperty('--field-font-size', px + 'px');
+      /** Takes the size in screen pixels, and draws it at that size on screen. */
+      function setFontSize(screenPx) {
+        var css = screenPx / (window.devicePixelRatio || 1);
+        document.documentElement.style.setProperty('--field-font-size', css + 'px');
       }
 
       function focusField(index) {

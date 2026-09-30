@@ -2833,8 +2833,7 @@ class NoteEditorFragment :
     /** Sizes the page's text as the HTML editor's is, which follows the font size setting. */
     private fun applyRichTextFontSize() {
         val field = editFields?.firstOrNull() ?: return
-        // The page is laid out at initial-scale=1, so a CSS pixel is a dp.
-        richTextEditor?.setFontSize(field.textSize / resources.displayMetrics.density)
+        richTextEditor?.setFontSize(field.textSize)
     }
 
     /**
