@@ -120,6 +120,9 @@ class RichTextEditor(
         )
     }
 
+    /** Sets the fields' text size, in CSS pixels. */
+    fun setFontSize(cssPixels: Float) = whenLoaded { webView.evaluateJavascript("setFontSize($cssPixels)", null) }
+
     /** Replaces the page contents with [names] labelled fields holding [values]. */
     fun setFields(
         names: List<String>,

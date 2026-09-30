@@ -11,6 +11,7 @@
         --label: #808080;
         --border: #d0d0d0;
         --accent: #3f51b5;
+        --field-font-size: 16px;
       }
       html, body {
         margin: 0;
@@ -29,7 +30,9 @@
         padding-bottom: 4px;
       }
       .editor {
-        min-height: 2.4em;
+        font-size: var(--field-font-size);
+        /* One line, as an empty field in the HTML editor is. */
+        min-height: 1.5em;
         padding: 8px 10px;
         border: 1px solid var(--border);
         border-radius: 6px;
@@ -122,6 +125,10 @@
         s.setProperty('--label', label);
         s.setProperty('--border', border);
         s.setProperty('--accent', accent);
+      }
+
+      function setFontSize(px) {
+        document.documentElement.style.setProperty('--field-font-size', px + 'px');
       }
 
       function focusField(index) {

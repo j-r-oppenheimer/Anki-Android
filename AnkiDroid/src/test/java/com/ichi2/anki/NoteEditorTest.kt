@@ -867,6 +867,16 @@ class NoteEditorTest : RobolectricTest() {
             assertThat(shown, not(containsString("Hello")))
         }
 
+    @Test
+    fun `the rich text page uses the HTML editor's text size`() {
+        val editor = richTextEditorWithLoadedPage()
+        val webView = editor.requireView().findViewById<WebView>(R.id.RichTextEditorWebView)
+        // The page is laid out at initial-scale=1, so a CSS pixel is a dp.
+        val cssPixels = editor.getFieldForTest(0).textSize / editor.resources.displayMetrics.density
+
+        assertThat(shadowOf(webView).lastEvaluatedJavascript, equalTo("setFontSize($cssPixels)"))
+    }
+
     /** A note editor in rich text mode whose page has finished loading. */
     private fun richTextEditorWithLoadedPage(): NoteEditorFragment {
         targetContext.sharedPrefs().edit { putBoolean(NoteEditorFragment.PREF_NOTE_EDITOR_RICH_TEXT, true) }

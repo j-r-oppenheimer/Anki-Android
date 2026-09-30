@@ -1731,6 +1731,7 @@ class NoteEditorFragment :
         for (f in editFields!!) {
             f.textSize = fontSizeSp.toFloat()
         }
+        applyRichTextFontSize()
     }
 
     // Note: We're not being accurate here - the initial value isn't actually what's supplied in the layout.xml
@@ -2819,6 +2820,7 @@ class NoteEditorFragment :
         updateClozeButtons()
         richTextEditor ?: createRichTextEditor(webView)
         showFieldsInRichText()
+        applyRichTextFontSize()
     }
 
     private fun showFieldsInRichText() {
@@ -2826,6 +2828,13 @@ class NoteEditorFragment :
             names = currentFields.map { it.name },
             values = richTextFieldValues,
         )
+    }
+
+    /** Sizes the page's text as the HTML editor's is, which follows the font size setting. */
+    private fun applyRichTextFontSize() {
+        val field = editFields?.firstOrNull() ?: return
+        // The page is laid out at initial-scale=1, so a CSS pixel is a dp.
+        richTextEditor?.setFontSize(field.textSize / resources.displayMetrics.density)
     }
 
     /**
