@@ -49,11 +49,11 @@ object CustomFont {
     /** 카드가 폰트를 받아가는 주소. 상대 주소라 기준 주소와 같은 출처가 됩니다. */
     const val REQUEST_PATH = "/__ankidroid_user_font"
 
-    private const val KEY_APPLY_APP = "customFontApplyApp"
-    private const val KEY_APPLY_CARDS = "customFontApplyCards"
-    private const val KEY_NAME = "customFontName"
+    private const val PREF_APPLY_APP = "customFontApplyApp"
+    private const val PREF_APPLY_CARDS = "customFontApplyCards"
+    private const val PREF_NAME = "customFontName"
     private const val RESCAN_INTERVAL_MS = 150L
-    private const val KEY_CARD_BACKGROUND = "cardThemeBackground"
+    private const val PREF_CARD_BACKGROUND = "cardThemeBackground"
     private const val FAMILY = "AnkiDroidUserFont"
 
     private var cached: Typeface? = null
@@ -67,7 +67,7 @@ object CustomFont {
     /** 설정 화면에 보여줄 파일 이름. 파일이 없으면 null. */
     fun displayName(context: Context): String? {
         if (!fontFile(context).exists()) return null
-        return context.sharedPrefs().getString(KEY_NAME, null)
+        return context.sharedPrefs().getString(PREF_NAME, null)
     }
 
     fun typeface(context: Context): Typeface? {
@@ -113,7 +113,7 @@ object CustomFont {
             context
                 .sharedPrefs()
                 .edit()
-                .putString(KEY_NAME, name)
+                .putString(PREF_NAME, name)
                 .apply()
             true
         } catch (e: Exception) {
@@ -132,13 +132,13 @@ object CustomFont {
         context
             .sharedPrefs()
             .edit()
-            .remove(KEY_NAME)
+            .remove(PREF_NAME)
             .apply()
     }
 
-    private fun appliesToApp(context: Context): Boolean = context.sharedPrefs().getBoolean(KEY_APPLY_APP, false)
+    private fun appliesToApp(context: Context): Boolean = context.sharedPrefs().getBoolean(PREF_APPLY_APP, false)
 
-    private fun appliesToCards(context: Context): Boolean = context.sharedPrefs().getBoolean(KEY_APPLY_CARDS, false)
+    private fun appliesToCards(context: Context): Boolean = context.sharedPrefs().getBoolean(PREF_APPLY_CARDS, false)
 
     /** 애플리케이션이 아직 안 만들어졌을 수 있는 경로(테스트 등)에서 안전하게 씁니다. */
     private fun appContext(): Context? =
@@ -331,7 +331,7 @@ object CustomFont {
      * 때문에, !important 없이 그냥 얹으면 순서에서 밀려 무시됩니다.
      * color 는 body 에만 걸리므로 노트 안에서 색을 직접 지정한 글자는 그대로 남습니다.
      */
-    private fun cardBackgroundEnabled(context: Context) = context.sharedPrefs().getBoolean(KEY_CARD_BACKGROUND, false)
+    private fun cardBackgroundEnabled(context: Context) = context.sharedPrefs().getBoolean(PREF_CARD_BACKGROUND, false)
 
     /**
      * 카드에 쓸 배경색과 글자색.
