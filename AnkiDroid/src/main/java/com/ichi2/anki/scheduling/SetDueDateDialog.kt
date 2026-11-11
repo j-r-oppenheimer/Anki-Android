@@ -40,6 +40,7 @@ import com.ichi2.anki.asyncCatching
 import com.ichi2.anki.browser.IdsFile
 import com.ichi2.anki.browser.removeSafely
 import com.ichi2.anki.common.utils.android.showThemedToast
+import com.ichi2.anki.common.utils.dp
 import com.ichi2.anki.databinding.DialogSetDueDateBinding
 import com.ichi2.anki.databinding.FragmentSetDueDateRangeBinding
 import com.ichi2.anki.databinding.FragmentSetDueDateSingleBinding
@@ -58,7 +59,6 @@ import com.ichi2.anki.utils.openUrl
 import com.ichi2.anki.withProgress
 import com.ichi2.utils.AndroidUiUtils
 import com.ichi2.utils.create
-import com.ichi2.utils.dp
 import com.ichi2.utils.negativeButton
 import com.ichi2.utils.positiveButton
 import com.ichi2.utils.title
@@ -93,8 +93,8 @@ class SetDueDateDialog : AnalyticsDialogFragment() {
     // used to determine if a rotation has taken place
     private var initialRotation: Int = 0
 
-    val cardIds: List<Long>
-        get() = requireArguments().requireParcelable<IdsFile>(ARG_IDS_FILE).getIds()
+    val cardIds: List<Long>?
+        get() = requireArguments().requireParcelable<IdsFile>(ARG_IDS_FILE).getIdsOrNull()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -102,19 +102,21 @@ class SetDueDateDialog : AnalyticsDialogFragment() {
             try {
                 this.cardIds
             } catch (e: IOException) {
-                // the file may be missing, or truncated if the write was interrupted
                 Timber.w(e, "Failed to read cardIds")
-                showThemedToast(requireContext(), CommonString.something_wrong, false)
-                dismiss()
-                return
+                null
             }
+        if (cardIds == null) {
+            showThemedToast(requireContext(), CommonString.something_wrong, false)
+            dismiss()
+            return
+        }
 
         viewModel.init(cardIds)
         Timber.d("Set due date dialog: %d card(s)", cardIds.size)
         this.initialRotation = getScreenRotation()
 
-        childFragmentManager.setFragmentResultListener(RESULT_SUBMIT_DUE_DATE, this) { _, _ ->
-            Timber.i(RESULT_SUBMIT_DUE_DATE)
+        childFragmentManager.setFragmentResultListener(REQUEST_SUBMIT_DUE_DATE, this) { _, _ ->
+            Timber.i(REQUEST_SUBMIT_DUE_DATE)
             requireActivity().launchCatchingTask {
                 if (launchUpdateDueDate(showError = false).await() == null) {
                     Timber.w("unsuccessful updating dates; not dismissing dialog")
@@ -266,7 +268,7 @@ class SetDueDateDialog : AnalyticsDialogFragment() {
         const val ARG_IDS_FILE = "ARGS_IDS_FILE"
         const val MAX_WIDTH_DP = 450f
 
-        private const val RESULT_SUBMIT_DUE_DATE = "SubmitDueDate"
+        private const val REQUEST_SUBMIT_DUE_DATE = "SubmitDueDate"
 
         /** Keeps the existing dialog and its input when another request arrives. */
         @MainThread
@@ -278,20 +280,20 @@ class SetDueDateDialog : AnalyticsDialogFragment() {
                 Timber.d("Ignoring 'set due date' request: dialog is already open")
                 return
             }
-            val dialog = newInstance(activity.externalCacheDir ?: activity.cacheDir, cardIds)
+            val dialog = newInstance(IdsFile.getDirectory(), cardIds)
             activity.showDialogFragment(dialog)
         }
 
         @VisibleForTesting
         @CheckResult
         fun newInstance(
-            cacheDir: File,
+            idsFileDirectory: File,
             cardIds: List<CardId>,
         ): SetDueDateDialog =
             SetDueDateDialog().apply {
                 arguments =
                     Bundle().apply {
-                        putParcelable(ARG_IDS_FILE, IdsFile(cacheDir, cardIds, "set-due-date"))
+                        putParcelable(ARG_IDS_FILE, IdsFile(idsFileDirectory, cardIds, IdsFile.Purpose.SET_DUE_DATE))
                     }
                 Timber.i("Showing 'set due date' dialog for %d cards", cardIds.size)
             }
@@ -348,7 +350,7 @@ class SetDueDateDialog : AnalyticsDialogFragment() {
                             event?.keyCode == KeyEvent.KEYCODE_ENTER
                         ) {
                             parentFragmentManager.setFragmentResult(
-                                RESULT_SUBMIT_DUE_DATE,
+                                REQUEST_SUBMIT_DUE_DATE,
                                 Bundle(),
                             )
                             true
@@ -423,7 +425,7 @@ class SetDueDateDialog : AnalyticsDialogFragment() {
                             event?.keyCode == KeyEvent.KEYCODE_ENTER
                         ) {
                             parentFragmentManager.setFragmentResult(
-                                RESULT_SUBMIT_DUE_DATE,
+                                REQUEST_SUBMIT_DUE_DATE,
                                 Bundle(),
                             )
                             true

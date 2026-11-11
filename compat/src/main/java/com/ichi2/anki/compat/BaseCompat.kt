@@ -23,10 +23,15 @@ import android.provider.MediaStore
 import android.view.View
 import android.view.Window
 import android.view.WindowManager
+import android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN
+import android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+import android.view.WindowManager.LayoutParams.SOFT_INPUT_MASK_ADJUST
 import android.view.inputmethod.InputMethodManager
 import androidx.annotation.AnimRes
 import androidx.appcompat.widget.TooltipCompat
+import androidx.core.view.ContentInfoCompat
 import com.ichi2.anki.common.utils.annotation.KotlinCleanup
+import kotlinx.coroutines.Job
 import timber.log.Timber
 import java.io.File
 import java.io.FileInputStream
@@ -42,6 +47,13 @@ import kotlin.time.Duration
 @KotlinCleanup("add extension method logging file.delete() failure" + "Fix Deprecation")
 @Suppress("Deprecation")
 open class BaseCompat : Compat {
+    override fun retainDropPermissions(
+        payload: ContentInfoCompat,
+        job: Job,
+    ) {
+        // Before Android 12, the activity retains drop permissions.
+    }
+
     // Until API26, tooltips cannot be defined declaratively in layouts
     override fun setTooltipTextByContentDescription(view: View) {
         TooltipCompat.setTooltipText(view, view.contentDescription)
@@ -53,6 +65,18 @@ open class BaseCompat : Compat {
             WindowManager.LayoutParams.FLAG_FULLSCREEN,
             WindowManager.LayoutParams.FLAG_FULLSCREEN,
         )
+    }
+
+    override fun setDialogKeyboardResize(
+        window: Window,
+        resize: Boolean,
+    ) {
+        window.setSoftInputAdjustment(if (resize) SOFT_INPUT_ADJUST_RESIZE else SOFT_INPUT_ADJUST_PAN)
+    }
+
+    /** Changes the adjustment mode while preserving keyboard visibility settings. */
+    protected fun Window.setSoftInputAdjustment(adjustment: Int) {
+        setSoftInputMode((attributes.softInputMode and SOFT_INPUT_MASK_ADJUST.inv()) or adjustment)
     }
 
     // Until API36, SHOW_IMPLICIT marks the request as one the system may ignore

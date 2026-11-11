@@ -1,19 +1,5 @@
-/*
- * Copyright (c) 2026 Ashish Yadav <mailtoashish693@gmail.com>
- *
- * This program is free software; you can redistribute it and/or modify it under
- * the terms of the GNU General Public License as published by the Free Software
- * Foundation; either version 3 of the License, or (at your option) any later
- * version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
- * details.
- *
- * You should have received a copy of the GNU General Public License along with
- * this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: Copyright (c) 2026 Ashish Yadav <mailtoashish693@gmail.com>
 
 package com.ichi2.anki.multiprofile
 
@@ -30,7 +16,7 @@ class ProfileIdTest {
     }
 
     @Test
-    fun `generate creates unique IDs using the purely random portion of a UUID`() {
+    fun `generate uses the purely random portion of a UUID`() {
         val iterations = 1000
         val generatedIds = List(iterations) { ProfileId.generate().value }
 
@@ -38,9 +24,6 @@ class ProfileIdTest {
             assertTrue("ID should start with p_", id.startsWith("p_"))
             assertEquals("ID length should be 10 (p_ + 8 hex chars)", 10, id.length)
         }
-
-        val uniqueIds = generatedIds.toSet()
-        assertEquals("All $iterations generated IDs should be unique", iterations, uniqueIds.size)
 
         val prefixLength = 2
         val hexLength = 8

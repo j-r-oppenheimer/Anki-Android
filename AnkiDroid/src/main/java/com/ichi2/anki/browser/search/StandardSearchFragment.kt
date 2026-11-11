@@ -23,6 +23,7 @@ import com.ichi2.anki.R
 import com.ichi2.anki.browser.SearchHistory.SearchHistoryEntry
 import com.ichi2.anki.browser.search.CardBrowserSearchViewModel.SearchHistoryItems
 import com.ichi2.anki.browser.toUserSpannable
+import com.ichi2.anki.common.utils.ellipsize
 import com.ichi2.anki.databinding.FragmentStandardSearchBinding
 import com.ichi2.anki.databinding.ViewSavedSearchItemBinding
 import com.ichi2.anki.databinding.ViewSearchHistoryItemBinding
@@ -132,15 +133,7 @@ class StandardSearchFragment :
             binding.decksChip.text = it.decks.firstOrNull()?.name ?: TR.sentenceCase.allDecks
             binding.tagsChip.text = formatChipDescription(it.tags, emptyValue = "Tags")
             binding.cardStateChip.text = formatChipDescription(it.cardStates.map { it.label }, emptyValue = "Card state")
-            binding.cardStateChip.chipIcon =
-                ContextCompat.getDrawable(requireContext(), it.cardStates.firstOrNull().iconRes)?.also { drawable ->
-                    if (it.cardStates.isEmpty()) {
-                        DrawableCompat.setTint(
-                            drawable.mutate(),
-                            MaterialColors.getColor(requireContext(), androidx.appcompat.R.attr.colorPrimary, 0),
-                        )
-                    }
-                }
+            binding.cardStateChip.chipIcon = it.cardStates.firstOrNull().getIcon(requireContext())
 
             binding.flagsChip.text =
                 formatChipDescription(
@@ -271,8 +264,9 @@ class StandardSearchFragment :
                     }
 
                 val item = getItem(position)!!
-                binding.title.text = item.name
-                binding.content.text = item.query
+                // Bound the preview before layout to avoid ANRs on very large saved searches.
+                binding.title.text = item.name.ellipsize(MAX_SAVED_SEARCH_PREVIEW_LENGTH)
+                binding.content.text = item.query.ellipsize(MAX_SAVED_SEARCH_PREVIEW_LENGTH)
 
                 binding.root.setOnClickListener { viewModel.submitSavedSearch(item) }
                 binding.insertSavedSearch.setOnClickListener { viewModel.applySavedSearch(item) }
@@ -310,6 +304,8 @@ class StandardSearchFragment :
 
     companion object {
         const val TAG = "STANDARD"
+
+        private const val MAX_SAVED_SEARCH_PREVIEW_LENGTH = 500
     }
 }
 

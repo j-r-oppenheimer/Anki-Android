@@ -1,19 +1,5 @@
-/*
- * Copyright (c) 2024 Ashish Yadav <mailtoashish693@gmail.com>
- *
- * This program is free software; you can redistribute it and/or modify it under
- * the terms of the GNU General Public License as published by the Free Software
- * Foundation; either version 3 of the License, or (at your option) any later
- * version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
- * details.
- *
- * You should have received a copy of the GNU General Public License along with
- * this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: Copyright (c) 2024 Ashish Yadav <mailtoashish693@gmail.com>
 
 package com.ichi2.anki.instantnoteeditor
 
@@ -34,6 +20,8 @@ import com.ichi2.anki.libanki.DeckId
 import com.ichi2.anki.libanki.Note
 import com.ichi2.anki.libanki.NotetypeJson
 import com.ichi2.anki.observability.undoableOp
+import com.ichi2.anki.progress.HasProgress
+import com.ichi2.anki.progress.ProgressManager
 import com.ichi2.anki.utils.ext.getAllClozeTextFields
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -50,8 +38,11 @@ import kotlin.math.max
  */
 class InstantEditorViewModel :
     ViewModel(),
-    OnErrorListener {
+    OnErrorListener,
+    HasProgress<InstantEditorProgress> {
     override val onError = MutableSharedFlow<String>()
+
+    override val progressManager = ProgressManager<InstantEditorProgress>()
 
     /** Errors or Warnings related to the edit fields that might occur when trying to save note */
     val instantEditorError = MutableSharedFlow<String?>()
@@ -137,20 +128,21 @@ class InstantEditorViewModel :
      * @param skipClozeCheck Indicates whether to skip the cloze field check.
      * @return A [SaveNoteResult] indicating the outcome of the operation.
      */
-    suspend fun checkAndSaveNote(skipClozeCheck: Boolean = false): SaveNoteResult {
-        if (skipClozeCheck) {
-            return saveNote()
-        }
+    suspend fun checkAndSaveNote(skipClozeCheck: Boolean = false): SaveNoteResult =
+        progressManager.withProgress(InstantEditorProgress.SAVING_NOTE) {
+            if (skipClozeCheck) {
+                return@withProgress saveNote()
+            }
 
-        val note = editorNote
-        val result = checkNoteFieldsResponse(note)
-        if (result is NoteFieldsCheckResult.Failure) {
-            return SaveNoteResult.Warning(result.localizedMessage)
+            val note = editorNote
+            val result = checkNoteFieldsResponse(note)
+            if (result is NoteFieldsCheckResult.Failure) {
+                return@withProgress SaveNoteResult.Warning(result.localizedMessage)
+            }
+            Timber.d("Note fields check successful, saving note")
+            instantEditorError.emit(null)
+            saveNote()
         }
-        Timber.d("Note fields check successful, saving note")
-        instantEditorError.emit(null)
-        return saveNote()
-    }
 
     /** Adds the note to the collection.
      * @return If the operation is successful, returns [SaveNoteResult.Success],
@@ -421,6 +413,10 @@ class InstantEditorViewModel :
             }
         currentClozeMode.value = newMode
     }
+}
+
+enum class InstantEditorProgress {
+    SAVING_NOTE,
 }
 
 /**

@@ -9,6 +9,8 @@ import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import android.text.SpannableStringBuilder
+import android.text.TextUtils
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -26,8 +28,10 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat.Type.displayCutout
 import androidx.core.view.WindowInsetsCompat.Type.systemBars
+import androidx.core.view.doOnNextLayout
 import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
+import androidx.core.widget.TextViewCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.lifecycleScope
@@ -45,10 +49,12 @@ import com.ichi2.anki.CrashReportData.Companion.toCrashReportData
 import com.ichi2.anki.R
 import com.ichi2.anki.analytics.AnalyticsDialogFragment
 import com.ichi2.anki.common.annotations.NeedsTest
+import com.ichi2.anki.common.utils.android.getResFromAttr
+import com.ichi2.anki.compat.setTooltipTextCompat
 import com.ichi2.anki.databinding.DialogChangeNoteTypeBinding
 import com.ichi2.anki.databinding.DialogFieldsBinding
 import com.ichi2.anki.databinding.DialogTemplatesBinding
-import com.ichi2.anki.databinding.ViewTabLayoutIconOnEndBinding
+import com.ichi2.anki.databinding.ViewTabLayoutIconOnStartBinding
 import com.ichi2.anki.dialogs.ConversionType.CLOZE_TO_CLOZE
 import com.ichi2.anki.dialogs.ConversionType.CLOZE_TO_REGULAR
 import com.ichi2.anki.dialogs.ConversionType.REGULAR_TO_CLOZE
@@ -71,6 +77,7 @@ import com.ichi2.utils.boldList
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import com.ichi2.anki.common.android.R as CommonR
 
 /**
  * Supports bulk remapping of notes a different note type, remapping fields and templates
@@ -178,6 +185,7 @@ class ChangeNoteTypeDialog : AnalyticsDialogFragment(R.layout.dialog_change_note
 
     private fun setupNoteTypeSpinner(binding: DialogChangeNoteTypeBinding) {
         binding.CardEditorModelText.text = BidiFormatter.getInstance().unicodeWrap(viewModel.inputNoteType.name)
+        binding.CardEditorModelText.setTooltipTextCompat(viewModel.inputNoteType.name)
 
         binding.destNoteTypeSpinner.apply {
             adapter = createNoteTypeAdapter()
@@ -204,7 +212,7 @@ class ChangeNoteTypeDialog : AnalyticsDialogFragment(R.layout.dialog_change_note
             android.R.layout.simple_spinner_dropdown_item,
             noteTypes,
         ) {
-            var clozeColor = MaterialColors.getColor(context, R.attr.clozeColor, Color.BLUE)
+            var clozeColor = MaterialColors.getColor(context, CommonR.attr.clozeColor, Color.BLUE)
 
             private val defaultViewTextColor: Int by lazy {
                 (super.getView(0, null, Spinner(context)) as CheckedTextView).currentTextColor
@@ -225,7 +233,10 @@ class ChangeNoteTypeDialog : AnalyticsDialogFragment(R.layout.dialog_change_note
                 text = noteType.name
                 setTextColor(if (noteType.isCloze) clozeColor else defaultViewTextColor)
                 isSingleLine = false
-                ellipsize = null
+                // Leave room for the mappings even when the selected note type has a long name.
+                maxLines = resources.getInteger(R.integer.change_note_type_name_max_lines)
+                ellipsize = TextUtils.TruncateAt.END
+                setTooltipTextCompat(noteType.name)
                 updateLayoutParams {
                     height = ViewGroup.LayoutParams.WRAP_CONTENT
                 }
@@ -264,6 +275,25 @@ class ChangeNoteTypeDialog : AnalyticsDialogFragment(R.layout.dialog_change_note
 
         val tabLayout = binding.changeNoteTypeTabLayout
         createTabMediator(tabLayout, viewPager).attach()
+        // Measure the labels and icons before fixed tabs constrain their width.
+        val minimumTabWidth =
+            (0 until tabLayout.tabCount).maxOf { position ->
+                val tab = requireNotNull(tabLayout.getTabAt(position))
+                val content = requireNotNull(tab.customView)
+                content.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
+                content.measuredWidth + tab.view.paddingLeft + tab.view.paddingRight
+            }
+        tabLayout.addOnLayoutChangeListener { _, left, _, right, _, _, _, _, _ ->
+            val availableWidth = right - left - tabLayout.paddingLeft - tabLayout.paddingRight
+            val mode =
+                if (minimumTabWidth * tabLayout.tabCount <= availableWidth) TabLayout.MODE_FIXED else TabLayout.MODE_AUTO
+            if (tabLayout.tabMode != mode) {
+                tabLayout.tabMode = mode
+                tabLayout.doOnNextLayout {
+                    tabLayout.setScrollPosition(tabLayout.selectedTabPosition, 0f, true)
+                }
+            }
+        }
         // Explicitly set initial tab in ViewModel to match UI
 
         viewPager.setCurrentItem(0, false)
@@ -275,7 +305,7 @@ class ChangeNoteTypeDialog : AnalyticsDialogFragment(R.layout.dialog_change_note
         viewPager: ViewPager2,
     ): TabLayoutMediator =
         TabLayoutMediator(tabLayout, viewPager) { tab: TabLayout.Tab, position: Int ->
-            val binding = ViewTabLayoutIconOnEndBinding.inflate(LayoutInflater.from(tabLayout.context), tabLayout, false)
+            val binding = ViewTabLayoutIconOnStartBinding.inflate(LayoutInflater.from(tabLayout.context), tabLayout, false)
             when (position) {
                 0 -> {
                     binding.tabIcon.setImageResource(R.drawable.ic_mode_edit_white)
@@ -423,16 +453,6 @@ class ChangeNoteTypeDialog : AnalyticsDialogFragment(R.layout.dialog_change_note
             val inputFieldNames = viewModel.inputNoteType.fieldsNames
             val outputFieldNames = viewModel.outputNoteType.fieldsNames
 
-            fun buildFieldLayout() =
-                LinearLayout(requireContext()).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    layoutParams =
-                        LinearLayout.LayoutParams(
-                            MATCH_PARENT,
-                            WRAP_CONTENT,
-                        )
-                }
-
             fun buildFieldSpinner(spinnerIndex: Int) =
                 Spinner(requireContext())
                     .apply {
@@ -475,20 +495,8 @@ class ChangeNoteTypeDialog : AnalyticsDialogFragment(R.layout.dialog_change_note
                             }
                     }
 
-            fun buildFieldText(initialText: String) =
-                MaterialTextView(requireContext()).apply {
-                    layoutParams =
-                        LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)
-                    text = initialText
-                    textAlignment = View.TEXT_ALIGNMENT_CENTER
-                }
-            for (i in outputFieldNames.indices) {
-                val fieldLayout =
-                    buildFieldLayout().apply {
-                        addView(buildFieldSpinner(i))
-                        addView(buildFieldText(outputFieldNames[i]))
-                    }
-                binding.fieldsContainer.addView(fieldLayout)
+            for ((i, name) in outputFieldNames.withIndex()) {
+                binding.fieldsContainer.addView(createMappingRow(buildFieldSpinner(i), name))
             }
         }
     }
@@ -623,16 +631,6 @@ class ChangeNoteTypeDialog : AnalyticsDialogFragment(R.layout.dialog_change_note
             val inputTemplateNames = viewModel.inputNoteType.templatesNames
             val outputTemplateNames = viewModel.outputNoteType.templatesNames
 
-            fun buildTemplateLayout() =
-                LinearLayout(requireContext()).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    layoutParams =
-                        LinearLayout.LayoutParams(
-                            MATCH_PARENT,
-                            WRAP_CONTENT,
-                        )
-                }
-
             fun buildTemplateSpinner(spinnerIndex: Int) =
                 Spinner(requireContext())
                     .apply {
@@ -668,28 +666,33 @@ class ChangeNoteTypeDialog : AnalyticsDialogFragment(R.layout.dialog_change_note
                             }
                     }
 
-            fun buildTemplateText(templateName: String) =
-                MaterialTextView(requireContext()).apply {
-                    layoutParams =
-                        LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)
-                    text = templateName
-                    textAlignment = View.TEXT_ALIGNMENT_CENTER
-                }
-
             for ((i, name) in outputTemplateNames.withIndex()) {
-                val templateLayout =
-                    buildTemplateLayout().apply {
-                        addView(
-                            buildTemplateSpinner(
-                                spinnerIndex = i,
-                            ),
-                        )
-                        addView(buildTemplateText(templateName = name))
-                    }
-                binding.templatesContainer.addView(templateLayout)
+                binding.templatesContainer.addView(createMappingRow(buildTemplateSpinner(i), name))
             }
         }
     }
+}
+
+private fun createMappingRow(
+    spinner: Spinner,
+    label: String,
+) = LinearLayout(spinner.context).apply {
+    orientation = LinearLayout.HORIZONTAL
+    gravity = Gravity.CENTER_VERTICAL
+    // Baseline alignment can push wrapped labels below the row's measured height.
+    isBaselineAligned = false
+    layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
+    addView(spinner)
+    addView(
+        MaterialTextView(context).apply {
+            layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)
+            val themeTextColors = textColors
+            TextViewCompat.setTextAppearance(this, getResFromAttr(context, com.google.android.material.R.attr.textAppearanceBodyLarge))
+            setTextColor(themeTextColors)
+            text = label
+            textAlignment = View.TEXT_ALIGNMENT_CENTER
+        },
+    )
 }
 
 /**

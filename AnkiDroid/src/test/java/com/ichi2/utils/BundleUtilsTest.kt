@@ -1,24 +1,13 @@
-/*
- Copyright (c) 2021 Tarek Mohamed Abdalla <tarekkma@gmail.com>
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: Copyright (c) 2021 Tarek Mohamed Abdalla <tarekkma@gmail.com>
 
- This program is free software; you can redistribute it and/or modify it under
- the terms of the GNU General Public License as published by the Free Software
- Foundation; either version 3 of the License, or (at your option) any later
- version.
-
- This program is distributed in the hope that it will be useful, but WITHOUT ANY
- WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
- PARTICULAR PURPOSE. See the GNU General Public License for more details.
-
- You should have received a copy of the GNU General Public License along with
- this program.  If not, see <http://www.gnu.org/licenses/>.
- */
 package com.ichi2.utils
 
 import android.os.Bundle
 import com.ichi2.anki.utils.ext.getLongOrNull
 import com.ichi2.anki.utils.ext.requireBoolean
 import com.ichi2.anki.utils.ext.requireLong
+import com.ichi2.anki.utils.ext.requireLongArray
 import org.hamcrest.CoreMatchers.equalTo
 import org.hamcrest.MatcherAssert.assertThat
 import org.junit.Assert.assertEquals
@@ -114,6 +103,34 @@ class BundleUtilsTest {
 
         verify(mockedBundle).containsKey(eq(KEY))
         verify(mockedBundle).getBoolean(eq(KEY))
+
+        assertEquals(expected, value)
+    }
+
+    @Test
+    fun test_RequireLongArray_NotFound_ThrowsException() {
+        val mockedBundle = mock(Bundle::class.java)
+
+        whenever(mockedBundle.containsKey(anyString())).thenReturn(false)
+
+        val exception = assertFailsWith<IllegalStateException> { mockedBundle.requireLongArray(KEY) }
+
+        assertThat(exception.message, equalTo("key: 'KEY' not found"))
+        verify(mockedBundle).containsKey(eq(KEY))
+    }
+
+    @Test
+    fun test_RequireLongArray_Found_ReturnIt() {
+        val expected = longArrayOf(Random.nextLong())
+        val mockedBundle = mock(Bundle::class.java)
+
+        whenever(mockedBundle.containsKey(anyString())).thenReturn(true)
+        whenever(mockedBundle.getLongArray(anyString())).thenReturn(expected)
+
+        val value = mockedBundle.requireLongArray(KEY)
+
+        verify(mockedBundle).containsKey(eq(KEY))
+        verify(mockedBundle).getLongArray(eq(KEY))
 
         assertEquals(expected, value)
     }

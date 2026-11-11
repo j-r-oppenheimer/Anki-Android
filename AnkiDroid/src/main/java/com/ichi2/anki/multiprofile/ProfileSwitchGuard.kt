@@ -1,19 +1,5 @@
-/*
- * Copyright (c) 2026 Ashish Yadav <mailtoashish693@gmail.com>
- *
- * This program is free software; you can redistribute it and/or modify it under
- * the terms of the GNU General Public License as published by the Free Software
- * Foundation; either version 3 of the License, or (at your option) any later
- * version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
- * details.
- *
- * You should have received a copy of the GNU General Public License along with
- * this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: Copyright (c) 2026 Ashish Yadav <mailtoashish693@gmail.com>
 
 package com.ichi2.anki.multiprofile
 
@@ -43,8 +29,12 @@ class ProfileSwitchGuard(
         ) : Result()
     }
 
+    // TODO: COLLECTION_BUSY has no check yet: CollectionManager serialises on a
+    //  private queue it does not expose. Closing the collection already waits for a
+    //  running operation, so this is about warning the user rather than about safety.
     enum class BlockReason {
         BACKUP_IN_PROGRESS,
+        SYNC_IN_PROGRESS,
         MEDIA_SYNC_IN_PROGRESS,
         COLLECTION_BUSY,
     }

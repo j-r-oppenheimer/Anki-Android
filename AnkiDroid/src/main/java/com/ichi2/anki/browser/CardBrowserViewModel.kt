@@ -6,12 +6,8 @@ import android.os.Bundle
 import android.os.Parcelable
 import androidx.annotation.CheckResult
 import androidx.core.os.BundleCompat
-import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
 import anki.collection.OpChanges
 import anki.collection.OpChangesWithCount
 import anki.search.BrowserColumns
@@ -59,16 +55,18 @@ import com.ichi2.anki.model.CardsOrNotes.CARDS
 import com.ichi2.anki.model.CardsOrNotes.NOTES
 import com.ichi2.anki.model.SelectableDeck
 import com.ichi2.anki.model.SortType
-import com.ichi2.anki.observability.ChangeManager
 import com.ichi2.anki.observability.undoableOp
 import com.ichi2.anki.preferences.SharedPreferencesProvider
 import com.ichi2.anki.progress.HasProgress
 import com.ichi2.anki.progress.ProgressManager
 import com.ichi2.anki.settings.Prefs
+import com.ichi2.anki.utils.ViewModelSavedStateHandle
 import com.ichi2.anki.utils.ext.getCardOrNull
 import com.ichi2.anki.utils.ext.setUserFlagForCards
+import com.ichi2.anki.utils.savedStateViewModelFactory
 import com.ichi2.utils.TagsUtil.getUpdatedTags
 import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.BufferOverflow
@@ -89,6 +87,7 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.parcelize.IgnoredOnParcel
 import kotlinx.parcelize.Parcelize
 import net.ankiweb.rsdroid.BackendException
@@ -110,10 +109,11 @@ typealias ReverseDirection = Boolean
  * ViewModel for [com.ichi2.anki.CardBrowser]
  *
  * @param lastDeckIdRepository returns the last selected ID. See [LastDeckIdRepository]
- * @param cacheDir Temporary location to store data too large to pass via intent
+ * @param idsFileDirectory Location to store data too large to pass via intent. See [IdsFile.getDirectory]
  * @param options Options passed to CardBrowser on startup
  * @param preferences Accessor for `SharedPreferences`
  * @param isFragmented `true` if a NoteEditor side panel is displayed (x-large displays)
+ * @param initialDeckId Deck requested by the caller, applied only on the first launch
  * @param manualInit test-only: defer `initCompleted` until `manualInit()` is called
  */
 @NeedsTest("columIndex1/2 config is not not updated on init")
@@ -121,11 +121,12 @@ typealias ReverseDirection = Boolean
 @NeedsTest("search is called after launch()")
 class CardBrowserViewModel(
     private val lastDeckIdRepository: LastDeckIdRepository,
-    private val cacheDir: File,
+    private val idsFileDirectory: File,
     options: CardBrowserLaunchOptions?,
     preferences: SharedPreferencesProvider,
     val isFragmented: Boolean,
-    val savedStateHandle: SavedStateHandle,
+    private val initialDeckId: DeckId?,
+    val savedStateHandle: ViewModelSavedStateHandle,
     private val browserOptionsRepository: BrowserOptionsRepository =
         BrowserOptionsRepository(preferences.sharedPrefs()),
     private val manualInit: Boolean = false,
@@ -161,6 +162,13 @@ class CardBrowserViewModel(
                 initialValue = null,
             )
 
+    // Keep feedback while the browser is stopped (e.g. saving in the note editor).
+    // The UI consumes it once; a newer search discards feedback for the old results.
+    val flowOfSearchFeedback: StateFlow<SearchState.Completed?>
+        field = MutableStateFlow<SearchState.Completed?>(null)
+
+    fun consumeSearchFeedback(search: SearchState.Completed): Boolean = flowOfSearchFeedback.compareAndSet(search, null)
+
     /**
      * Commands to drive the note editor either in a fragment or a standalone activity
      * @see NoteEditorCommand
@@ -182,17 +190,6 @@ class CardBrowserViewModel(
         data object HidePane : NoteEditorCommand
 
         companion object
-    }
-
-    /** Result of a completed search, used to drive a snackbar in the UI */
-    sealed interface SearchResultMessage {
-        /** "X cards/notes shown | Search all decks" */
-        data class CardCount(
-            val includeSearchAllDecksAction: Boolean,
-        ) : SearchResultMessage
-
-        /** "No cards in deck X" message; always paired with a "search all decks" action. */
-        data object NoCardsInSelectedDeck : SearchResultMessage
     }
 
     /** text in the search box (potentially unsubmitted) */
@@ -236,6 +233,9 @@ class CardBrowserViewModel(
 
     /** Emits each time the user changes the sort order, with data for a snackbar */
     val flowOfSortTypeChanged = MutableSharedFlow<SortChangeNotification>()
+
+    val flowOfCurrentSort: StateFlow<SortChangeNotification?>
+        field = MutableStateFlow<SortChangeNotification?>(null)
 
     /**
      * A map from column backend key to backend column definition
@@ -413,7 +413,10 @@ class CardBrowserViewModel(
     val lastDeckId: DeckId?
         get() = lastDeckIdRepository.lastDeckId
 
-    fun setSelectedDeck(deck: SelectableDeck) {
+    fun setSelectedDeck(
+        deck: SelectableDeck,
+        feedbackMode: BrowserSearchFeedbackMode = BrowserSearchFeedbackMode.NONE,
+    ) {
         Timber.i("setting deck: %s", deck)
 
         lastDeckIdRepository.lastDeckId =
@@ -429,7 +432,7 @@ class CardBrowserViewModel(
             }
 
         val updatedFilter = searchRequestFlow.value.copyFilters { it.copy(decks = deckFilter) }
-        launchSearchForCards(updatedFilter, forceRefresh = false)
+        launchSearchForCards(updatedFilter, forceRefresh = false, feedbackMode = feedbackMode)
     }
 
     val searchRequestFlow = MutableStateFlow(SearchRequest(query = ""))
@@ -462,7 +465,7 @@ class CardBrowserViewModel(
         suspend fun consumeIntentDeck(): SelectableDeck.Deck? {
             if (savedStateHandle.get<Boolean>(STATE_LAUNCH_INTENT_CONSUMED) == true) return null
             savedStateHandle[STATE_LAUNCH_INTENT_CONSUMED] = true
-            val deckId = savedStateHandle.get<Long>(EXTRA_DECK_ID) ?: return null
+            val deckId = initialDeckId ?: return null
             val name = withCol { decks.nameIfExists(deckId) } ?: return null
             return SelectableDeck.Deck(deckId = deckId, name = name)
         }
@@ -495,6 +498,11 @@ class CardBrowserViewModel(
      * [generateExpensiveSavedState] saves this instead of [selectedRows]
      */
     private var pendingSelectionRestore: List<CardOrNoteId>
+
+    /**
+     * The file backing the most recently saved [STATE_MULTISELECT_VALUES], until replaced or the activity finishes.
+     */
+    private var multiselectStateFile: IdsFile? = null
 
     val flowOfColumnHeadings: StateFlow<List<ColumnHeading>> =
         combine(flowOfActiveColumns, flowOfCardsOrNotes, flowOfAllColumns) { activeColumns, cardsOrNotes, allColumns ->
@@ -545,15 +553,15 @@ class CardBrowserViewModel(
             savedStateHandle.get<Bundle>(STATE_MULTISELECT_VALUES)?.let { bundle ->
                 BundleCompat.getParcelable(bundle, STATE_MULTISELECT_VALUES, IdsFile::class.java)
             }
+        multiselectStateFile = idsFile
         pendingSelectionRestore =
             try {
-                idsFile?.getIds()?.map { CardOrNoteId(it) }
+                idsFile?.getIdsOrNull()?.map { CardOrNoteId(it) }
             } catch (e: Exception) {
-                // #19572: I suspect we have a startup bug here, so continue reporting the exception
                 Timber.w(e, "failed to read STATE_MULTISELECT_VALUES")
                 CrashReportService.sendExceptionReport(
                     e = e,
-                    origin = "19572: STATE_MULTISELECT_VALUES",
+                    origin = "CardBrowserViewModel",
                     onlyIfSilent = true,
                 )
                 // fallback to no selections, but still in multiselect mode
@@ -578,10 +586,22 @@ class CardBrowserViewModel(
             null -> {}
         }
 
+        val initialFeedbackMode =
+            when (options) {
+                is CardBrowserLaunchOptions.DeepLink,
+                is CardBrowserLaunchOptions.SystemContextMenu,
+                is CardBrowserLaunchOptions.SearchQueryJs,
+                -> BrowserSearchFeedbackMode.SEARCH_RESULTS
+                is CardBrowserLaunchOptions.ScrollToCard, null -> BrowserSearchFeedbackMode.NONE
+            }
+        var firstSearch = true
         performSearchFlow
             .onEach {
                 Timber.d("performSearchFlow -> launching search")
-                launchSearchForCards()
+                // After initialization, this flow only runs when cards/notes mode changes.
+                val feedbackMode = if (firstSearch) initialFeedbackMode else BrowserSearchFeedbackMode.COUNT_ONLY
+                firstSearch = false
+                launchSearchForCards(feedbackMode = feedbackMode)
             }.launchIn(viewModelScope)
 
         flowOfCardsOrNotes
@@ -600,10 +620,10 @@ class CardBrowserViewModel(
 
             val initialDeckId = if (selectAllDecks) SelectableDeck.AllDecks else getInitialDeck()
             // PERF: slightly inefficient if the source was lastDeckId
-            setSelectedDeck(initialDeckId)
+            setSelectedDeck(initialDeckId, feedbackMode = initialFeedbackMode)
             refreshBackendColumns()
 
-            flowOfReverseDirection.update { (SortType.build(cardsOrNotes) as? SortType.CollectionOrdering)?.reverse }
+            refreshSortState()
 
             Timber.i("initCompleted")
 
@@ -623,10 +643,31 @@ class CardBrowserViewModel(
     fun generateExpensiveSavedState() =
         Bundle().apply {
             // a restored selection not yet applied to the rows is still the selection to save
-            val selection = pendingSelectionRestore.ifEmpty { selectedRows.toList() }
-            if (selection.isEmpty()) return@apply
-            putParcelable(STATE_MULTISELECT_VALUES, IdsFile(cacheDir, selection.map { it.cardOrNoteId }, "multiselect-values"))
+            saveMultiselectState(pendingSelectionRestore.ifEmpty { selectedRows.toList() })
         }
+
+    private fun Bundle.saveMultiselectState(selection: List<CardOrNoteId>) {
+        // Write the replacement before deleting the previous snapshot, so write failures preserve it.
+        val idsFile =
+            if (selection.isEmpty()) {
+                null
+            } else {
+                IdsFile(idsFileDirectory, selection.map { it.cardOrNoteId }, IdsFile.Purpose.SELECTION)
+            }
+        multiselectStateFile?.removeSafely("CardBrowserViewModel")
+        multiselectStateFile = idsFile
+        if (idsFile != null) putParcelable(STATE_MULTISELECT_VALUES, idsFile)
+    }
+
+    /**
+     * Delete the file backing the last saved selection when the activity is permanently dismissed.
+     *
+     * Call from [com.ichi2.anki.common.utils.ext.onPermanentDismissal], never from [onCleared].
+     */
+    internal fun deleteSavedSelectionFile() {
+        multiselectStateFile?.removeSafely("CardBrowserViewModel")
+        multiselectStateFile = null
+    }
 
     /**
      * Called if `onCreate` is called again, which may be due to the collection being reopened
@@ -650,6 +691,7 @@ class CardBrowserViewModel(
         // if the language has changed, the backend column labels may have changed
         viewModelScope.launch {
             refreshBackendColumns()
+            refreshSortState()
         }
     }
 
@@ -819,7 +861,11 @@ class CardBrowserViewModel(
                 }
         }
 
-    fun setCardsOrNotes(newValue: CardsOrNotes) = viewModelScope.launch { browserOptionsRepository.setCardsOrNotes(newValue) }
+    fun setCardsOrNotes(newValue: CardsOrNotes) =
+        viewModelScope.launch {
+            browserOptionsRepository.setCardsOrNotes(newValue)
+            refreshSortState()
+        }
 
     fun setTruncated(value: Boolean) = viewModelScope.launch { browserOptionsRepository.setIsTruncated(value) }
 
@@ -969,14 +1015,8 @@ class CardBrowserViewModel(
 
             sortType.save(cardsOrNotes)
 
-            flowOfReverseDirection.update {
-                when (sortType) {
-                    is SortType.NoOrdering -> null
-                    is SortType.CollectionOrdering -> sortType.reverse
-                }
-            }
-
-            flowOfSortTypeChanged.emit(buildSortChangeNotification(sortType))
+            val notification = updateSortState(sortType)
+            flowOfSortTypeChanged.emit(notification)
 
             launchSearchForCards()
         }
@@ -1000,6 +1040,17 @@ class CardBrowserViewModel(
                 )
             }
         }
+
+    private suspend fun refreshSortState() {
+        updateSortState(SortType.build(cardsOrNotes))
+    }
+
+    private fun updateSortState(sortType: SortType): SortChangeNotification {
+        val notification = buildSortChangeNotification(sortType)
+        flowOfReverseDirection.value = (sortType as? SortType.CollectionOrdering)?.reverse
+        flowOfCurrentSort.value = notification
+        return notification
+    }
 
     /**
      * Updates the backend with a new collection of columns
@@ -1051,7 +1102,7 @@ class CardBrowserViewModel(
      * If no cards are suspended, suspend all
      * If there is a mix, suspend all
      *
-     * Changes are handled by [ChangeManager]
+     * Refreshes the results with count feedback after the edit.
      */
     fun toggleSuspendCards() =
         viewModelScope.launch {
@@ -1062,14 +1113,14 @@ class CardBrowserViewModel(
                 Timber.d("toggling selected cards suspend status")
                 val cardIds = queryAllSelectedCardIds()
 
-                undoableOp<OpChanges> {
+                undoableOp<OpChanges>(this@CardBrowserViewModel) {
                     val wantUnsuspend = cardIds.all { getCard(it).queue == QueueType.Suspended }
                     if (wantUnsuspend) {
                         sched.unsuspendCards(cardIds)
                     } else {
                         sched.suspendCards(cardIds).changes
                     }
-                }
+                }.also(::refreshAfterEdit)
                 Timber.d("finished 'toggleSuspendCards'")
             }
         }
@@ -1226,13 +1277,13 @@ class CardBrowserViewModel(
             searchRequestFlow.value.copy(
                 query = filterQuery,
             )
-        launchSearchForCards()
+        launchSearchForCards(feedbackMode = BrowserSearchFeedbackMode.SEARCH_RESULTS)
     }
 
     fun setQuery(
         query: String,
         forceRefresh: Boolean = true,
-        fromUserSearch: Boolean = false,
+        feedbackMode: BrowserSearchFeedbackMode = BrowserSearchFeedbackMode.NONE,
     ) = viewModelScope.launch {
         val newValue = searchRequestFlow.value.copy(query = query)
         if (!forceRefresh && withCol { searchRequestFlow.value.toSearchString() == newValue.toSearchString() }) {
@@ -1241,7 +1292,7 @@ class CardBrowserViewModel(
         }
 
         searchRequestFlow.value = newValue
-        launchSearchForCards(fromUserSearch = fromUserSearch)
+        launchSearchForCards(feedbackMode = feedbackMode)
     }
 
     /**
@@ -1287,7 +1338,7 @@ class CardBrowserViewModel(
         indeterminateTags: List<String>,
     ) = progressManager.withProgress {
         val selectedNoteIds = queryAllSelectedNoteIds().distinct()
-        undoableOp {
+        undoableOp(this@CardBrowserViewModel) {
             val selectedNotes =
                 selectedNoteIds
                     .map { noteId -> getNote(noteId) }
@@ -1297,7 +1348,7 @@ class CardBrowserViewModel(
                         note.setTagsFromStr(this@undoableOp, tags.join(updatedTags))
                     }
             updateNotes(selectedNotes)
-        }
+        }.also(::refreshAfterEdit)
     }
 
     suspend fun filterByTags(
@@ -1321,11 +1372,11 @@ class CardBrowserViewModel(
     suspend fun queryPreviewIntentData(): PreviewerDestination {
         // If in NOTES mode, we show one Card per Note, as this matches Anki Desktop
         return if (selectedRowCount() > 1) {
-            PreviewerDestination(currentIndex = 0, IdsFile(cacheDir, queryAllSelectedCardIds()))
+            PreviewerDestination(currentIndex = 0, IdsFile(idsFileDirectory, queryAllSelectedCardIds(), IdsFile.Purpose.PREVIEW))
         } else {
             // Preview all cards, starting from the one that is currently selected
             val startIndex = indexOfFirstCheckedCard() ?: 0
-            PreviewerDestination(startIndex, IdsFile(cacheDir, queryOneCardIdPerNote()))
+            PreviewerDestination(startIndex, IdsFile(idsFileDirectory, queryOneCardIdPerNote(), IdsFile.Purpose.PREVIEW))
         }
     }
 
@@ -1403,13 +1454,12 @@ class CardBrowserViewModel(
 
     /**
      * @param forceRefresh if `true`, perform a search even if the search query is unchanged
-     * @param fromUserSearch whether the user explicitly searched for something; controls whether a
-     * result message (snackbar) is surfaced. See [SearchState.Completed.resultMessage]
+     * @param feedbackMode the feedback requested for this search, resolved by [browserSearchFeedback]
      */
     fun launchSearchForCards(
         searchRequest: SearchRequest,
         forceRefresh: Boolean,
-        fromUserSearch: Boolean = false,
+        feedbackMode: BrowserSearchFeedbackMode = BrowserSearchFeedbackMode.NONE,
     ) = viewModelScope.launch {
         Timber.d("launching search [new syntax]: '%s'", searchRequest)
 
@@ -1421,7 +1471,7 @@ class CardBrowserViewModel(
         }
 
         searchRequestFlow.value = searchRequest
-        launchSearchForCards(fromUserSearch = fromUserSearch)
+        launchSearchForCards(feedbackMode = feedbackMode)
     }
 
     /**
@@ -1429,14 +1479,16 @@ class CardBrowserViewModel(
      *
      * @see com.ichi2.anki.searchForRows
      */
-    @NeedsTest("Invalid searches are handled. For instance: 'and'")
-    fun launchSearchForCards(fromUserSearch: Boolean = false) {
+    fun launchSearchForCards(feedbackMode: BrowserSearchFeedbackMode = BrowserSearchFeedbackMode.NONE) {
         if (!initCompleted) return
 
         viewModelScope.launch {
+            searchJob?.cancel()
+            flowOfSearchFeedback.value = null
             // update the UI while we're searching
             clearCardsList()
 
+            // Another request may have started a search while clearCardsList() was suspended.
             searchJob?.cancel()
             searchJob =
                 launchCatchingIO(
@@ -1449,11 +1501,19 @@ class CardBrowserViewModel(
                     val cards = com.ichi2.anki.searchForRows(searchString, sortOrder, cardsOrNotes)
                     Timber.d("Search returned %d card(s)", cards.size)
 
-                    ensureActive()
-                    this@CardBrowserViewModel.cards.replaceWith(cardsOrNotes, cards)
+                    withContext(Dispatchers.Main) {
+                        ensureActive()
+                        // The adapter takes snapshots on the main thread.
+                        this@CardBrowserViewModel.cards.replaceWith(cardsOrNotes, cards)
+                    }
                     ensurePaneRowValid()
                     if (isFragmented) flowOfNoteEditorCommand.emit(NoteEditorCommand.fromCurrentSearchState())
-                    flowOfSearchState.emit(SearchState.Completed.fromCurrentState(fromUserSearch))
+                    val completed = SearchState.Completed.fromCurrentState(feedbackMode)
+                    withContext(Dispatchers.Main) {
+                        ensureActive()
+                        flowOfSearchState.emit(completed)
+                        flowOfSearchFeedback.value = completed.takeUnless { feedbackMode == BrowserSearchFeedbackMode.NONE }
+                    }
                     selectUnvalidatedRowIds(pendingSelectionRestore)
                     pendingSelectionRestore = emptyList()
                 }
@@ -1475,6 +1535,14 @@ class CardBrowserViewModel(
     }
 
     private fun refreshSearch() = launchSearchForCards()
+
+    /** Refreshes edits which use the result count as their feedback. */
+    private fun refreshAfterEdit(changes: OpChanges) {
+        if (changes.browserSidebar || changes.browserTable || changes.noteText || changes.card) {
+            endMultiSelectMode(SingleSelectCause.Other)
+            launchSearchForCards(feedbackMode = BrowserSearchFeedbackMode.COUNT_ONLY)
+        }
+    }
 
     private suspend fun clearCardsList() {
         cards.reset()
@@ -1509,6 +1577,10 @@ class CardBrowserViewModel(
             columnsWithSample.filter { !currentColumns.contains(it.columnType) },
         )
     }
+
+    suspend fun loadColumnSelection(cardsOrNotes: CardsOrNotes) = progressManager.withProgress { previewColumnHeadings(cardsOrNotes) }
+
+    suspend fun loadFindAndReplaceNoteIds() = progressManager.withProgress { queryAllSelectedNoteIds() }
 
     /**
      * Replaces occurrences of search with the new value.
@@ -1566,20 +1638,16 @@ class CardBrowserViewModel(
     /**
      * Builds a [SearchState.Completed] event reflecting the current ViewModel state.
      *
-     * @param fromUserSearch whether this search was triggered by the user searching for something.
+     * @param feedbackMode the feedback requested for this search.
      */
-    private fun SearchState.Completed.Companion.fromCurrentState(fromUserSearch: Boolean = false): SearchState.Completed =
+    private fun SearchState.Completed.Companion.fromCurrentState(
+        feedbackMode: BrowserSearchFeedbackMode = BrowserSearchFeedbackMode.NONE,
+    ): SearchState.Completed =
         SearchState.Completed(
             rowCount = rowCount,
             cardsOrNotes = cardsOrNotes,
-            resultMessage =
-                when {
-                    !fromUserSearch -> null
-                    // TODO: better message if rowCount == 0 AND hasSelectedAllDecks
-                    hasSelectedAllDecks() -> SearchResultMessage.CardCount(includeSearchAllDecksAction = false)
-                    rowCount == 0 -> SearchResultMessage.NoCardsInSelectedDeck
-                    else -> SearchResultMessage.CardCount(includeSearchAllDecksAction = true)
-                },
+            feedbackMode = feedbackMode,
+            allDecksSelected = hasSelectedAllDecks(),
         )
 
     /** Builds the post-search trailing-pane command from current ViewModel state (tablet only). */
@@ -1608,21 +1676,21 @@ class CardBrowserViewModel(
 
         fun factory(
             lastDeckIdRepository: LastDeckIdRepository,
-            cacheDir: File,
+            idsFileDirectory: File,
             isFragmented: Boolean,
             preferencesProvider: SharedPreferencesProvider? = null,
             options: CardBrowserLaunchOptions?,
-        ) = viewModelFactory {
-            initializer {
-                CardBrowserViewModel(
-                    lastDeckIdRepository,
-                    cacheDir,
-                    options,
-                    preferencesProvider ?: AnkiDroidApp.sharedPreferencesProvider,
-                    isFragmented,
-                    createSavedStateHandle(),
-                )
-            }
+            initialDeckId: DeckId?,
+        ) = savedStateViewModelFactory { handle ->
+            CardBrowserViewModel(
+                lastDeckIdRepository,
+                idsFileDirectory,
+                options,
+                preferencesProvider ?: AnkiDroidApp.sharedPreferencesProvider,
+                isFragmented,
+                initialDeckId,
+                handle,
+            )
         }
     }
 
@@ -1704,13 +1772,10 @@ class CardBrowserViewModel(
         data class Completed(
             val rowCount: Int,
             val cardsOrNotes: CardsOrNotes,
-            /**
-             * The message (snackbar) to surface for this search, or `null` if none should be shown.
-             *
-             * Only populated for explicit user searches; `null` for browser open, deck change and
-             * order/direction changes.
-             */
-            val resultMessage: SearchResultMessage?,
+            /** The feedback requested by the caller for this search. */
+            val feedbackMode: BrowserSearchFeedbackMode,
+            /** The deck scope used by this search, before any subsequent UI changes. */
+            val allDecksSelected: Boolean,
         ) : SearchState {
             companion object
         }

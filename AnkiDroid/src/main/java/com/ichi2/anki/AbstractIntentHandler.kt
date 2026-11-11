@@ -4,8 +4,10 @@
 package com.ichi2.anki
 
 import android.app.Activity
+import android.content.Context
 import android.os.Bundle
 import com.ichi2.anki.common.android.themes.disableXiaomiForceDarkMode
+import com.ichi2.anki.workarounds.AppLoadedFromBackupWorkaround.showedActivityFailedScreen
 import com.ichi2.themes.Themes
 
 /**
@@ -13,6 +15,17 @@ import com.ichi2.themes.Themes
  * By centralizing common setup tasks here, it promotes code reuse.
  */
 abstract class AbstractIntentHandler : Activity() {
+    /** Stop intent dispatch when Android's backup mode has skipped application and provider initialization. */
+    protected fun showedActivityFailedScreen(savedInstanceState: Bundle?) =
+        showedActivityFailedScreen(
+            savedInstanceState = savedInstanceState,
+            activitySuperOnCreate = { state -> super.onCreate(state) },
+        )
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(AnkiDroidApp.wrapForActiveProfile(newBase))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Themes.setTheme(this, savedInstanceState)

@@ -1,36 +1,29 @@
-/*
- * Copyright (c) 2024 Ashish Yadav <mailtoashish693@gmail.com>
- *
- * This program is free software; you can redistribute it and/or modify it under
- * the terms of the GNU General Public License as published by the Free Software
- * Foundation; either version 3 of the License, or (at your option) any later
- * version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
- * details.
- *
- * You should have received a copy of the GNU General Public License along with
- * this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: Copyright (c) 2024 Ashish Yadav <mailtoashish693@gmail.com>
 
 package com.ichi2.anki.instanteditor
 
-import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.arch.core.executor.testing.InstantTaskExecutorRule
+import app.cash.turbine.test
 import com.ichi2.anki.CollectionManager
-import com.ichi2.anki.RobolectricTest
+import com.ichi2.anki.instantnoteeditor.InstantEditorProgress
 import com.ichi2.anki.instantnoteeditor.InstantEditorViewModel
 import com.ichi2.anki.instantnoteeditor.InstantNoteEditorActivity
 import com.ichi2.anki.instantnoteeditor.SaveNoteResult
 import com.ichi2.anki.libanki.testutils.AnkiTest
+import com.ichi2.anki.progress.ViewModelProgress
+import com.ichi2.testutils.JvmTest
+import kotlinx.coroutines.test.advanceUntilIdle
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
-import org.junit.runner.RunWith
+import kotlin.test.assertIs
 
-@RunWith(AndroidJUnit4::class)
-class InstantEditorViewModelTest : RobolectricTest() {
+class InstantEditorViewModelTest : JvmTest() {
+    @get:Rule
+    val instantTaskExecutor = InstantTaskExecutorRule()
+
     @Test
     fun testSetUpNoteType_with_Cloze_NoteType() =
         runViewModelTest {
@@ -39,22 +32,14 @@ class InstantEditorViewModelTest : RobolectricTest() {
 
     @Test
     fun testSetUpNoteType_with_NoCloze_NoteType() =
-        runViewModelTest {
-            val noteTypes = col.notetypes.all().filter { it.isCloze }
-
-            for (note in noteTypes) {
-                col.backend.removeNotetype(note.id)
-            }
-
-            advanceRobolectricLooper()
-
-            // Reinitialize the viewModel
-            runViewModelTest({ InstantEditorViewModel() }) {
-                assertEquals(
-                    InstantNoteEditorActivity.DialogType.NO_CLOZE_NOTE_TYPES_DIALOG,
-                    dialogType.value,
-                )
-            }
+        runTest {
+            col.notetypes
+                .all()
+                .filter { it.isCloze }
+                .forEach { col.backend.removeNotetype(it.id) }
+            val viewModel = InstantEditorViewModel()
+            advanceUntilIdle()
+            assertEquals(InstantNoteEditorActivity.DialogType.NO_CLOZE_NOTE_TYPES_DIALOG, viewModel.dialogType.value)
         }
 
     @Test
@@ -115,6 +100,21 @@ class InstantEditorViewModelTest : RobolectricTest() {
             val result = checkAndSaveNote()
 
             assertEquals(CollectionManager.TR.addingTheFirstFieldIsEmpty(), saveNoteResult(result))
+        }
+
+    @Test
+    fun `saving a note reports progress`() =
+        runViewModelTest {
+            editorNote.setField(0, "{{c1::Hello}}")
+
+            progressManager.progress.test {
+                assertIs<ViewModelProgress.Idle>(awaitItem())
+                checkAndSaveNote()
+                val active = assertIs<ViewModelProgress.Active<InstantEditorProgress>>(awaitItem())
+                assertEquals(InstantEditorProgress.SAVING_NOTE, active.message)
+                assertIs<ViewModelProgress.Idle>(awaitItem())
+                expectNoEvents()
+            }
         }
 
     @Test

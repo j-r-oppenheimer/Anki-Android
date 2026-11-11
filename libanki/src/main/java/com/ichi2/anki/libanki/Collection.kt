@@ -86,8 +86,10 @@ import net.ankiweb.rsdroid.RustCleanup
 import net.ankiweb.rsdroid.exceptions.BackendInvalidInputException
 import net.ankiweb.rsdroid.exceptions.BackendIoException
 import net.ankiweb.rsdroid.exceptions.BackendNotFoundException
-import timber.log.Timber
+import org.slf4j.LoggerFactory
 import java.io.File
+
+private val logger = LoggerFactory.getLogger(Collection::class.java)
 
 typealias ImportLogWithChanges = anki.import_export.ImportResponse
 
@@ -295,7 +297,7 @@ class Collection(
                 backend.closeCollection(downgrade)
             }
             dbInternal = null
-            Timber.i("Collection closed")
+            logger.info("Collection closed")
         }
     }
 
@@ -327,7 +329,7 @@ class Collection(
                     OpenDbArgs.Path(collectionFiles.colDb)
                 }
             }
-        Timber.i("(Re)opening Database: %s", reopenArgs)
+        logger.info("(Re)opening Database: {}", reopenArgs)
         return if (dbClosed) {
             val (database, created) =
                 Storage.openDB(
@@ -434,6 +436,7 @@ class Collection(
      * @throws BackendException if a previous unawaited backup failed. Its original exception is
      * rethrown before attempting another backup.
      */
+    @CheckResult
     @LibAnkiAlias("create_backup")
     fun createBackup(
         backupFolder: String,
@@ -754,7 +757,7 @@ class Collection(
         cardIds: Iterable<CardId> = listOf(),
     ): OpChangesWithCount =
         backend.removeNotes(noteIds = noteIds, cardIds = cardIds).also {
-            Timber.d("removeNotes: %d changes", it.count)
+            logger.debug("removeNotes: {} changes", it.count)
         }
 
     @LibAnkiAlias("remove_notes_by_card")
@@ -1284,9 +1287,20 @@ class Collection(
         return out
     }
 
-    @Deprecated("Not implemented")
     @LibAnkiAlias("op_made_changes")
-    fun opMadeChanges(changes: OpChanges): Nothing = TODO()
+    fun opMadeChanges(changes: OpChanges): Boolean =
+        changes.card ||
+            changes.note ||
+            changes.deck ||
+            changes.tag ||
+            changes.notetype ||
+            changes.config ||
+            changes.deckConfig ||
+            changes.mtime ||
+            changes.browserTable ||
+            changes.browserSidebar ||
+            changes.studyQueues ||
+            changes.noteText
 
     /**
      * Return undo status if undo available on backend.

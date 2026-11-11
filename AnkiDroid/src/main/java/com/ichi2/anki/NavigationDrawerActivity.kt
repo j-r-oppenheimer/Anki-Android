@@ -38,7 +38,6 @@ import androidx.viewbinding.ViewBinding
 import com.google.android.material.color.MaterialColors
 import com.google.android.material.navigation.NavigationView
 import com.ichi2.anki.CollectionManager.TR
-import com.ichi2.anki.IntentHandler.Companion.grantedStoragePermissions
 import com.ichi2.anki.NoteEditorFragment.Companion.NoteEditorCaller
 import com.ichi2.anki.common.android.animationEnabled
 import com.ichi2.anki.common.destinations.BrowserDestination
@@ -48,6 +47,7 @@ import com.ichi2.anki.common.destinations.StatisticsDestination
 import com.ichi2.anki.common.destinations.navigate
 import com.ichi2.anki.common.destinations.toIntent
 import com.ichi2.anki.common.preferences.sharedPrefs
+import com.ichi2.anki.common.storage.grantedStoragePermissions
 import com.ichi2.anki.common.utils.android.HandlerUtils
 import com.ichi2.anki.dialogs.help.HelpDialog
 import com.ichi2.anki.utils.ext.showDialogFragment
@@ -98,7 +98,7 @@ abstract class NavigationDrawerActivity(
             ) as ClosableDrawerLayout
 
         val coordinatorLayout = binding.root
-        if (preferences.getBoolean(FULL_SCREEN_NAVIGATION_DRAWER, false)) {
+        if (preferences.getBoolean(PREF_FULL_SCREEN_NAVIGATION_DRAWER, false)) {
             // If full screen navigation drawer is needed, then add FullDraggableContainer as a child view of closableDrawerLayout.
             // Then add coordinatorLayout as a child view of fullDraggableContainer.
             val fullDraggableContainer = FullDraggableContainerFix(this)
@@ -128,7 +128,7 @@ abstract class NavigationDrawerActivity(
             LayoutInflater
                 .from(this)
                 .inflate(layoutResID, closableDrawerLayout, false) as CoordinatorLayout
-        if (preferences.getBoolean(FULL_SCREEN_NAVIGATION_DRAWER, false)) {
+        if (preferences.getBoolean(PREF_FULL_SCREEN_NAVIGATION_DRAWER, false)) {
             // If full screen navigation drawer is needed, then add FullDraggableContainer as a child view of closableDrawerLayout.
             // Then add coordinatorLayout as a child view of fullDraggableContainer.
             val fullDraggableContainer = FullDraggableContainerFix(this)
@@ -155,10 +155,8 @@ abstract class NavigationDrawerActivity(
     protected fun initNavigationDrawer(mainView: View = findViewById(android.R.id.content)) {
         // Create inherited navigation drawer layout here so that it can be used by parent class
         drawerLayout = mainView.findViewById(R.id.drawer_layout)
-        // set a custom shadow that overlays the main content when the drawer opens
-        drawerLayout.setDrawerShadow(R.drawable.drawer_shadow, GravityCompat.START)
         // Force transparent status bar with primary dark color underlaid so that the drawer displays under status bar
-        window.statusBarColor = getColor(R.color.transparent)
+        window.statusBarColor = getColor(CommonR.color.transparent)
         drawerLayout.setStatusBarBackgroundColor(
             MaterialColors.getColor(
                 this,
@@ -235,8 +233,6 @@ abstract class NavigationDrawerActivity(
         drawerLayout.addDrawerListener(drawerToggle)
 
         enablePostShortcut(this)
-        val intent = Intent("com.ichi2.widget.UPDATE_WIDGET").setClassName("com.ichi2.widget", "WidgetPermissionReceiver")
-        this.sendBroadcast(intent)
     }
 
     /**
@@ -319,7 +315,9 @@ abstract class NavigationDrawerActivity(
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         // Pass any configuration change to the drawer toggles
-        drawerToggle.onConfigurationChanged(newConfig)
+        if (::drawerToggle.isInitialized) {
+            drawerToggle.onConfigurationChanged(newConfig)
+        }
     }
 
     /**
@@ -510,7 +508,7 @@ abstract class NavigationDrawerActivity(
     companion object {
         // Intent request codes
         const val REQUEST_PREFERENCES_UPDATE = 100
-        const val FULL_SCREEN_NAVIGATION_DRAWER = "gestureFullScreenNavigationDrawer"
+        const val PREF_FULL_SCREEN_NAVIGATION_DRAWER = "gestureFullScreenNavigationDrawer"
 
         const val EXTRA_STARTED_WITH_SHORTCUT = "com.ichi2.anki.StartedWithShortcut"
 

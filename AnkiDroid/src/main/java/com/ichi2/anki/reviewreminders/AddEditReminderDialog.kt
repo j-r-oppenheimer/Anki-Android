@@ -7,6 +7,7 @@ import android.app.Dialog
 import android.os.Bundle
 import android.os.Parcelable
 import android.text.format.DateFormat
+import androidx.annotation.AttrRes
 import androidx.annotation.VisibleForTesting
 import androidx.appcompat.app.AlertDialog
 import androidx.core.view.isVisible
@@ -15,6 +16,11 @@ import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.setFragmentResult
 import androidx.fragment.app.viewModels
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LiveData
+import com.google.android.material.chip.Chip
+import com.google.android.material.color.MaterialColors
 import com.google.android.material.timepicker.MaterialTimePicker
 import com.google.android.material.timepicker.TimeFormat
 import com.ichi2.anki.CollectionManager.TR
@@ -39,14 +45,16 @@ import com.ichi2.anki.utils.ext.getParcelableCompat
 import com.ichi2.anki.utils.ext.requireParcelable
 import com.ichi2.anki.utils.ext.showDialogFragment
 import com.ichi2.anki.utils.showDialogFragment
-import com.ichi2.utils.DisplayUtils.resizeWhenSoftInputShown
+import com.ichi2.utils.DisplayUtils.setDialogKeyboardResize
 import com.ichi2.utils.Permissions
 import com.ichi2.utils.customView
 import com.ichi2.utils.negativeButton
 import com.ichi2.utils.neutralButton
+import com.ichi2.utils.outlineWindow
 import com.ichi2.utils.positiveButton
 import kotlinx.parcelize.Parcelize
 import timber.log.Timber
+import com.ichi2.anki.common.android.R as CommonR
 
 class AddEditReminderDialog : DialogFragment() {
     /**
@@ -123,9 +131,10 @@ class AddEditReminderDialog : DialogFragment() {
         setInitialDeckSelection()
         setUpAdvancedDropdown()
         setUpCardThresholdInput()
+        setUpCountChips()
         setUpOnlyNotifyIfNoReviewsCheckbox()
 
-        dialog.window?.let { resizeWhenSoftInputShown(it) }
+        setDialogKeyboardResize(dialog)
         return dialog
     }
 
@@ -144,6 +153,7 @@ class AddEditReminderDialog : DialogFragment() {
         super.onResume()
         val timePickerDialog = parentFragmentManager.findFragmentByTag(TIME_PICKER_TAG) as? MaterialTimePicker
         timePickerDialog?.let {
+            it.outlineWindow()
             it.clearOnPositiveButtonClickListeners()
             it.addOnPositiveButtonClickListener {
                 viewModel.setTime(ReviewReminderTime(timePickerDialog.hour, timePickerDialog.minute))
@@ -245,6 +255,55 @@ class AddEditReminderDialog : DialogFragment() {
         }
     }
 
+    /**
+     * Convenience data class for setting up the chips for whether to count new, learning, and review cards
+     * when considering the card trigger threshold.
+     * @see setUpCountChips
+     */
+    private data class CountViewsAndActions(
+        val chip: Chip,
+        val label: String,
+        @AttrRes val colorAttr: Int,
+        val actionOnClick: () -> Unit,
+        val state: LiveData<Boolean>,
+    )
+
+    private fun setUpCountChips() {
+        val countViewsAndActionsItems =
+            listOf(
+                CountViewsAndActions(
+                    chip = binding.addEditReminderCountNewChip,
+                    label = TR.actionsNew(),
+                    colorAttr = CommonR.attr.newCountColor,
+                    actionOnClick = viewModel::toggleCountNew,
+                    state = viewModel.countNew,
+                ),
+                CountViewsAndActions(
+                    chip = binding.addEditReminderCountLrnChip,
+                    label = TR.schedulingLearning(),
+                    colorAttr = CommonR.attr.learnCountColor,
+                    actionOnClick = viewModel::toggleCountLrn,
+                    state = viewModel.countLrn,
+                ),
+                CountViewsAndActions(
+                    chip = binding.addEditReminderCountRevChip,
+                    label = TR.studyingToReview(),
+                    colorAttr = CommonR.attr.reviewCountColor,
+                    actionOnClick = viewModel::toggleCountRev,
+                    state = viewModel.countRev,
+                ),
+            )
+
+        countViewsAndActionsItems.forEach { item ->
+            item.chip.text = item.label
+            item.chip.setTextColor(MaterialColors.getColor(requireContext(), item.colorAttr, 0))
+            item.chip.setOnClickListener { item.actionOnClick() }
+            item.state.observe(this) { value ->
+                item.chip.isChecked = value
+            }
+        }
+    }
+
     private fun setUpOnlyNotifyIfNoReviewsCheckbox() {
         binding.addEditReminderOnlyNotifyIfNoReviewsSection.setOnClickListener {
             viewModel.toggleOnlyNotifyIfNoReviews()
@@ -283,7 +342,17 @@ class AddEditReminderDialog : DialogFragment() {
         dialog.addOnPositiveButtonClickListener {
             viewModel.setTime(ReviewReminderTime(dialog.hour, dialog.minute))
         }
+        dialog.outlineWindow()
         dialog.show(parentFragmentManager, TIME_PICKER_TAG)
+    }
+
+    /** Outlines the picker's window in E-ink once its dialog exists. See [outlineWindow]. */
+    private fun MaterialTimePicker.outlineWindow() {
+        lifecycle.addObserver(
+            object : DefaultLifecycleObserver {
+                override fun onStart(owner: LifecycleOwner) = requireDialog().outlineWindow()
+            },
+        )
     }
 
     private fun onSubmit() {
@@ -319,8 +388,9 @@ class AddEditReminderDialog : DialogFragment() {
 
         val confirmationDialog = ConfirmationDialog()
         confirmationDialog.setArgs(
-            getString(CommonString.add_edit_reminder_delete_confirmation_title),
-            getString(CommonString.add_edit_reminder_delete_confirmation_message),
+            title = getString(CommonString.add_edit_reminder_delete_confirmation_title),
+            message = getString(CommonString.add_edit_reminder_delete_confirmation_message),
+            positiveButtonText = getString(CommonString.dialog_positive_delete),
         )
         confirmationDialog.setConfirm {
             setFragmentResult(
@@ -358,7 +428,7 @@ class AddEditReminderDialog : DialogFragment() {
         /**
          * Icon that shows next to the advanced settings section when the dropdown is closed.
          */
-        private val DROPDOWN_COLLAPSED_CHEVRON = R.drawable.ic_baseline_chevron_right_24
+        private val DROPDOWN_COLLAPSED_CHEVRON = CommonR.drawable.ic_baseline_chevron_right_24
 
         /**
          * Arguments key for the dialog mode to open this dialog in.

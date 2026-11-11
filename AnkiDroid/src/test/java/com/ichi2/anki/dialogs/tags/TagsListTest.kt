@@ -1,18 +1,6 @@
-/*
- Copyright (c) 2021 Tarek Mohamed Abdalla <tarekkma@gmail.com>
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: Copyright (c) 2021 Tarek Mohamed Abdalla <tarekkma@gmail.com>
 
- This program is free software; you can redistribute it and/or modify it under
- the terms of the GNU General Public License as published by the Free Software
- Foundation; either version 3 of the License, or (at your option) any later
- version.
-
- This program is distributed in the hope that it will be useful, but WITHOUT ANY
- WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
- PARTICULAR PURPOSE. See the GNU General Public License for more details.
-
- You should have received a copy of the GNU General Public License along with
- this program.  If not, see <http://www.gnu.org/licenses/>.
- */
 package com.ichi2.anki.dialogs.tags
 
 import com.ichi2.testutils.assertFalse
@@ -503,6 +491,51 @@ class TagsListTest {
             "Calling #sort on TagsList should result on sorting all tags",
             SORTED_TAGS,
             tagsListWithIndeterminate.copyOfAllTagList(),
+        )
+    }
+
+    @Test
+    fun `selected descendant lookup ignores case and respects hierarchy boundaries`() {
+        val tags =
+            TagsList(
+                allTags = listOf("B", "B::child::leaf", "B::childish", "Bother::leaf"),
+                checkedTags = listOf("B", "B::child::leaf", "B::childish", "Bother::leaf"),
+                uncheckedTags = listOf("B::child::leaf"),
+            )
+
+        assertTrue(tags.hasSelectedDescendants("b"))
+        assertTrue(tags.hasSelectedDescendants("b::CHILD"))
+        assertFalse(actual = tags.hasSelectedDescendants("B::childish"))
+
+        tags.uncheck("b::child::LEAF")
+        assertFalse(actual = tags.hasSelectedDescendants("B::child"))
+        assertTrue(tags.hasSelectedDescendants("B"))
+
+        tags.uncheck("B::childish")
+        assertFalse(actual = tags.hasSelectedDescendants("B"))
+        assertTrue(tags.hasSelectedDescendants("Bother"))
+    }
+
+    @Test
+    fun `sort brings partially selected hierarchical tags to the top`() {
+        // Issue 15278: the selected notes have different hierarchical tags.
+        val tags =
+            TagsList(
+                allTags = listOf("aaa", "B::B", "C::child::leaf", "C::other"),
+                checkedTags = listOf("B::B", "C::child::leaf"),
+                uncheckedTags = listOf("aaa", "B::B", "C::child::leaf", "C::other"),
+            )
+
+        tags.sort()
+
+        assertEquals(
+            listOf("B", "B::B", "C", "C::child", "C::child::leaf", "C::other", "aaa"),
+            tags.copyOfAllTagList(),
+        )
+        assertEquals(emptyList<String>(), tags.copyOfCheckedTagList())
+        assertEquals(
+            listOf("B", "B::B", "C", "C::child", "C::child::leaf"),
+            tags.copyOfIndeterminateTagList(),
         )
     }
 

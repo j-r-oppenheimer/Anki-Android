@@ -30,6 +30,7 @@ class WhiteboardView : View {
     var onEraseGestureStart: ((Float, Float) -> Unit)? = null
     var onEraseGestureMove: ((Float, Float) -> Unit)? = null
     var onEraseGestureEnd: (() -> Unit)? = null
+    var onEraseGestureCancel: (() -> Unit)? = null
     var onStylusButtonStateChanged: ((Boolean) -> Unit)? = null
 
     var activeTool: WhiteboardTool = WhiteboardTool.Brush(Color.BLACK, WhiteboardRepository.DEFAULT_STROKE_WIDTH)
@@ -131,13 +132,14 @@ class WhiteboardView : View {
 
     /**
      * Handles user touch input for drawing and erasing.
-     * Ignores finger input if stylus-only mode is enabled.
+     * In stylus-only mode, finger input passes through to the card beneath the whiteboard.
      */
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (event.pointerCount >= 2) {
             isDrawing = false
             currentPath.reset()
             invalidate()
+            onEraseGestureCancel?.invoke()
 
             return multiTouchDetector.onTouchEvent(event)
         }
@@ -155,6 +157,7 @@ class WhiteboardView : View {
                 isDrawing = true
                 hasMoved = false
                 currentPath.moveTo(touchX, touchY)
+                // TODO: #22553 - don't erase until the gesture becomes an erase, to avoid the flicker
                 if (isStrokeEraser) {
                     onEraseGestureStart?.invoke(touchX, touchY)
                 }
@@ -203,6 +206,7 @@ class WhiteboardView : View {
             }
             MotionEvent.ACTION_CANCEL -> {
                 currentPath.reset()
+                onEraseGestureCancel?.invoke()
                 isDrawing = false
                 updateStylusButtonState(event)
                 invalidate()

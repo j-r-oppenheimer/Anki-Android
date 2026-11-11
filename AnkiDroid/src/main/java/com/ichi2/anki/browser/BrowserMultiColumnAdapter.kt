@@ -15,6 +15,7 @@ import android.view.ViewGroup
 import android.widget.CheckBox
 import android.widget.TextView
 import androidx.annotation.ColorInt
+import androidx.annotation.MainThread
 import androidx.annotation.VisibleForTesting
 import androidx.appcompat.widget.ThemeUtils
 import androidx.core.graphics.drawable.toDrawable
@@ -27,15 +28,17 @@ import com.ichi2.anki.R
 import com.ichi2.anki.common.annotations.NeedsTest
 import com.ichi2.anki.common.utils.android.darkenColor
 import com.ichi2.anki.common.utils.android.lightenColorAbsolute
+import com.ichi2.anki.common.utils.dp
 import com.ichi2.anki.common.utils.ext.replaceWith
+import com.ichi2.anki.common.utils.ext.setBitFlag
 import com.ichi2.anki.databinding.ItemCardBrowserBinding
 import com.ichi2.anki.databinding.ViewBrowserColumnCellBinding
 import com.ichi2.themes.Themes
-import com.ichi2.utils.dp
 import com.ichi2.utils.removeChildren
 import net.ankiweb.rsdroid.BackendException
 import timber.log.Timber
 import kotlin.math.abs
+import com.ichi2.anki.common.android.R as CommonR
 
 typealias RowIsSelected = Boolean
 
@@ -56,8 +59,14 @@ class BrowserMultiColumnAdapter(
     val fontSizeScalePercent =
         sharedPrefs().getInt("relativeCardBrowserFontSize", DEFAULT_FONT_SIZE_RATIO)
 
-    private val rowCollection: BrowserRowCollection
-        get() = viewModel.cards
+    // Search updates must not change the adapter's rows before RecyclerView is notified.
+    private var rows: List<CardOrNoteId> = viewModel.cards.toList()
+
+    @MainThread
+    fun refreshRows() {
+        rows = viewModel.cards.toList()
+        notifyDataSetChanged()
+    }
 
     private var originalTextSize = -1.0f
 
@@ -191,12 +200,7 @@ class BrowserMultiColumnAdapter(
         }
 
         private fun TextView.setStrikeThrough(strikeThrough: Boolean) {
-            paintFlags =
-                if (strikeThrough) {
-                    paintFlags or Paint.STRIKE_THRU_TEXT_FLAG
-                } else {
-                    paintFlags and Paint.STRIKE_THRU_TEXT_FLAG.inv()
-                }
+            paintFlags = paintFlags.setBitFlag(Paint.STRIKE_THRU_TEXT_FLAG, enabled = strikeThrough)
         }
 
         private fun TextView.setupTextSize() {
@@ -222,19 +226,13 @@ class BrowserMultiColumnAdapter(
         return MultiColumnViewHolder(binding)
     }
 
-    override fun getItemCount(): Int = rowCollection.size
+    override fun getItemCount(): Int = rows.size
 
     override fun onBindViewHolder(
         holder: MultiColumnViewHolder,
         position: Int,
     ) {
-        val id =
-            try {
-                rowCollection[position]
-            } catch (e: Exception) {
-                Timber.w(e)
-                return
-            }
+        val id = rows[position]
 
         try {
             val (row, isSelected) = viewModel.transformBrowserRow(id)
@@ -262,7 +260,7 @@ class BrowserMultiColumnAdapter(
             val rowColor =
                 // This only highlights in fragmented mode
                 if (viewModel.paneRow == id) {
-                    ThemeUtils.getThemeAttrColor(context, R.attr.focusedRowBackgroundColor)
+                    ThemeUtils.getThemeAttrColor(context, CommonR.attr.selectedRowBackgroundColor)
                 } else {
                     backendColorToColor(row.color)
                 }
@@ -292,9 +290,9 @@ class BrowserMultiColumnAdapter(
             Color.COLOR_FLAG_TURQUOISE -> context.getColor(Flag.TURQUOISE.browserColorRes!!)
             Color.COLOR_FLAG_PURPLE -> context.getColor(Flag.PURPLE.browserColorRes!!)
 
-            Color.COLOR_SUSPENDED -> ThemeUtils.getThemeAttrColor(context, R.attr.suspendedColor)
-            Color.COLOR_MARKED -> ThemeUtils.getThemeAttrColor(context, R.attr.markedColor)
-            Color.COLOR_BURIED -> ThemeUtils.getThemeAttrColor(context, R.attr.buriedColor)
+            Color.COLOR_SUSPENDED -> ThemeUtils.getThemeAttrColor(context, CommonR.attr.suspendedColor)
+            Color.COLOR_MARKED -> ThemeUtils.getThemeAttrColor(context, CommonR.attr.markedColor)
+            Color.COLOR_BURIED -> ThemeUtils.getThemeAttrColor(context, CommonR.attr.buriedColor)
 
             Color.COLOR_DEFAULT, Color.UNRECOGNIZED ->
                 ThemeUtils.getThemeAttrColor(context, android.R.attr.colorBackground)

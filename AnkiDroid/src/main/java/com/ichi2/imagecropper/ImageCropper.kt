@@ -1,19 +1,5 @@
-/*
- * Copyright (c) 2024 Ashish Yadav <mailtoashish693@gmail.com>
- *
- * This program is free software; you can redistribute it and/or modify it under
- * the terms of the GNU General Public License as published by the Free Software
- * Foundation; either version 3 of the License, or (at your option) any later
- * version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
- * details.
- *
- * You should have received a copy of the GNU General Public License along with
- * this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: Copyright (c) 2024 Ashish Yadav <mailtoashish693@gmail.com>
 
 package com.ichi2.imagecropper
 
@@ -82,7 +68,7 @@ class ImageCropper :
             cropRect = Rect(100, 300, 500, 1200)
         }
         val originalImageUri =
-            BundleCompat.getParcelable(requireArguments(), CROP_IMAGE_URI, Uri::class.java)
+            BundleCompat.getParcelable(requireArguments(), ARG_IMAGE_URI, Uri::class.java)
                 ?: error("No image identifier was provided for cropping")
         viewLifecycleOwner.lifecycleScope.launch {
             withProgress {
@@ -179,6 +165,7 @@ class ImageCropper :
                 if (Build.VERSION.SDK_INT >= 30) {
                     Bitmap.CompressFormat.WEBP_LOSSLESS
                 } else {
+                    @Suppress("DEPRECATION") // WEBP: deprecated in API 30, the only option below it
                     Bitmap.CompressFormat.WEBP
                 }
             }
@@ -207,7 +194,7 @@ class ImageCropper :
         if (result.error == null) {
             val resultIntent = Intent()
             resultIntent.putExtra(
-                CROP_IMAGE_RESULT,
+                EXTRA_CROP_IMAGE_RESULT,
                 CropResultData(
                     uriContent = result.uriContent,
                     uriPath = context?.let { result.getUriFilePath(it) },
@@ -233,12 +220,12 @@ class ImageCropper :
         /**
          * The key for the original image URI passed as an argument.
          */
-        const val CROP_IMAGE_URI = "image_uri"
+        const val ARG_IMAGE_URI = "image_uri"
 
         /**
          * The key for the cropped image path sent back in the result Intent.
          */
-        const val CROP_IMAGE_RESULT = "crop_image_result"
+        const val EXTRA_CROP_IMAGE_RESULT = "crop_image_result"
     }
 
     @Parcelize

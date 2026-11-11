@@ -5,6 +5,7 @@ package com.ichi2.anki.reviewreminders
 
 import android.provider.Settings
 import android.view.View
+import androidx.appcompat.app.AlertDialog
 import com.google.android.material.timepicker.MaterialTimePicker
 import com.google.testing.junit.testparameterinjector.TestParameter
 import com.ichi2.anki.ScreenshotTest
@@ -40,6 +41,35 @@ class AddEditReminderDialogScreenshotTest : ScreenshotTest() {
             binding.addEditReminderAdvancedDropdown.performClick()
             advanceRobolectricLooper()
             captureScreen("edit_mode_advanced_open")
+        }
+    }
+
+    @Test
+    fun `card threshold entry`(
+        @TestParameter landscape: Boolean,
+    ) {
+        val orientation = setOrientation(landscape)
+        withReminderDialog(DialogMode.Add(ReviewReminderScope.Global)) {
+            binding.addEditReminderAdvancedDropdown.performClick()
+            binding.addEditReminderCardThresholdInput.apply {
+                requestFocus()
+                setText("25")
+                setSelection(text!!.length)
+            }
+            advanceRobolectricLooper()
+            binding.addEditReminderScrollview.fullScroll(View.FOCUS_DOWN)
+            advanceRobolectricLooper()
+            captureScreen("${orientation}_card_threshold_entry")
+        }
+    }
+
+    @Test
+    fun `delete confirmation dialog`() {
+        val reminder = ReviewReminder.createReviewReminder(time = ReviewReminderTime(9, 0))
+        withReminderDialog(DialogMode.Edit(reminder)) {
+            (requireDialog() as AlertDialog).getButton(AlertDialog.BUTTON_NEGATIVE).performClick()
+            advanceRobolectricLooper()
+            captureScreen("delete_confirmation_dialog")
         }
     }
 

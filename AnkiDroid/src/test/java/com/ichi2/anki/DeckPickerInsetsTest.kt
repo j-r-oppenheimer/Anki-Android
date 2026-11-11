@@ -11,9 +11,9 @@ import androidx.core.view.isVisible
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.ichi2.anki.android.view.locationInWindow
 import com.ichi2.anki.common.preferences.sharedPrefs
+import com.ichi2.anki.common.utils.dp
 import com.ichi2.testutils.BackupManagerTestUtilities
 import com.ichi2.testutils.dispatchInsets
-import com.ichi2.utils.dp
 import org.hamcrest.MatcherAssert.assertThat
 import org.hamcrest.Matchers.equalTo
 import org.hamcrest.Matchers.greaterThan
@@ -28,6 +28,36 @@ import org.robolectric.Robolectric
  */
 @RunWith(AndroidJUnit4::class)
 class DeckPickerInsetsTest : RobolectricTest() {
+    @Test
+    fun `destroying the deck picker removes its global layout listener`() {
+        ensureCollectionLoadIsSynchronous()
+        setIntroductionSlidesShown(true)
+        BackupManagerTestUtilities.setupSpaceForBackup(targetContext)
+        targetContext.sharedPrefs().edit { putBoolean("backupPromptDisabled", true) }
+        addDeck("Test Deck")
+        val controller = startActivityControllerNormallyOpenCollectionWithIntent(DeckPicker::class.java, Intent())
+        val deckPicker = controller.get()
+        advanceRobolectricLooperUntil(lazyMessage = { "the deck list should be shown" }) {
+            deckPicker.deckPickerBinding.deckPickerContent.isVisible
+        }
+        deckPicker.dispatchInsets(navBarBottom = 48.dp)
+        deckPicker.layoutForTest()
+        val list = deckPicker.deckPickerBinding.decks
+        val observer = deckPicker.deckPickerBinding.root.viewTreeObserver
+        check(list.height > 0) { "the deck list must be laid out, or the layout listener is a no-op" }
+        val padding = list.paddingBottom
+        check(padding > 0)
+
+        list.setPadding(list.paddingLeft, list.paddingTop, list.paddingRight, 0)
+        observer.dispatchOnGlobalLayout()
+        assertThat("the listener updates padding while the activity is alive", list.paddingBottom, equalTo(padding))
+
+        controller.pause().stop().destroy()
+        list.setPadding(list.paddingLeft, list.paddingTop, list.paddingRight, 0)
+        observer.dispatchOnGlobalLayout()
+        assertThat("the window observer must no longer call the destroyed activity", list.paddingBottom, equalTo(0))
+    }
+
     @Test
     fun `deck list padding follows a dialog keyboard opening and closing`() =
         withDeckPicker(deckCount = 2) { deckPicker ->
@@ -139,8 +169,10 @@ class DeckPickerInsetsTest : RobolectricTest() {
 
         controller.start().resume().visible()
         // advances the looper so the collection loads and the list appears
+        advanceRobolectricLooperUntil(lazyMessage = { "the deck list should be shown" }) {
+            deckPicker.deckPickerBinding.deckPickerContent.isVisible
+        }
         deckPicker.layoutForTest()
-        check(deckPicker.deckPickerBinding.deckPickerContent.isVisible) { "the deck list should be shown" }
         // one line at the test's layout width, so the resting position is the seeded one
         deckPicker.viewModel.flowOfStudiedTodayStats.value = "Studied 3 cards today"
         deckPicker.layoutForTest()
@@ -163,6 +195,10 @@ class DeckPickerInsetsTest : RobolectricTest() {
             // delete every deck: the deck picker enters the initial state
             col.decks.remove(listOf("Test Deck 0", "Test Deck 1").map { col.decks.id(it) })
             deckPicker.updateDeckList()
+            // Refreshing the decks runs on IO: draining the main looper alone may finish first.
+            advanceRobolectricLooperUntil(lazyMessage = { "the empty collection placeholder should be shown" }) {
+                deckPicker.deckPickerBinding.noDecksPlaceholder.isVisible
+            }
             deckPicker.layoutForTest()
             check(deckPicker.fabBottomMargin == 0) { "the FAB should be unraised initially" }
 
@@ -170,6 +206,9 @@ class DeckPickerInsetsTest : RobolectricTest() {
             // so no layout pass fires on it
             addDeck("A Deck")
             deckPicker.updateDeckList()
+            advanceRobolectricLooperUntil(lazyMessage = { "the deck list should be shown again" }) {
+                deckPicker.deckPickerBinding.deckPickerContent.isVisible
+            }
             deckPicker.layoutForTest()
 
             assertThat(

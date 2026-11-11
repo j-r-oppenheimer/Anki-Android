@@ -13,7 +13,6 @@ import android.text.InputType
 import android.text.Spanned
 import android.view.MenuItem
 import android.view.View
-import android.view.Window
 import android.view.WindowManager
 import android.widget.EditText
 import android.widget.RadioGroup
@@ -38,7 +37,7 @@ import com.ichi2.anki.OnContextAndLongClickListener
 import com.ichi2.anki.R
 import com.ichi2.anki.analytics.AnalyticsDialogFragment
 import com.ichi2.anki.browser.IdsFile
-import com.ichi2.anki.common.annotations.NeedsTest
+import com.ichi2.anki.common.utils.android.showThemedToast
 import com.ichi2.anki.databinding.DialogTagsBinding
 import com.ichi2.anki.launchCatchingTask
 import com.ichi2.anki.libanki.NoteId
@@ -47,7 +46,7 @@ import com.ichi2.anki.model.CardStateFilter
 import com.ichi2.anki.snackbar.showSnackbar
 import com.ichi2.anki.utils.ext.requireParcelable
 import com.ichi2.ui.AccessibleSearchView
-import com.ichi2.utils.DisplayUtils.resizeWhenSoftInputShown
+import com.ichi2.utils.DisplayUtils.setDialogKeyboardResize
 import com.ichi2.utils.TagsUtil
 import com.ichi2.utils.customView
 import com.ichi2.utils.getInputField
@@ -65,6 +64,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.parcelize.Parcelize
 import timber.log.Timber
+import java.io.IOException
+import kotlin.time.Duration.Companion.milliseconds
+import com.ichi2.anki.common.android.R as CommonR
 
 class TagsDialog : AnalyticsDialogFragment {
     /**
@@ -85,7 +87,10 @@ class TagsDialog : AnalyticsDialogFragment {
         CUSTOM_STUDY,
     }
 
-    private lateinit var binding: DialogTagsBinding
+    @VisibleForTesting
+    internal lateinit var binding: DialogTagsBinding
+        private set
+
     private var type: DialogType? = null
     internal val isEditingTags: Boolean get() = type == DialogType.EDIT_TAGS
     private var tagsArrayAdapter: TagsArrayAdapter? = null
@@ -97,16 +102,16 @@ class TagsDialog : AnalyticsDialogFragment {
 
     @VisibleForTesting
     val viewModel: TagsDialogViewModel by viewModels {
-        val idsFile = requireArguments().requireParcelable<IdsFile>(ARG_TAGS_FILE)
-        val noteIds = idsFile.getIds()
-        val checkedTags =
-            requireNotNull(requireArguments().getStringArrayList(ARG_CHECKED_TAGS)) {
-                "$ARG_CHECKED_TAGS is required"
-            }
-        val type = BundleCompat.getParcelable(requireArguments(), ARG_DIALOG_TYPE, DialogType::class.java)
-        val isCustomStudying = type != null && type == DialogType.CUSTOM_STUDY
         viewModelFactory {
             initializer {
+                val idsFile = requireArguments().requireParcelable<IdsFile>(ARG_TAGS_FILE)
+                val noteIds = idsFile.getIdsOrNull() ?: throw IOException("Tag selection is no longer available")
+                val checkedTags =
+                    requireNotNull(requireArguments().getStringArrayList(ARG_CHECKED_TAGS)) {
+                        "$ARG_CHECKED_TAGS is required"
+                    }
+                val type = BundleCompat.getParcelable(requireArguments(), ARG_DIALOG_TYPE, DialogType::class.java)
+                val isCustomStudying = type != null && type == DialogType.CUSTOM_STUDY
                 TagsDialogViewModel(
                     noteIds = noteIds,
                     checkedTags = checkedTags,
@@ -145,7 +150,7 @@ class TagsDialog : AnalyticsDialogFragment {
         checkedTags: ArrayList<String> = arrayListOf(),
     ): TagsDialog {
         // TODO: checkedTags is unbounded and could exceed the bundle size
-        val file = IdsFile(context.cacheDir, noteIds)
+        val file = IdsFile(IdsFile.getDirectory(), noteIds, IdsFile.Purpose.TAGS)
         arguments = this.arguments ?: Bundle().apply {
             putParcelable(ARG_TAGS_FILE, file)
             putParcelable(ARG_DIALOG_TYPE, type)
@@ -156,7 +161,6 @@ class TagsDialog : AnalyticsDialogFragment {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        resizeWhenSoftInputShown(requireActivity().window)
 
         type = requireArguments().requireParcelable(ARG_DIALOG_TYPE)
         isCancelable = true
@@ -167,11 +171,16 @@ class TagsDialog : AnalyticsDialogFragment {
             listener
                 ?: TagsDialogListener.createFragmentResultSender(parentFragmentManager)
 
-    @NeedsTest(
-        "In EDIT_TAGS dialog, long-clicking a tag should open the add tag dialog with the clicked tag" +
-            " filled as prefix properly. In other dialog types, long-clicking a tag behaves like a short click.",
-    )
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
+        // Resolve the selection before creating any controls that could submit an operation.
+        try {
+            viewModel
+        } catch (e: IOException) {
+            Timber.w(e, "Failed to read tag dialog IDs")
+            showThemedToast(requireContext(), CommonString.something_wrong, false)
+            dismiss()
+            return super.onCreateDialog(savedInstanceState)
+        }
         binding = DialogTagsBinding.inflate(layoutInflater)
 
         val positiveText =
@@ -211,7 +220,7 @@ class TagsDialog : AnalyticsDialogFragment {
         lifecycleScope.launch {
             val showProgressJob =
                 launch {
-                    delay(600)
+                    delay(600.milliseconds)
                     withContext(Dispatchers.Main) {
                         binding.loadingContainer.visibility = View.VISIBLE
                         viewModel.initProgress
@@ -252,7 +261,7 @@ class TagsDialog : AnalyticsDialogFragment {
             positiveButton?.isEnabled = true
         }
 
-        dialog.window?.updateSoftInputMode(resources.configuration)
+        dialog.updateSoftInputMode(resources.configuration)
 
         return dialog
     }
@@ -280,7 +289,7 @@ class TagsDialog : AnalyticsDialogFragment {
             val tags = viewModel.tags.await()
             tagsDialogListener.onSelectedTags(
                 tags.copyOfCheckedTagList(),
-                tags.copyOfIndeterminateTagList(),
+                tags.copyOfPartiallySelectedTagList(),
                 selectedOption,
             )
         }
@@ -293,15 +302,11 @@ class TagsDialog : AnalyticsDialogFragment {
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        dialog?.window?.updateSoftInputMode(newConfig)
+        dialog?.updateSoftInputMode(newConfig)
     }
 
-    private fun Window.updateSoftInputMode(configuration: Configuration) {
-        if (configuration.screenHeightDp < COMPACT_HEIGHT_DP) {
-            setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN)
-        } else {
-            resizeWhenSoftInputShown(this)
-        }
+    private fun Dialog.updateSoftInputMode(configuration: Configuration) {
+        setDialogKeyboardResize(this, resize = configuration.screenHeightDp >= COMPACT_HEIGHT_DP)
     }
 
     private fun radioButtonIdToCardState(id: Int) =
@@ -321,8 +326,8 @@ class TagsDialog : AnalyticsDialogFragment {
         toolbar.setTitle(titleRes)
 
         val toolbarAddItem = toolbar.menu.findItem(R.id.tags_dialog_action_add)
-        val drawable = ContextCompat.getDrawable(requireContext(), R.drawable.ic_add)
-        drawable?.setTint(requireContext().getColor(R.color.white))
+        val drawable = ContextCompat.getDrawable(requireContext(), CommonR.drawable.ic_add)
+        drawable?.setTint(requireContext().getColor(CommonR.color.white))
         toolbarAddItem.icon = drawable
 
         toolbarAddItem.setOnMenuItemClickListener {
@@ -360,7 +365,7 @@ class TagsDialog : AnalyticsDialogFragment {
                 val tags = viewModel.tags.await()
                 val didChange = tags.toggleAllCheckedStatuses()
                 if (didChange) {
-                    tagsArrayAdapter?.notifyDataSetChanged()
+                    tagsArrayAdapter?.notifyCheckedStatusesChanged()
                     view?.showMaxTagSelectedNotice(tags)
                 }
             }
@@ -378,9 +383,6 @@ class TagsDialog : AnalyticsDialogFragment {
      *
      * @param prefixTag: The tag to be prefilled into the EditText section. A trailing '::' will be appended.
      */
-    @NeedsTest("The prefixTag should be prefilled properly")
-    @NeedsTest("Entering an existing tag should show an error and disable the OK button")
-    @NeedsTest("Entering a new valid tag should clear the error and enable the OK button")
     private fun createAddTagDialog(prefixTag: String?) {
         val addTagDialog =
             AlertDialog
@@ -389,7 +391,7 @@ class TagsDialog : AnalyticsDialogFragment {
                     title(text = getString(CommonString.add_tag))
                     positiveButton(CommonString.menu_add)
                     negativeButton(CommonString.dialog_cancel)
-                    setView(R.layout.dialog_generic_text_input)
+                    setView(CommonR.layout.dialog_generic_text_input)
                 }.input(
                     hint = TR.actionsName().dropLastWhile { it == ':' },
                     inputType = InputType.TYPE_CLASS_TEXT,
@@ -476,9 +478,6 @@ class TagsDialog : AnalyticsDialogFragment {
             binding.tagsDialogSnackbar.showSnackbar(feedbackText)
         }
     }
-
-    @VisibleForTesting(otherwise = VisibleForTesting.NONE)
-    internal fun getSearchView(): AccessibleSearchView? = toolbarSearchView
 
     companion object {
         const val ARG_TAGS_FILE = "tagsFile"

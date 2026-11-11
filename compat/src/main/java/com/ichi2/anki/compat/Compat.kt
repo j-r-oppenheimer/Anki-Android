@@ -22,6 +22,8 @@ import android.os.Environment
 import android.view.View
 import android.view.Window
 import androidx.annotation.AnimRes
+import androidx.core.view.ContentInfoCompat
+import kotlinx.coroutines.Job
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
@@ -68,6 +70,12 @@ import kotlin.time.Duration
  * [CompatV29] in order to use [Environment.DIRECTORY_PICTURES], need not be implemented again in [CompatV26].
  */
 interface Compat {
+    /** Keeps the dropped content's URI permissions alive until [job] completes. */
+    fun retainDropPermissions(
+        payload: ContentInfoCompat,
+        job: Job,
+    )
+
     fun setTooltipTextByContentDescription(view: View)
 
     fun vibrate(
@@ -79,6 +87,20 @@ interface Compat {
     fun getMediaRecorder(context: Context): MediaRecorder
 
     fun hideStatusBar(window: Window)
+
+    /**
+     * Fit a floating dialog above the keyboard, or pan to its focused input when [resize] is false.
+     *
+     * On API 30+, fit the whole window to IME insets so its background and buttons stay above the
+     * keyboard. On older APIs, use the legacy soft input adjustment mode.
+     *
+     * [window] must belong to a floating dialog. Activities with edge-to-edge content should handle
+     * IME insets in their own layout.
+     */
+    fun setDialogKeyboardResize(
+        window: Window,
+        resize: Boolean,
+    )
 
     /**
      * Request that the current input method's soft input area be shown to the

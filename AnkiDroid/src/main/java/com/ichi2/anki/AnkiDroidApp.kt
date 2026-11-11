@@ -11,6 +11,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.res.Resources
+import android.database.DatabaseErrorHandler
+import android.database.sqlite.SQLiteDatabase
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -24,6 +26,8 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import anki.collection.OpChanges
 import com.ichi2.anki.AnkiDroidApp.Companion.sharedPreferencesTestingOverride
 import com.ichi2.anki.analytics.initializeAnalytics
+import com.ichi2.anki.analytics.launchPreviousAnrReporting
+import com.ichi2.anki.browser.IdsFile
 import com.ichi2.anki.browser.SharedPreferencesLastDeckIdRepository
 import com.ichi2.anki.common.android.AdaptionUtil
 import com.ichi2.anki.common.android.Animations
@@ -32,17 +36,21 @@ import com.ichi2.anki.common.android.getCurrentLocaleTag
 import com.ichi2.anki.common.android.withAppLocale
 import com.ichi2.anki.common.annotations.LegacyNotifications
 import com.ichi2.anki.common.annotations.NeedsTest
+import com.ichi2.anki.common.appName
 import com.ichi2.anki.common.coroutines.applicationScope
 import com.ichi2.anki.common.crashreporting.CrashReportService.sendExceptionReport
 import com.ichi2.anki.common.permissions.hasLegacyStorageAccessPermission
 import com.ichi2.anki.common.preferences.sharedPrefs
 import com.ichi2.anki.common.storage.CollectionHelper
+import com.ichi2.anki.common.storage.StorageDecision
 import com.ichi2.anki.common.utils.android.SdCard
+import com.ichi2.anki.common.utils.android.isRobolectric
 import com.ichi2.anki.common.utils.android.showThemedToast
 import com.ichi2.anki.common.utils.annotation.KotlinCleanup
 import com.ichi2.anki.compat.CompatHelper
 import com.ichi2.anki.contextmenu.AnkiCardContextMenu
 import com.ichi2.anki.contextmenu.CardBrowserContextMenu
+import com.ichi2.anki.exception.CollectionLockedException
 import com.ichi2.anki.exception.StorageAccessException
 import com.ichi2.anki.exception.SystemStorageException
 import com.ichi2.anki.logging.FragmentLifecycleLogger
@@ -52,27 +60,32 @@ import com.ichi2.anki.logging.RobolectricDebugTree
 import com.ichi2.anki.logging.logActivityCreation
 import com.ichi2.anki.model.FieldFilters.NoSuggestFilter
 import com.ichi2.anki.multimedia.MultimediaArgsStorage
+import com.ichi2.anki.multiprofile.ProfileContextWrapper
 import com.ichi2.anki.multiprofile.ProfileManager
+import com.ichi2.anki.multiprofile.isPhoenixProcess
 import com.ichi2.anki.navigation.initializeNavigator
 import com.ichi2.anki.observability.ChangeManager
 import com.ichi2.anki.preferences.SharedPreferencesProvider
+import com.ichi2.anki.recorder.VoiceRecorder
 import com.ichi2.anki.reviewreminders.ReminderLogTree
 import com.ichi2.anki.servicelayer.DebugInfoService
 import com.ichi2.anki.servicelayer.ThrowableFilterService
 import com.ichi2.anki.services.NotificationService
 import com.ichi2.anki.settings.Prefs
 import com.ichi2.anki.settings.PrefsRepository
-import com.ichi2.anki.startup.ensureCollectionPathSet
+import com.ichi2.anki.startup.configureBackendTemporaryDirectory
 import com.ichi2.anki.startup.getDefaultAnkiDroidDirectory
+import com.ichi2.anki.startup.maybeSetDefaultCollectionPath
 import com.ichi2.anki.ui.dialogs.ActivityAgnosticDialogs
 import com.ichi2.anki.widget.RECURRING_WIDGETS
-import com.ichi2.utils.AlarmManagement
 import com.ichi2.utils.ExceptionUtil
 import com.ichi2.utils.LanguageUtil
 import com.ichi2.utils.measureTime
 import com.ichi2.utils.setWebContentsDebuggingEnabled
+import com.ichi2.widget.AnkiDroidWidgetSmall
 import com.ichi2.widget.DayRolloverAlarm
 import com.ichi2.widget.WidgetNotificationScheduler
+import com.ichi2.widget.WidgetStatus
 import com.ichi2.widget.cardanalysis.CardAnalysisWidget
 import com.ichi2.widget.deckpicker.DeckPickerWidget
 import com.ichi2.widget.restoreRecurringAlarms
@@ -101,9 +114,6 @@ open class AnkiDroidApp :
     lateinit var activityAgnosticDialogs: ActivityAgnosticDialogs
     val sharedPrefsLastDeckIdRepository = SharedPreferencesLastDeckIdRepository()
 
-    /** Used to avoid showing extra progress dialogs when one already shown. */
-    var progressDialogShown = false
-
     /**
      * Executes a setup method: [block], logging execution time.
      * Exceptions are logged and rethrown.
@@ -126,9 +136,10 @@ open class AnkiDroidApp :
         }
     }
 
-    private var profileManager: ProfileManager? = null
+    @set:VisibleForTesting
+    var profileManager: ProfileManager? = null
 
-    private val profileContext: Context?
+    private val profileContext: ProfileContextWrapper?
         get() = profileManager?.activeProfileContext
 
     /**
@@ -138,7 +149,7 @@ open class AnkiDroidApp :
      */
     override fun attachBaseContext(base: Context) {
         super.attachBaseContext(base)
-        if (isAcraSenderProcess()) return
+        if (isAcraSenderProcess() || isPhoenixProcess()) return
         profileManager = ProfileManager.createOrNull(base)
     }
 
@@ -157,6 +168,23 @@ open class AnkiDroidApp :
 
     override fun getDatabasePath(name: String): File = profileContext?.getDatabasePath(name) ?: super.getDatabasePath(name)
 
+    override fun openOrCreateDatabase(
+        name: String,
+        mode: Int,
+        factory: SQLiteDatabase.CursorFactory?,
+    ): SQLiteDatabase = profileContext?.openOrCreateDatabase(name, mode, factory) ?: super.openOrCreateDatabase(name, mode, factory)
+
+    override fun openOrCreateDatabase(
+        name: String,
+        mode: Int,
+        factory: SQLiteDatabase.CursorFactory?,
+        errorHandler: DatabaseErrorHandler?,
+    ): SQLiteDatabase =
+        profileContext?.openOrCreateDatabase(name, mode, factory, errorHandler)
+            ?: super.openOrCreateDatabase(name, mode, factory, errorHandler)
+
+    override fun deleteDatabase(name: String): Boolean = profileContext?.deleteDatabase(name) ?: super.deleteDatabase(name)
+
     override fun getDir(
         name: String,
         mode: Int,
@@ -168,43 +196,22 @@ open class AnkiDroidApp :
      */
     @KotlinCleanup("analytics can be moved to attachBaseContext()")
     override fun onCreate() {
+        if (isPhoenixProcess()) {
+            super.onCreate()
+            return
+        }
         initAnkiBackend(debugTraceSqlCalls = false)
         super.onCreate()
         if (!setupAnkiDroidApp()) {
             return
         }
 
-        ApplicationContextInitializer.setInstance(this)
-
-        initializeAcraCrashReporter()
-        initializeNavigator()
-        initializeWidgetRepository()
-        WidgetNotificationScheduler.register { scheduleNotification() }
-        Animations.setPreferencesProvider { context -> PrefsRepository(context) }
-        val logType = LogType.value
-        when (logType) {
-            LogType.DEBUG -> Timber.plant(DebugTree())
-            LogType.ROBOLECTRIC -> Timber.plant(RobolectricDebugTree())
-            LogType.PRODUCTION -> Timber.plant(ProductionCrashReportingTree())
-        }
-        Timber.plant(ReminderLogTree(this))
-        if (BuildConfig.ENABLE_LEAK_CANARY) {
-            LeakCanaryConfiguration.setInitialConfigFor(this)
-        } else {
-            LeakCanaryConfiguration.disable()
-        }
-        Timber.tag(TAG)
-        Timber.d("Startup - Application Start")
-        Timber.i("Timber config: $logType")
-
-        // analytics after ACRA, they both install UncaughtExceptionHandlers but Analytics chains while ACRA does not
-        initializeAnalytics()
-        // Last in the UncaughtExceptionHandlers chain is our filter service
-        ThrowableFilterService.initialize()
-
-        applicationScope.launch {
-            Timber.i("AnkiDroidApp: listing debug info")
-            Timber.i(DebugInfoService.getDebugInfo(this@AnkiDroidApp))
+        val crashReporting = CrashReportingContext.apply { setupCrashReporting() }
+        setupApplicationDependencies()
+        with(crashReporting) {
+            setupLogging()
+            setupUsageAnalytics()
+            launchStartupLogging()
         }
 
         // Stop after analytics and logging are initialised.
@@ -212,16 +219,7 @@ open class AnkiDroidApp :
             Timber.d("Skipping AnkiDroidApp.onCreate from ACRA sender process")
             return
         }
-        ProfileManager.attachError?.let {
-            Timber.w(it, "Failed to load the profile environment, running on the base context")
-        }
-        launchCacheCleanup()
-        if (AdaptionUtil.isUserATestClient) {
-            showThemedToast(this.applicationContext, getString(CommonString.user_is_a_robot), false)
-        }
-
-        setWebContentsDebuggingEnabled(Prefs.isWebDebugEnabled)
-
+        setupMainProcessMaintenance()
         setupContextMenus()
 
         setup("makeBackendUsable") { makeBackendUsable(this) }
@@ -230,20 +228,18 @@ open class AnkiDroidApp :
         setupBackendChangeManager()
 
         // Probe WebView availability before any other init touches it (#5794).
-        if (!checkWebViewAvailable()) {
+        if (!setupWebView()) {
             return
         }
 
-        // Forget the last deck that was used in the CardBrowser
-        CardBrowser.clearLastDeckId()
+        setupCardBrowser()
         val anki = AnkiContext.apply { setupAnkiBackend() }
         with(anki) { initializeAnkiDroidDirectory() }
         with(anki) { setupDayRollover() }
-
-        restoreRecurringAlarms(this, RECURRING_WIDGETS)
+        setupRecurringAlarms()
 
         setupLifecycleLogging()
-        activityAgnosticDialogs = ActivityAgnosticDialogs.register(this)
+        setupActivityAgnosticDialogs()
         setupTextToSpeech()
         setupCustomFieldFilters()
     }
@@ -260,15 +256,30 @@ open class AnkiDroidApp :
         super.onTerminate()
     }
 
-    /** Schedules cache maintenance and logs its duration without delaying startup. */
-    private fun launchCacheCleanup() =
+    /** Schedules temporary-file maintenance and logs its duration without delaying startup. */
+    @VisibleForTesting
+    internal fun launchCacheCleanup() =
         applicationScope.launch(Dispatchers.IO) {
-            runCatching {
-                measureTime("cacheCleanup") {
+            measureTime("cacheCleanup") {
+                runCacheCleanup("multimediaArgsCleanup") {
                     MultimediaArgsStorage.create(this@AnkiDroidApp).removeExpiredFiles()
                 }
-            }.onFailure { Timber.w(it, "Unable to clean up expired cache files") }
+                runCacheCleanup("voiceRecordingsCleanup") {
+                    VoiceRecorder.removeExpiredRecordings(VoiceRecorder.recordingsDirectory(this@AnkiDroidApp))
+                }
+                runCacheCleanup("idsFileCleanup") {
+                    IdsFile.deleteStaleFiles(this@AnkiDroidApp)
+                }
+            }
         }
+
+    private inline fun runCacheCleanup(
+        name: String,
+        block: () -> Unit,
+    ) {
+        runCatching { measureTime(name, block) }
+            .onFailure { Timber.w(it, "Unable to run %s", name) }
+    }
 
     /**
      * @param debugTraceSqlCalls Log all SQL statements executed by the backend.
@@ -312,7 +323,95 @@ open class AnkiDroidApp :
                 }
             }
             instance = this
+            ApplicationContextInitializer.setInstance(this)
+            appName = getString(R.string.app_name)
             true
+        }
+    }
+
+    private fun setupCrashReporting() {
+        setup("setupCrashReporting") {
+            initializeAcraCrashReporter()
+        }
+    }
+
+    /** Registers the application-specific implementations used by shared modules. */
+    private fun setupApplicationDependencies() {
+        setup("setupApplicationDependencies") {
+            initializeNavigator()
+            initializeWidgetRepository()
+            initializeDatabaseErrorDialogs()
+            WidgetNotificationScheduler.register { scheduleNotification() }
+            WidgetStatus.register(Prefs) { context -> AnkiDroidWidgetSmall.UpdateService().doUpdate(context) }
+            Animations.setPreferencesProvider { context -> PrefsRepository(context) }
+            CollectionLockedException.messageProvider = {
+                getString(CommonString.database_locked_summary_new, getString(CommonString.col_path))
+            }
+            ChangeManager.throwOnDuplicateSubscription = BuildConfig.DEBUG
+        }
+    }
+
+    // Keep crash reporting ahead of logging setup so failures while planting trees or configuring
+    // LeakCanary can be reported.
+    context(_: CrashReportingContext)
+    private fun setupLogging() {
+        setup("setupLogging") {
+            val logType = LogType.value
+            when (logType) {
+                LogType.DEBUG -> Timber.plant(DebugTree())
+                LogType.ROBOLECTRIC -> Timber.plant(RobolectricDebugTree())
+                LogType.PRODUCTION -> Timber.plant(ProductionCrashReportingTree())
+            }
+            Timber.plant(ReminderLogTree(this))
+            if (BuildConfig.ENABLE_LEAK_CANARY && !isRobolectric) {
+                LeakCanaryConfiguration.setInitialConfigFor(this)
+            } else {
+                LeakCanaryConfiguration.disable()
+            }
+            Timber.tag(TAG)
+            Timber.d("Startup - Application Start")
+            Timber.i("Timber config: $logType")
+        }
+    }
+
+    context(_: CrashReportingContext)
+    private fun setupUsageAnalytics() {
+        setup("setupUsageAnalytics") {
+            // Analytics chains UncaughtExceptionHandlers, while ACRA does not, so initialize ACRA first.
+            initializeAnalytics()
+            // Install the filter last so it sanitizes exceptions before either reporting handler sees them.
+            ThrowableFilterService.initialize()
+        }
+    }
+
+    /**
+     * Launches startup diagnostics after Timber is configured.
+     *
+     * [DebugInfoService.getDebugInfo] reads `CrashReportService.isEnabled()` to include the
+     * crash-reporting status. Before the reporter is initialized, that read warns and returns
+     * the default `false`, so crash reporting must be set up before collecting the diagnostics.
+     */
+    context(_: CrashReportingContext)
+    private fun launchStartupLogging() {
+        setup("launchStartupLogging") {
+            applicationScope.launch {
+                Timber.i("AnkiDroidApp: listing debug info")
+                Timber.i(DebugInfoService.getDebugInfo(this@AnkiDroidApp))
+            }
+        }
+    }
+
+    /** Starts maintenance and diagnostics which must not run in the ACRA sender process. */
+    private fun setupMainProcessMaintenance() {
+        setup("setupMainProcessMaintenance") {
+            launchPreviousAnrReporting()
+            ProfileManager.attachError?.let {
+                Timber.w(it, "Failed to load the profile environment, running on the base context")
+            }
+            launchCacheCleanup()
+            if (AdaptionUtil.isUserATestClient) {
+                showThemedToast(applicationContext, getString(CommonString.user_is_a_robot), false)
+            }
         }
     }
 
@@ -333,7 +432,13 @@ open class AnkiDroidApp :
             //  is not considered to be a fatal error, unless the directory itself is not writable.
             val ankiDroidDir =
                 try {
-                    ensureCollectionPathSet(this)
+                    maybeSetDefaultCollectionPath(this)
+                    if (CollectionHelper.storageDecision(this.sharedPrefs()) != StorageDecision.Decided) {
+                        // a fresh install without access to public storage: the user
+                        // decides via the permission screen (see maybeSetDefaultCollectionPath)
+                        Timber.i("skipping AnkiDroid directory init: storage is undecided")
+                        return@setup
+                    }
                     CollectionHelper.getCurrentAnkiDroidDirectory(this)
                 } catch (e: SystemStorageException) {
                     fatalInitializationError = FatalInitializationError.StorageError(e)
@@ -397,13 +502,13 @@ open class AnkiDroidApp :
             setupNotificationChannels(applicationContext)
 
             val context = this.withAppLocale()
-            // In the future, if more notifications are added to AnkiDroid, AlarmManagement.scheduleAllNotifications
+            // In the future, if more notifications are added to AnkiDroid, scheduleAllNotifications
             // should be extended to handle them, but since for now the only modernized notifications are review reminder
             // notifications, we block this behind the review-reminder-specific feature flag.
             if (Prefs.newReviewRemindersEnabled) {
                 Timber.i("Setting notifications if they have not already been set")
                 applicationScope.launch {
-                    AlarmManagement.scheduleAllNotifications(context)
+                    scheduleAllNotifications(context)
                 }
             } else {
                 // Register for notifications
@@ -433,6 +538,20 @@ open class AnkiDroidApp :
             ChangeManager.subscribe(this)
         }
 
+    /** Configures WebView and records a fatal initialization error if it is unavailable. */
+    private fun setupWebView(): Boolean =
+        setup("setupWebView") {
+            setWebContentsDebuggingEnabled(Prefs.isWebDebugEnabled)
+            checkWebViewAvailable()
+        }
+
+    private fun setupCardBrowser() {
+        setup("setupCardBrowser") {
+            // Forget the last deck that was used in the CardBrowser.
+            CardBrowser.clearLastDeckId()
+        }
+    }
+
     private fun setupAnkiBackend() =
         setup("setupAnkiBackend") {
             LanguageUtil.setDefaultBackendLanguages()
@@ -445,6 +564,12 @@ open class AnkiDroidApp :
             DayRolloverHandler.listenForRolloverEvents(this)
             DayRolloverAlarm.scheduleNext(this)
         }
+
+    private fun setupRecurringAlarms() {
+        setup("setupRecurringAlarms") {
+            restoreRecurringAlarms(this, RECURRING_WIDGETS)
+        }
+    }
 
     private fun setupLifecycleLogging() =
         setup("setupLifecycleLogging") {
@@ -492,6 +617,12 @@ open class AnkiDroidApp :
                 },
             )
         }
+
+    private fun setupActivityAgnosticDialogs() {
+        setup("setupActivityAgnosticDialogs") {
+            activityAgnosticDialogs = ActivityAgnosticDialogs.register(this)
+        }
+    }
 
     private fun setupTextToSpeech() {
         setup("setupTextToSpeech") {
@@ -582,6 +713,9 @@ open class AnkiDroidApp :
 
     object AnkiContext
 
+    /** Crash reporting is initialized for dependent diagnostics and to capture later startup failures. */
+    private object CrashReportingContext
+
     companion object {
         /**
          * A [SharedPreferencesProvider] which does not require [onCreate] when run from tests
@@ -610,6 +744,10 @@ open class AnkiDroidApp :
         @VisibleForTesting
         var sharedPreferencesTestingOverride: SharedPreferences? = null
 
+        /** Resource counterpart to [sharedPreferencesTestingOverride], scoped by JVM test rules. */
+        @VisibleForTesting
+        var resourcesTestingOverride: Resources? = null
+
         /**
          * A test-friendly accessor to Shared Preferences.
          *
@@ -624,6 +762,8 @@ open class AnkiDroidApp :
          */
         fun sharedPrefsOrNull(): SharedPreferences? =
             sharedPreferencesTestingOverride ?: if (isInitialized) instance.sharedPrefs() else null
+
+        fun wrapForActiveProfile(base: Context): Context = (base.applicationContext as? AnkiDroidApp)?.profileManager?.wrap(base) ?: base
 
         /** HACK: Whether an exception report has been thrown - TODO: Rewrite an ACRA Listener to do this  */
         @VisibleForTesting
@@ -667,13 +807,13 @@ open class AnkiDroidApp :
             if (Build.FINGERPRINT == "robolectric") return
 
             // Prevent sqlite throwing error 6410 due to the lack of /tmp on Android
-            Os.setenv("TMPDIR", context.cacheDir.path, false)
+            configureBackendTemporaryDirectory(context)
             // Load backend library
             System.loadLibrary("rsdroid")
         }
 
         val appResources: Resources
-            get() = instance.resources
+            get() = resourcesTestingOverride ?: instance.resources
 
         fun getMarketIntent(context: Context): Intent {
             val uri =

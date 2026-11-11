@@ -13,12 +13,14 @@ import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.widget.FrameLayout
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.CallSuper
 import androidx.annotation.LayoutRes
 import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.widget.ThemeUtils
 import androidx.core.app.ActivityCompat
 import androidx.core.net.toUri
 import androidx.core.view.WindowInsetsCompat
@@ -32,6 +34,7 @@ import com.ichi2.anki.ViewerResourceHandler
 import com.ichi2.anki.compat.CompatHelper.Companion.resolveActivityCompat
 import com.ichi2.anki.dialogs.TtsVoicesDialogFragment
 import com.ichi2.anki.localizedErrorMessage
+import com.ichi2.anki.pages.PostRequestBridge
 import com.ichi2.anki.security.AppPermissions
 import com.ichi2.anki.settings.Prefs
 import com.ichi2.anki.snackbar.showSnackbar
@@ -201,6 +204,7 @@ abstract class CardViewerFragment(
         with(webViewLayout) {
             setWebViewClient(onCreateWebViewClient(savedInstanceState))
             setWebChromeClient(onCreateWebChromeClient())
+            setBackgroundColor(ThemeUtils.getThemeAttrColor(requireContext(), android.R.attr.colorBackground))
             scrollBars = View.SCROLLBARS_OUTSIDE_OVERLAY
             setAcceptThirdPartyCookies(true)
             with(settings) {
@@ -212,11 +216,14 @@ abstract class CardViewerFragment(
                 displayZoomControls = false
                 allowFileAccess = true
                 domStorageEnabled = true
+                // the cards are served over https, but their templates may use http:// resources, like scripts
+                mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                 // allow videos to autoplay via our JavaScript eval
                 mediaPlaybackRequiresUserGesture = false
             }
+            PostRequestBridge(viewModel, viewLifecycleOwner.lifecycleScope).attachTo(this)
             loadDataWithBaseURL(
-                viewModel.baseUrl(),
+                PostRequestBridge.BASE_URL,
                 onLoadInitialHtml(),
                 "text/html",
                 null,
@@ -253,13 +260,13 @@ abstract class CardViewerFragment(
     /**
      * Reconfigures the [WebView] after a render process crash by calling [setupWebView].
      *
-     * Subclasses that override this method must call `super.onWebViewRecreated(webView)`,
+     * Subclasses that override this method must call `super.onWebViewRecreated()`,
      * as the base implementation reapplies all clients, settings, and content.
      */
-    override fun onWebViewRecreated(webView: WebView) {
+    override fun onWebViewRecreated() {
         setupWebView(null)
         com.ichi2.anki.imagesave.CardImageSaver
-            .attach(requireContext(), webView)
+            .attach(requireContext(), webViewLayout)
         com.ichi2.anki.customfont.CustomFont
             .applyCardBackgroundTo(view)
     }
@@ -330,15 +337,22 @@ abstract class CardViewerFragment(
                         Timber.w("URL blocked")
                         return true
                     }
-                    if (!appPermission.checkCanLaunchExternalApps()) {
+                    val intent = appPermission.createUrlIntent(url)
+                    if (intent == null) {
                         Timber.w("URL blocked: canLaunchExternalApps")
                         return true
                     }
                     try {
-                        openUrl(url)
-                    } catch (_: Throwable) {
-                        Timber.w("Could not open url")
-                        return false
+                        if (intent.hasCategory(Intent.CATEGORY_BROWSABLE)) {
+                            startActivity(intent)
+                        } else {
+                            // Preserve the existing browser check for custom schemes.
+                            openUrl(url)
+                        }
+                    } catch (e: Exception) {
+                        Timber.w(e, "Could not open url")
+                        showSnackbar(CommonString.activity_start_failed)
+                        // Consume failed launches: external pages must not load inside the card.
                     }
                 }
             }
@@ -381,6 +395,8 @@ abstract class CardViewerFragment(
             request: WebResourceRequest,
             error: WebResourceError,
         ) {
+            Timber.w("WebView error received")
+            Timber.d("WebView error %d (%s): %s %s", error.errorCode, error.description, request.method, request.url)
             viewModel.mediaErrorHandler.processFailure(request) { filename: String ->
                 showMediaErrorSnackbar(filename)
             }

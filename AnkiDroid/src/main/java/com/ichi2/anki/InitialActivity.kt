@@ -24,12 +24,14 @@ import com.ichi2.anki.common.storage.StorageDecision
 import com.ichi2.anki.common.storage.isLegacyStorage
 import com.ichi2.anki.common.utils.android.SdCard
 import com.ichi2.anki.compat.CompatHelper.Companion.sdkVersion
+import com.ichi2.anki.exception.CollectionLockedException
 import com.ichi2.anki.exception.StorageAccessException
+import com.ichi2.anki.exception.SystemStorageException
 import com.ichi2.anki.servicelayer.PreferenceUpgradeService
 import com.ichi2.anki.servicelayer.PreferenceUpgradeService.setPreferencesUpToDate
 import com.ichi2.anki.startup.StoragePolicy
 import com.ichi2.anki.startup.folderToPersist
-import com.ichi2.anki.ui.windows.permissions.InternetPermissionFragment
+import com.ichi2.anki.startup.maybeSetDefaultCollectionPath
 import com.ichi2.anki.ui.windows.permissions.LegacyNotificationsPermissionFragment
 import com.ichi2.anki.ui.windows.permissions.NotificationsPermissionFragment
 import com.ichi2.anki.ui.windows.permissions.PermissionsBottomSheet
@@ -44,6 +46,25 @@ import timber.log.Timber
 
 /** Utilities for launching the first activity (currently the DeckPicker)  */
 object InitialActivity {
+    /**
+     * Persists the collection path chosen by the required [StoragePermissionSet]'s
+     * [StoragePolicy] if the user has not decided yet; no-op otherwise.
+     *
+     * Safe to call without permissions: a policy deferring to the user leaves the
+     * [StorageDecision] undecided. Startup calls this once permissions are granted, so a
+     * deferred decision is recorded before the collection is opened.
+     *
+     * @see maybeSetDefaultCollectionPath
+     */
+    fun decideStorageIfUndecided(context: Context) {
+        try {
+            maybeSetDefaultCollectionPath(context)
+        } catch (e: SystemStorageException) {
+            // startup continues: getStartupFailureType reports the undecided state
+            Timber.w(e, "unable to choose a default collection path")
+        }
+    }
+
     @CheckResult
     fun getStartupFailureType(context: Context): StartupFailure? =
         getStartupFailureType(context.sharedPrefs()) { CollectionHelper.isCurrentAnkiDroidDirAccessible(context) }
@@ -69,7 +90,7 @@ object InitialActivity {
             try {
                 CollectionManager.getColUnsafe()
                 return null
-            } catch (e: BackendException.BackendDbException.BackendDbLockedException) {
+            } catch (e: CollectionLockedException) {
                 Timber.w(e)
                 StartupFailure.DatabaseLocked
             } catch (e: BackendException.BackendDbException.BackendDbFileTooNewException) {
@@ -217,7 +238,9 @@ object InitialActivity {
  */
 sealed interface PermissionSet : Parcelable {
     val permissions: List<String>
-    val permissionsFragment: Class<out PermissionsFragment>
+
+    /** The screen requesting [permissions], or `null` if there are none to request */
+    val permissionsFragment: Class<out PermissionsFragment>?
 
     fun hasRequiredPermissions(context: Context): Boolean = hasAllPermissions(context, permissions)
 }
@@ -230,14 +253,15 @@ sealed interface PermissionSet : Parcelable {
 @Parcelize
 enum class StoragePermissionSet(
     override val permissions: List<String>,
-    override val permissionsFragment: Class<out PermissionsFragment>,
+    override val permissionsFragment: Class<out PermissionsFragment>?,
 ) : PermissionSet {
     LEGACY_ACCESS(Permissions.legacyStorageAccessStartupPermissions, PermissionsUntil29Fragment::class.java),
 
     @RequiresApi(Build.VERSION_CODES.R)
     EXTERNAL_MANAGER(Permissions.externalManagerStorageAccessStartupPermissions, PermissionsStartingAt30Fragment::class.java),
 
-    APP_PRIVATE(Permissions.appPrivateStartupPermissions, InternetPermissionFragment::class.java),
+    /** The app's own folder needs no permission */
+    APP_PRIVATE(permissions = emptyList(), permissionsFragment = null),
     ;
 
     /** Who chooses the collection folder on a fresh install. */
@@ -246,7 +270,7 @@ enum class StoragePermissionSet(
         get() =
             when (this) {
                 LEGACY_ACCESS -> StoragePolicy.Fixed(AnkiDroidFolder.PUBLIC)
-                EXTERNAL_MANAGER -> StoragePolicy.Fixed(AnkiDroidFolder.PUBLIC)
+                EXTERNAL_MANAGER -> StoragePolicy.UserChoosesOnPermissionScreen
                 APP_PRIVATE -> StoragePolicy.Fixed(AnkiDroidFolder.APP_PRIVATE)
             }
 

@@ -1,0 +1,44 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!--
+  ~ SPDX-License-Identifier: GPL-3.0-or-later
+  ~ SPDX-FileCopyrightText: Copyright (c) 2011 Norbert Nagold <norbert.nagold@gmail.com>
+  -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation,DuplicateCrowdInStrings">
+
+    <string name="theme_follow_system_value">0</string>
+    <string name="theme_day_scheme_value">1</string>
+    <string name="theme_night_scheme_value">2</string>
+    <string name="theme_eink_scheme_value">3</string>
+
+    <string name="theme_light_value">1</string>
+    <string name="theme_plain_value">2</string>
+    <string name="theme_black_value">3</string>
+    <string name="theme_dark_value">4</string>
+    <string name="theme_sand_value">5</string>
+    <string name="theme_sage_value">6</string>
+    <string name="theme_mist_value">7</string>
+    <string name="theme_sandnight_value">8</string>
+    <string name="theme_sagenight_value">9</string>
+    <string name="theme_mistnight_value">10</string>
+
+    <string-array name="app_theme_values">
+        <item>@string/theme_follow_system_value</item>
+        <item>@string/theme_day_scheme_value</item>
+        <item>@string/theme_night_scheme_value</item>
+    </string-array>
+    <string-array name="day_theme_values">
+        <item>@string/theme_light_value</item>
+        <item>@string/theme_plain_value</item>
+        <item>@string/theme_eink_scheme_value</item>
+        <item>@string/theme_sand_value</item>
+        <item>@string/theme_sage_value</item>
+        <item>@string/theme_mist_value</item>
+    </string-array>
+    <string-array name="night_theme_values">
+        <item>@string/theme_black_value</item>
+        <item>@string/theme_dark_value</item>
+        <item>@string/theme_sandnight_value</item>
+        <item>@string/theme_sagenight_value</item>
+        <item>@string/theme_mistnight_value</item>
+    </string-array>
+</resources>

@@ -15,6 +15,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.viewpager2.widget.ViewPager2
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.textfield.TextInputLayout
+import com.ichi2.anki.CommonString
 import com.ichi2.anki.R
 import com.ichi2.anki.RobolectricTest
 import com.ichi2.anki.RobolectricTest.Companion.advanceRobolectricLooper
@@ -37,6 +38,7 @@ import org.hamcrest.Matchers.equalTo
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
+import org.robolectric.shadows.ShadowToast
 import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -44,6 +46,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNotSame
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import com.ichi2.anki.common.android.R as CommonR
 
 @RunWith(AndroidJUnit4::class)
 class SetDueDateDialogTest : RobolectricTest() {
@@ -152,7 +155,7 @@ class SetDueDateDialogTest : RobolectricTest() {
         runTest {
             val cardIds = List(2) { addBasicNote().firstCard().id }
             launchFragment<SetDueDateDialog>(
-                themeResId = R.style.Base_Theme_Light,
+                themeResId = CommonR.style.Base_Theme_Light,
                 fragmentArgs = setDueDateArgs(cardIds),
             ).use { scenario ->
                 advanceRobolectricLooper()
@@ -172,7 +175,7 @@ class SetDueDateDialogTest : RobolectricTest() {
             val idsFile = args.requireParcelable<IdsFile>(SetDueDateDialog.ARG_IDS_FILE)
 
             launchFragment<SetDueDateDialog>(
-                themeResId = R.style.Base_Theme_Light,
+                themeResId = CommonR.style.Base_Theme_Light,
                 fragmentArgs = args,
             ).use { scenario ->
                 advanceRobolectricLooper()
@@ -185,6 +188,24 @@ class SetDueDateDialogTest : RobolectricTest() {
         }
 
     @Test
+    fun `missing selection dismisses due date dialog`() =
+        withActivity { activity ->
+            val card = addBasicNote().firstCard()
+            val originalDue = card.due
+            val args = setDueDateArgs(listOf(card.id))
+            assertTrue(args.requireParcelable<IdsFile>(SetDueDateDialog.ARG_IDS_FILE).delete())
+            val fragment = SetDueDateDialog().apply { arguments = args }
+            fragment.show(activity.supportFragmentManager, "due-date")
+            advanceRobolectricLooper()
+            assertNull(activity.supportFragmentManager.findFragmentByTag("due-date"))
+            assertThat(col.getCard(card.id).due, equalTo(originalDue))
+            assertThat(
+                ShadowToast.getTextOfLatestToast(),
+                equalTo(targetContext.getString(CommonString.something_wrong)),
+            )
+        }
+
+    @Test
     fun `unreadable ids file does not crash`() =
         runTest {
             val cardIds = List(2) { addBasicNote().firstCard().id }
@@ -192,7 +213,7 @@ class SetDueDateDialogTest : RobolectricTest() {
             args.requireParcelable<IdsFile>(SetDueDateDialog.ARG_IDS_FILE).writeBytes(ByteArray(0))
 
             launchFragment<SetDueDateDialog>(
-                themeResId = R.style.Base_Theme_Light,
+                themeResId = CommonR.style.Base_Theme_Light,
                 fragmentArgs = args,
             ).use {
                 advanceRobolectricLooper()
@@ -300,12 +321,17 @@ class SetDueDateDialogTest : RobolectricTest() {
         get() = supportFragmentManager.findFragmentByTag(DIALOG_FRAGMENT_TAG) as SetDueDateDialog?
 
     private val FragmentActivity.dueDateFiles: List<File>
-        get() = (externalCacheDir ?: cacheDir).listFiles { _, name -> name.startsWith("set-due-date") }.orEmpty().toList()
+        get() =
+            IdsFile
+                .getDirectory()
+                .listFiles { _, name -> name.startsWith("set-due-date") }
+                .orEmpty()
+                .toList()
 
     private fun withActivity(block: suspend TestScope.(FragmentActivity) -> Unit) =
         runTest {
             Robolectric.buildActivity(FragmentActivity::class.java).use { controller ->
-                controller.get().setTheme(R.style.Base_Theme_Light)
+                controller.get().setTheme(CommonR.style.Base_Theme_Light)
                 block(controller.setup().get())
             }
         }
@@ -339,7 +365,7 @@ class SetDueDateDialogTest : RobolectricTest() {
         val cardIds = List(cardCount) { addBasicNote().firstCard().id }
         val dialog = SetDueDateDialog.newInstance(targetContext.externalCacheDir ?: targetContext.cacheDir, cardIds)
         launchFragment(
-            themeResId = R.style.Base_Theme_Light,
+            themeResId = CommonR.style.Base_Theme_Light,
             fragmentArgs = dialog.arguments,
         ) {
             return@launchFragment dialog

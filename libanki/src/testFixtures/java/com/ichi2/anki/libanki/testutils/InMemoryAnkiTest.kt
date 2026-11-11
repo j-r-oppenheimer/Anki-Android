@@ -1,22 +1,8 @@
-/*
- * Copyright (c) 2023 Ankitects Pty Ltd <http://apps.ankiweb.net>
- *
- * This program is free software; you can redistribute it and/or modify it under
- * the terms of the GNU General Public License as published by the Free Software
- * Foundation; either version 3 of the License, or (at your option) any later
- * version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
- * PARTICULAR PURPOSE. See the GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License along with
- * this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: Copyright (c) 2023 Ankitects Pty Ltd <http://apps.ankiweb.net>
 
 package com.ichi2.anki.libanki.testutils
 
-import android.annotation.SuppressLint
 import com.ichi2.anki.common.time.MockTime
 import com.ichi2.anki.common.time.TimeManager
 import com.ichi2.anki.libanki.Collection
@@ -31,7 +17,9 @@ import org.junit.Assume
 import org.junit.Before
 import org.junit.Rule
 import org.junit.rules.TestName
-import timber.log.Timber
+import org.slf4j.LoggerFactory
+
+private val logger = LoggerFactory.getLogger(InMemoryAnkiTest::class.java)
 
 @Suppress("RestrictedApi", "VisibleForTests")
 abstract class InMemoryAnkiTest : AnkiTest {
@@ -49,7 +37,7 @@ abstract class InMemoryAnkiTest : AnkiTest {
             }
             return _col!!
         }
-    override val collectionManager = InMemoryCollectionManager()
+    override val collectionManager: TestCollectionManager = InMemoryCollectionManager()
 
     private var _col: Collection? = null
 
@@ -57,26 +45,6 @@ abstract class InMemoryAnkiTest : AnkiTest {
     open fun setUp() {
         println("""-- executing test "${testName.methodName}"""")
         TimeManager.resetWith(MockTime(2020, 7, 7, 7, 0, 0, 0, 10))
-
-        Timber.Forest.plant(
-            object : Timber.DebugTree() {
-                @SuppressLint("PrintStackTraceUsage")
-                override fun log(
-                    priority: Int,
-                    tag: String?,
-                    message: String,
-                    t: Throwable?,
-                ) {
-                    // This is noisy in test environments
-                    if (tag == "Backend\$checkMainThreadOp") {
-                        return
-                    }
-                    // use println(): Timber may not work under the Jvm
-                    println("$tag: $message")
-                    t?.printStackTrace()
-                }
-            },
-        )
 
         maybeSetupBackend()
         // access 'col' ensuring that it's set up using the correct CollectionManager
@@ -92,7 +60,7 @@ abstract class InMemoryAnkiTest : AnkiTest {
             _col?.close()
         } catch (ex: BackendException) {
             if ("CollectionNotOpen" == ex.message) {
-                Timber.Forest.w(ex, "Collection was already disposed - may have been a problem")
+                logger.warn("Collection was already disposed - may have been a problem", ex)
             } else {
                 throw ex
             }
@@ -102,7 +70,6 @@ abstract class InMemoryAnkiTest : AnkiTest {
         _col = null
         Dispatchers.resetMain()
         runBlocking { collectionManager.discardBackend() }
-        Timber.Forest.uprootAll()
         println("""-- completed test "${testName.methodName}"""")
     }
 

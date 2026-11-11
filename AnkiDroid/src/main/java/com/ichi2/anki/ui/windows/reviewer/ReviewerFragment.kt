@@ -6,7 +6,6 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.text.InputType
 import android.view.KeyEvent
 import android.view.MenuItem
 import android.view.View
@@ -14,7 +13,6 @@ import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.webkit.WebView
-import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import androidx.annotation.VisibleForTesting
@@ -37,7 +35,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.flowWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import anki.scheduler.CardAnswer.Rating
 import com.ichi2.anki.CollectionManager
 import com.ichi2.anki.CommonString
 import com.ichi2.anki.DispatchKeyEventListener
@@ -49,12 +46,14 @@ import com.ichi2.anki.common.annotations.NeedsTest
 import com.ichi2.anki.common.destinations.DeckOptionsDestination
 import com.ichi2.anki.common.destinations.navigate
 import com.ichi2.anki.common.utils.android.isRobolectric
+import com.ichi2.anki.common.utils.dp
 import com.ichi2.anki.databinding.FragmentReviewerBinding
 import com.ichi2.anki.dialogs.showDeckOptionsSelectionDialog
 import com.ichi2.anki.dialogs.tags.TagsDialogFactory
 import com.ichi2.anki.dialogs.tags.TagsDialogListener
 import com.ichi2.anki.model.CardStateFilter
 import com.ichi2.anki.preferences.reviewer.ViewerAction
+import com.ichi2.anki.preferences.reviewer.WhiteboardAction
 import com.ichi2.anki.previewer.CardViewerActivity
 import com.ichi2.anki.previewer.CardViewerFragment
 import com.ichi2.anki.previewer.TypeAnswer
@@ -82,8 +81,8 @@ import com.ichi2.anki.utils.ext.showDialogFragment
 import com.ichi2.anki.utils.ext.window
 import com.ichi2.anki.workarounds.SafeWebViewLayout
 import com.ichi2.themes.Themes
+import com.ichi2.ui.TypeAnswerEditText
 import com.ichi2.utils.ViewGroupUtils.setRenderWorkaround
-import com.ichi2.utils.dp
 import com.ichi2.utils.show
 import com.squareup.seismic.ShakeDetector
 import dev.androidbroadcast.vbpd.viewBinding
@@ -97,6 +96,7 @@ import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlin.reflect.jvm.jvmName
+import kotlin.time.Duration.Companion.milliseconds
 
 class ReviewerFragment :
     CardViewerFragment(R.layout.fragment_reviewer),
@@ -132,7 +132,7 @@ class ReviewerFragment :
     override fun onLoadInitialHtml(): String =
         stdHtml(
             context = requireContext(),
-            extraJsAssets = listOf("scripts/ankidroid-reviewer.js"),
+            extraJsAssets = listOf("scripts/ankidroid-reviewer.js", "scripts/type-answer.js"),
             nightMode = Themes.isNightTheme,
         )
 
@@ -229,19 +229,8 @@ class ReviewerFragment :
         binding.webViewContainer.setFrameStyle()
 
         if (Prefs.showAnswerFeedback) {
-            viewModel.answerFeedbackFlow.collectIn(lifecycleScope) { ease ->
-                val drawableId =
-                    when (ease) {
-                        Rating.AGAIN -> R.drawable.ic_ease_again
-                        Rating.HARD -> R.drawable.ic_ease_hard
-                        Rating.GOOD -> R.drawable.ic_ease_good
-                        Rating.EASY -> R.drawable.ic_ease_easy
-                        Rating.UNRECOGNIZED -> throw IllegalArgumentException("Invalid rating")
-                    }
-                binding.answerFeedback.apply {
-                    setImageResource(drawableId)
-                    toggle()
-                }
+            viewModel.answerFeedbackFlow.collectIn(lifecycleScope) { rating ->
+                binding.answerFeedback.show(rating)
             }
         }
 
@@ -252,8 +241,8 @@ class ReviewerFragment :
         setRenderWorkaround(requireActivity())
     }
 
-    override fun onWebViewRecreated(webView: WebView) {
-        super.onWebViewRecreated(webView)
+    override fun onWebViewRecreated() {
+        super.onWebViewRecreated()
         setRenderWorkaround(requireActivity())
     }
 
@@ -279,22 +268,17 @@ class ReviewerFragment :
         val isHtmlTypeAnswerEnabled = Prefs.isHtmlTypeAnswerEnabled
         lifecycleScope.launch {
             val autoFocusTypeAnswer = Prefs.autoFocusTypeAnswer
-            // Default `inputType` from the layout, restored when `{{nosuggest}}` is unused (#10352)
-            val defaultInputType = binding.typeAnswerEditText.inputType
 
             /**
-             * Sync `inputType` and `imeHintLocales` on the answer `EditText` to match
+             * Sync keyboard suggestions and `imeHintLocales` on the answer field to match
              * [typeInAnswer]. Returns `true` if anything changed (caller should `restartInput()`).
+             *
+             * @see TypeAnswerEditText.noSuggest
              */
-            fun EditText.syncTypeAnswerProperties(typeInAnswer: TypeAnswer): Boolean {
-                // #10352: TYPE_NULL is used by 'Reword' to remove all suggestions. This works better
-                // than a password as the keyboard won't suggest to open the password manager
-                // other methods did not work for GBoard
-                val targetInputType =
-                    if (typeInAnswer.noSuggest) InputType.TYPE_NULL else defaultInputType
+            fun TypeAnswerEditText.syncTypeAnswerProperties(typeInAnswer: TypeAnswer): Boolean {
                 var changed = false
-                if (inputType != targetInputType) {
-                    inputType = targetInputType
+                if (noSuggest != typeInAnswer.noSuggest) {
+                    noSuggest = typeInAnswer.noSuggest
                     changed = true
                 }
                 if (imeHintLocales != typeInAnswer.imeHintLocales) {
@@ -390,10 +374,13 @@ class ReviewerFragment :
         binding.root.setOnGenericMotionListener { _, event ->
             bindingMap.onGenericMotionEvent(event)
         }
-        if (bindingMap.isBound(Gesture.SHAKE)) {
+        if (isBound(Gesture.SHAKE)) {
             shakeDetector = AnkiShakeDetector.createInstance(requireContext(), this)
         }
     }
+
+    private fun isBound(gesture: Gesture): Boolean =
+        bindingMap.isBound(gesture) || BindingMap(sharedPrefs(), WhiteboardAction.entries).isBound(gesture)
 
     private fun setupAnswerButtons() {
         if (!Prefs.showAnswerButtons) {
@@ -716,7 +703,7 @@ class ReviewerFragment :
                 isScrollingJob?.cancel()
                 isScrollingJob =
                     lifecycleScope.launch {
-                        delay(300)
+                        delay(300.milliseconds)
                         isScrolling = false
                     }
             }
@@ -732,7 +719,11 @@ class ReviewerFragment :
                     gestureParser.parse(url, scale, webView) { gesture ->
                         if (gesture == null) return@parse
                         Timber.v("ReviewerFragment::onGesture %s", gesture)
-                        bindingMap.onGesture(gesture)
+                        // Stylus mode passes finger input through to the WebView. Whiteboard
+                        // bindings still take priority while the whiteboard is visible.
+                        if (whiteboardFragment?.takeIf { it.isVisible }?.onGesture(gesture) != true) {
+                            bindingMap.onGesture(gesture)
+                        }
                     }
                     true
                 }

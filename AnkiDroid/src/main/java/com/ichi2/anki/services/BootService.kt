@@ -9,22 +9,23 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.app.PendingIntentCompat
 import com.ichi2.anki.CollectionManager
+import com.ichi2.anki.CommonPreferenceKey
 import com.ichi2.anki.CommonString
-import com.ichi2.anki.IntentHandler.Companion.grantedStoragePermissions
-import com.ichi2.anki.R
 import com.ichi2.anki.common.android.AnkiBroadcastReceiver
 import com.ichi2.anki.common.annotations.LegacyNotifications
 import com.ichi2.anki.common.annotations.NeedsTest
 import com.ichi2.anki.common.preferences.sharedPrefs
+import com.ichi2.anki.common.storage.grantedStoragePermissions
 import com.ichi2.anki.common.time.Time
 import com.ichi2.anki.common.time.TimeManager
 import com.ichi2.anki.common.utils.android.showThemedToast
+import com.ichi2.anki.common.utils.ext.rolloverHour
 import com.ichi2.anki.libanki.Collection
 import com.ichi2.anki.preferences.PENDING_NOTIFICATIONS_ONLY
 import com.ichi2.anki.runGloballyWithTimeout
+import com.ichi2.anki.scheduleAllNotifications
 import com.ichi2.anki.settings.Prefs
 import com.ichi2.anki.widget.RECURRING_WIDGETS
-import com.ichi2.utils.AlarmManagement
 import com.ichi2.widget.DayRolloverAlarm
 import com.ichi2.widget.restoreRecurringAlarms
 import timber.log.Timber
@@ -59,13 +60,13 @@ class BootService : AnkiBroadcastReceiver() {
             Timber.w("Boot Service did not execute - no permissions")
             return
         }
-        // In the future, if more notifications are added to AnkiDroid, AlarmManagement.scheduleAllNotifications
+        // In the future, if more notifications are added to AnkiDroid, scheduleAllNotifications
         // should be extended to handle them, but since for now the only modernized notifications are review reminder
         // notifications, we block this behind the review-reminder-specific feature flag.
         if (Prefs.newReviewRemindersEnabled) {
             Timber.i("Setting notifications upon boot")
             runGloballyWithTimeout(SCHEDULE_NOTIFICATIONS_TIMEOUT) {
-                AlarmManagement.scheduleAllNotifications(context)
+                scheduleAllNotifications(context)
             }
         } else {
             // There are cases where the app is installed, and we have access, but nothing exist yet
@@ -148,7 +149,7 @@ class BootService : AnkiBroadcastReceiver() {
             // Don't schedule a notification if the due reminders setting is not enabled
             if (sp
                     .getString(
-                        context.getString(R.string.pref_notifications_minimum_cards_due_key),
+                        context.getString(CommonPreferenceKey.pref_notifications_minimum_cards_due_key),
                         PENDING_NOTIFICATIONS_ONLY.toString(),
                     )!!
                     .toInt() >= PENDING_NOTIFICATIONS_ONLY
@@ -191,7 +192,7 @@ class BootService : AnkiBroadcastReceiver() {
                         val sp = context.sharedPrefs()
                         sp.getInt("dayOffset", defValue)
                     }
-                    2 -> col.config.get("rollover") ?: defValue
+                    2 -> col.config.rolloverHour
                     else -> {
                         val sp = context.sharedPrefs()
                         sp.getInt("dayOffset", defValue)

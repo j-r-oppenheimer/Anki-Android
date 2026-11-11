@@ -30,9 +30,10 @@ import com.ichi2.anki.libanki.DeckId
 import com.ichi2.anki.libanki.updateDeckConfigsRaw
 import com.ichi2.anki.observability.undoableOp
 import com.ichi2.anki.settings.Prefs
-import com.ichi2.anki.utils.openUrl
 import com.ichi2.anki.withProgress
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import timber.log.Timber
 import java.util.concurrent.atomic.AtomicInteger
@@ -40,14 +41,15 @@ import java.util.concurrent.atomic.AtomicInteger
 @NeedsTest("15130: pressing back: icon + button should return to options if the manual is open")
 @NeedsTest("17905: pressing back before the webpage is ready closes the screen")
 class DeckOptions : PageFragment() {
-    private val deckId: DeckId by lazy { requireArguments().getLong(KEY_DECK_ID) }
+    private val deckId: DeckId by lazy { requireArguments().getLong(ARG_DECK_ID) }
 
     override val pagePath: String by lazy {
-        val deckId = requireArguments().getLong(KEY_DECK_ID)
+        val deckId = requireArguments().getLong(ARG_DECK_ID)
         "deck-options/$deckId"
     }
     private var webViewIsReady = false
     private val saveAndOptimizeReload = SaveAndOptimizeReload()
+    private val saveAndCloseMutex = Mutex()
 
     /**
      * Callback enabled when the manual is opened in the deck options.
@@ -94,6 +96,8 @@ class DeckOptions : PageFragment() {
      * Close the view, discarding change if needed.
      */
     fun actuallyClose() {
+        // A preceding normal save may already have closed the activity.
+        if (activity?.isFinishing == true) return
         onBackFromDeckOptions.isEnabled = false
         Timber.v("webView: navigating back")
         launchCatchingTask {
@@ -163,6 +167,17 @@ class DeckOptions : PageFragment() {
         }
     }
 
+    override suspend fun handlePostRequest(
+        uri: PostRequestUri,
+        bytes: ByteArray,
+    ): ByteArray =
+        when (uri.backendMethodName) {
+            // A save can suspend while waiting for the collection; a later close must not overtake it.
+            // Other requests, including progress polling, must remain able to run during a save.
+            "updateDeckConfigs", "deckOptionsRequireClose" -> saveAndCloseMutex.withLock { super.handlePostRequest(uri, bytes) }
+            else -> super.handlePostRequest(uri, bytes)
+        }
+
     override fun onWebViewCreated() {
         // addJavascriptInterface needs to happen before loadUrl
         webViewLayout.addJavascriptInterface(ModalJavaScriptInterfaceListener(), "ankidroid")
@@ -178,8 +193,6 @@ class DeckOptions : PageFragment() {
         activity?.onBackPressedDispatcher?.addCallback(this, onBackFromManual)
 
         return object : PageWebViewClient() {
-            private val ankiManualHostRegex = Regex("^docs\\.ankiweb\\.net$")
-
             /** @see onWebViewReady */
             override fun onShowWebView(webView: WebView) {
                 // no-op: handled in onVebViewReady
@@ -190,15 +203,18 @@ class DeckOptions : PageFragment() {
                 request: WebResourceRequest?,
             ): Boolean {
                 // #16715: ensure that the fragment can't be used for general web browsing
-                val host = request?.url?.host ?: return shouldOverrideUrlLoading(view, request)
-                if (request.url.toString().substringBefore('#') == view?.url?.substringBefore('#')) {
-                    return saveAndOptimizeReload.deferReloadIfSaving()
+                val url = request?.url ?: return true
+                if (
+                    request.isForMainFrame &&
+                    url.toString().substringBefore('#') == view?.url?.substringBefore('#') &&
+                    saveAndOptimizeReload.deferReloadIfSaving()
+                ) {
+                    return true
                 }
-                return if (ankiManualHostRegex.matches(host)) {
-                    super.shouldOverrideUrlLoading(view, request)
+                return if (request.isForMainFrame && url.scheme == "https" && url.encodedAuthority == "docs.ankiweb.net") {
+                    false
                 } else {
-                    openUrl(request.url)
-                    true
+                    super.shouldOverrideUrlLoading(view, request)
                 }
             }
         }.apply {
@@ -433,7 +449,7 @@ class DeckOptions : PageFragment() {
     }
 
     companion object {
-        private const val KEY_DECK_ID = "deckId"
+        private const val ARG_DECK_ID = "deckId"
 
         fun getIntent(
             context: Context,
@@ -442,7 +458,7 @@ class DeckOptions : PageFragment() {
             SingleFragmentActivity.getIntent(
                 context,
                 fragmentClass = DeckOptions::class,
-                arguments = Bundle().apply { putLong(KEY_DECK_ID, deckId) },
+                arguments = Bundle().apply { putLong(ARG_DECK_ID, deckId) },
             )
     }
 }

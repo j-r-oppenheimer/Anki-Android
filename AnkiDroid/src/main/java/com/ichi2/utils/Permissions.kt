@@ -33,7 +33,7 @@ import com.ichi2.anki.settings.Prefs
 import com.ichi2.anki.ui.windows.permissions.PermissionsBottomSheet
 import com.ichi2.utils.Permissions.arePermissionsDefinedInManifest
 import timber.log.Timber
-import kotlin.reflect.KMutableProperty
+import kotlin.reflect.KMutableProperty0
 
 object Permissions {
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
@@ -52,9 +52,9 @@ object Permissions {
     fun canPermissionBeRequested(
         activity: Activity,
         permission: String,
-        permissionRequestedFlag: KMutableProperty<Boolean>,
+        permissionRequestedFlag: KMutableProperty0<Boolean>,
     ): Boolean =
-        if (permissionRequestedFlag.getter.call()) {
+        if (permissionRequestedFlag.get()) {
             // Previous requests have been made, only request again if we are not blocked from requesting
             ActivityCompat.shouldShowRequestPermissionRationale(activity, permission)
         } else {
@@ -79,11 +79,11 @@ object Permissions {
     fun Fragment.requestPermissionThroughDialogOrSettings(
         activity: Activity,
         permission: String,
-        permissionRequestedFlag: KMutableProperty<Boolean>,
+        permissionRequestedFlag: KMutableProperty0<Boolean>,
         permissionRequestLauncher: ActivityResultLauncher<String>,
     ) {
         if (canPermissionBeRequested(activity, permission, permissionRequestedFlag)) {
-            permissionRequestedFlag.setter.call(true)
+            permissionRequestedFlag.set(true)
             permissionRequestLauncher.launch(permission)
         } else {
             showToastAndOpenAppSettingsScreenForPermission(permission, CommonString.manually_grant_permissions)
@@ -177,19 +177,12 @@ object Permissions {
         listOf(
             Manifest.permission.READ_EXTERNAL_STORAGE,
             Manifest.permission.WRITE_EXTERNAL_STORAGE,
-            Manifest.permission.INTERNET,
         )
 
     @RequiresApi(Build.VERSION_CODES.R)
     val externalManagerStorageAccessStartupPermissions =
         listOf(
             Manifest.permission.MANAGE_EXTERNAL_STORAGE,
-            Manifest.permission.INTERNET,
-        )
-
-    val appPrivateStartupPermissions =
-        listOf(
-            Manifest.permission.INTERNET,
         )
 
     const val RECORD_AUDIO_PERMISSION = Manifest.permission.RECORD_AUDIO

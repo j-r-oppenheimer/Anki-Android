@@ -80,7 +80,7 @@ class Decks(
     fun save(g: Deck) {
         g.id =
             col.backend.addOrUpdateDeckLegacy(
-                BackendUtils.toByteString(g),
+                toJsonBytes(g),
                 preserveUsnAndMtime = false,
             )
     }
@@ -691,7 +691,7 @@ class Decks(
         did: DeckId,
         subdeckName: String?,
     ): String? {
-        if (subdeckName.isNullOrEmpty()) {
+        if (subdeckName.isNullOrBlank()) {
             return null
         }
         val newName = subdeckName.replace("\"".toRegex(), "")
@@ -699,7 +699,7 @@ class Decks(
             return null
         }
         val deck = getLegacy(did) ?: return null
-        return deck.getString("name") + DECK_SEPARATOR + subdeckName
+        return deck.name + DECK_SEPARATOR + subdeckName
     }
 
     @NotInPyLib

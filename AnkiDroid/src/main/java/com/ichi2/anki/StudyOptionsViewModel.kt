@@ -6,9 +6,15 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import anki.collection.OpChanges
 import com.ichi2.anki.CollectionManager.withCol
+import com.ichi2.anki.CollectionManager.withOpenColOrNull
 import com.ichi2.anki.libanki.Collection
 import com.ichi2.anki.libanki.DeckId
 import com.ichi2.anki.observability.undoableOp
+import com.ichi2.anki.progress.HasProgress
+import com.ichi2.anki.progress.ProgressManager
+import com.ichi2.anki.study.DeckKind
+import com.ichi2.anki.study.StudyAvailability
+import com.ichi2.anki.study.currentDeckStudyState
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -16,7 +22,11 @@ import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.io.File
 
-class StudyOptionsViewModel : ViewModel() {
+class StudyOptionsViewModel :
+    ViewModel(),
+    HasProgress<StudyOptionsProgress> {
+    override val progressManager = ProgressManager<StudyOptionsProgress>()
+
     val flowOfState: StateFlow<StudyOptionsState>
         field = MutableStateFlow<StudyOptionsState>(StudyOptionsState.Loading)
     val state: StudyOptionsState get() = flowOfState.value
@@ -43,25 +53,28 @@ class StudyOptionsViewModel : ViewModel() {
      * the collection.
      */
     suspend fun refreshData() {
-        if (!CollectionManager.isOpenUnsafe()) return
-        withCol { updateStateFromCollection() }
+        withOpenColOrNull { updateStateFromCollection() }
     }
 
-    suspend fun rebuildCram() {
+    suspend fun rebuildCram(deckId: DeckId) {
         Timber.d("doInBackground - RebuildCram")
-        undoableOp { sched.rebuildFilteredDeck(decks.selected()) }
-        withCol { updateStateFromCollection() }
+        progressManager.withProgress(message = StudyOptionsProgress.REBUILDING_FILTERED_DECK) {
+            undoableOp { sched.rebuildFilteredDeck(deckId) }
+            withCol { updateStateFromCollection() }
+        }
     }
 
-    suspend fun emptyCram() {
+    suspend fun emptyCram(deckId: DeckId) {
         Timber.d("doInBackgroundEmptyCram")
-        undoableOp { sched.emptyFilteredDeck(decks.selected()) }
-        withCol { updateStateFromCollection() }
+        progressManager.withProgress(message = StudyOptionsProgress.EMPTYING_FILTERED_DECK) {
+            undoableOp { sched.emptyFilteredDeck(deckId) }
+            withCol { updateStateFromCollection() }
+        }
     }
 
-    fun unbury(): Job =
+    fun unbury(deckId: DeckId): Job =
         viewModelScope.launch {
-            undoableOp<OpChanges> { sched.unburyDeck(decks.getCurrentId()) }
+            undoableOp<OpChanges> { sched.unburyDeck(deckId) }
         }
 
     /**
@@ -69,19 +82,18 @@ class StudyOptionsViewModel : ViewModel() {
      */
     private fun Collection.updateStateFromCollection() {
         val deck = decks.current()
-        val deckId = deck.id
-        val counts = sched.counts()
+        val study = currentDeckStudyState()
+        val deckId = study.deckId
         var buriedNew = 0
         var buriedLearning = 0
         var buriedReview = 0
         val tree = sched.deckDueTree(deckId)
         if (tree != null) {
-            buriedNew = tree.newCount - counts.new
-            buriedLearning = tree.learnCount - counts.lrn
-            buriedReview = tree.reviewCount - counts.rev
+            buriedNew = tree.newCount - study.newCardsAvailable
+            buriedLearning = tree.learnCount - study.learningCardsAvailable
+            buriedReview = tree.reviewCount - study.reviewCardsAvailable
         }
-        val isDynamic = deck.isFiltered
-        val fullName = deck.getString("name")
+        val isDynamic = study.kind == DeckKind.Filtered
         val description =
             if (isDynamic) {
                 null
@@ -95,46 +107,53 @@ class StudyOptionsViewModel : ViewModel() {
             }
         val data =
             DeckStudyData(
-                newCardsToday = counts.new,
-                lrnCardsToday = counts.lrn,
-                revCardsToday = counts.rev,
+                newCardsToday = study.newCardsAvailable,
+                lrnCardsToday = study.learningCardsAvailable,
+                revCardsToday = study.reviewCardsAvailable,
                 buriedNew = buriedNew,
                 buriedLearning = buriedLearning,
                 buriedReview = buriedReview,
                 totalNewCards = sched.totalNewForCurrentDeck(),
-                numberOfCardsInDeck = decks.cardCount(deckId, includeSubdecks = true),
+                numberOfCardsInDeck = study.cardCount,
             )
 
         flowOfIsFilteredDeck.value = isDynamic
         flowOfHaveBuried.value = sched.haveBuried()
-        flowOfSelectedDeckId.value = decks.selected()
+        flowOfSelectedDeckId.value = study.deckId
         // Only resolve the media directory when a description will render it: an in-memory
         // collection has no media folder and `media.dir` would throw.
         flowOfMediaDir.value = if (!description.isNullOrEmpty()) media.dir else null
 
-        val totalDue = data.newCardsToday + data.lrnCardsToday + data.revCardsToday
         flowOfState.value =
             when {
-                data.numberOfCardsInDeck == 0 && !isDynamic ->
+                study.isEmptyRegularDeck ->
                     StudyOptionsState.Empty(
-                        deckName = fullName,
+                        deckId = deckId,
+                        deckName = deck.name,
                         data = data,
                     )
-                totalDue == 0 ->
+                study.availability == StudyAvailability.NoCardsAvailable ->
                     StudyOptionsState.Congrats(
-                        deckName = fullName,
+                        deckId = deckId,
+                        deckName = deck.name,
                         isDynamic = isDynamic,
                         data = data,
                     )
                 else ->
                     StudyOptionsState.StudyOptions(
-                        deckName = fullName,
+                        deckId = deckId,
+                        deckName = deck.name,
                         deckDescription = description,
                         isDynamic = isDynamic,
                         data = data,
                     )
             }
     }
+}
+
+enum class StudyOptionsProgress {
+    REBUILDING_FILTERED_DECK,
+    EMPTYING_FILTERED_DECK,
 }
 
 class DeckStudyData(
@@ -155,6 +174,7 @@ sealed interface StudyOptionsState {
     data object Loading : StudyOptionsState
 
     data class StudyOptions(
+        val deckId: DeckId,
         val deckName: String,
         val deckDescription: String?,
         val isDynamic: Boolean,
@@ -162,12 +182,14 @@ sealed interface StudyOptionsState {
     ) : StudyOptionsState
 
     data class Congrats(
+        val deckId: DeckId,
         val deckName: String,
         val isDynamic: Boolean,
         val data: DeckStudyData,
     ) : StudyOptionsState
 
     data class Empty(
+        val deckId: DeckId,
         val deckName: String,
         val data: DeckStudyData,
     ) : StudyOptionsState
@@ -188,5 +210,21 @@ fun StudyOptionsState.deckNameOrNull(): String? =
         is StudyOptionsState.StudyOptions -> deckName
         is StudyOptionsState.Congrats -> deckName
         is StudyOptionsState.Empty -> deckName
+        is StudyOptionsState.Loading -> null
+    }
+
+fun StudyOptionsState.isFiltered(): Boolean =
+    when (this) {
+        is StudyOptionsState.StudyOptions -> isDynamic
+        is StudyOptionsState.Congrats -> isDynamic
+        is StudyOptionsState.Empty -> false
+        is StudyOptionsState.Loading -> false
+    }
+
+fun StudyOptionsState.deckIdOrNull(): DeckId? =
+    when (this) {
+        is StudyOptionsState.StudyOptions -> deckId
+        is StudyOptionsState.Congrats -> deckId
+        is StudyOptionsState.Empty -> deckId
         is StudyOptionsState.Loading -> null
     }

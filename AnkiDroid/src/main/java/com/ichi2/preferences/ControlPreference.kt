@@ -14,6 +14,7 @@ import androidx.preference.DialogPreference
 import androidx.preference.PreferenceFragmentCompat
 import com.ichi2.anki.CommonString
 import com.ichi2.anki.R
+import com.ichi2.anki.common.utils.dp
 import com.ichi2.anki.databinding.DialogControlPreferenceBinding
 import com.ichi2.anki.dialogs.GestureSelectionDialogUtils
 import com.ichi2.anki.dialogs.GestureSelectionDialogUtils.onGestureChanged
@@ -31,15 +32,14 @@ import com.ichi2.ui.GesturePicker
 import com.ichi2.ui.KeyPicker
 import com.ichi2.utils.create
 import com.ichi2.utils.customView
-import com.ichi2.utils.dp
 import com.ichi2.utils.negativeButton
 import com.ichi2.utils.positiveButton
 import com.ichi2.utils.show
 
 /**
- * A preference which allows mapping of inputs to actions (example: keys -> commands)
+ * Maps keyboard, gesture, and joystick bindings to the action identified by [key].
  *
- * The user is allowed to either add or remove previously mapped keys
+ * Users can add or remove bindings. Adding a binding can replace its assignment to another related action.
  */
 open class ControlPreference :
     DialogPreference,
@@ -63,25 +63,29 @@ open class ControlPreference :
 
     open fun getMappableBindings(): List<MappableBinding> = MappableBinding.fromPreferenceString(value)
 
+    /**
+     * Called after the user confirms a key binding. The base implementation adds it to this action.
+     */
     protected open fun onKeySelected(binding: Binding): Unit = addBinding(binding)
 
+    /**
+     * Called after an axis selection and any confirmation to replace another action's binding.
+     * The base implementation adds the binding to this action.
+     */
     protected open fun onAxisSelected(binding: Binding): Unit = addBinding(binding)
 
     open val areGesturesEnabled: Boolean = false
 
+    /**
+     * Called after the user confirms a gesture. Subclasses must override this to store the binding.
+     */
     protected open fun onGestureSelected(binding: Binding) = Unit
 
-    /** @return whether the binding is used in another action */
-    open fun warnIfUsed(
-        binding: Binding,
-        warningDisplay: WarningDisplay,
-    ): Boolean {
-        val bindingPreference = getPreferenceAssignedTo(binding) ?: return false
-        if (bindingPreference == this) return false
-        val actionTitle = bindingPreference.title ?: ""
-        val warning = context.getString(CommonString.bindings_already_bound, actionTitle)
-        warningDisplay.setWarning(warning)
-        return true
+    /** @return the title of the other action using [binding], or null if there is no conflict */
+    open fun otherActionTitleForBinding(binding: Binding): CharSequence? {
+        val bindingPreference = getPreferenceAssignedTo(binding) ?: return null
+        if (bindingPreference == this) return null
+        return bindingPreference.title ?: ""
     }
 
     var value: String?
@@ -139,6 +143,9 @@ open class ControlPreference :
         }
     }
 
+    /**
+     * Shows a joystick axis picker and asks for confirmation before replacing another action's binding.
+     */
     fun showAddAxisDialog() {
         val axisPicker = AxisPicker(context)
         val dialog =
@@ -172,7 +179,11 @@ open class ControlPreference :
         binding: Binding,
         warningDisplay: WarningDisplay,
     ) {
-        if (!warnIfUsed(binding, warningDisplay)) {
+        val otherActionTitle = otherActionTitleForBinding(binding)
+        if (otherActionTitle != null) {
+            val warning = context.getString(CommonString.bindings_already_bound, otherActionTitle)
+            warningDisplay.setWarning(warning)
+        } else {
             warningDisplay.clearWarning()
         }
     }
@@ -221,7 +232,7 @@ open class ControlPreferenceDialogFragment : DialogFragment() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val key = requireArguments().requireString(SettingsFragment.PREF_DIALOG_KEY)
+        val key = requireArguments().requireString(SettingsFragment.ARG_PREFERENCE_KEY)
         preference = (targetFragment as PreferenceFragmentCompat).requirePreference(key)
     }
 

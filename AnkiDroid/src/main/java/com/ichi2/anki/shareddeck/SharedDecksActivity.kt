@@ -11,51 +11,75 @@ import android.view.MenuItem
 import android.view.ViewGroup.MarginLayoutParams
 import android.webkit.CookieManager
 import android.webkit.URLUtil
+import android.webkit.WebBackForwardList
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
-import android.webkit.WebViewClient
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.annotation.VisibleForTesting
+import androidx.appcompat.app.AlertDialog
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
 import androidx.fragment.app.commit
-import com.google.android.material.snackbar.BaseTransientBottomBar.LENGTH_INDEFINITE
 import com.ichi2.anki.AnkiActivity
+import com.ichi2.anki.CollectionManager.TR
 import com.ichi2.anki.CommonString
 import com.ichi2.anki.R
 import com.ichi2.anki.common.utils.ext.requireSystemService
 import com.ichi2.anki.databinding.ActivitySharedDecksBinding
-import com.ichi2.anki.isLoggedIn
-import com.ichi2.anki.snackbar.showSnackbar
-import com.ichi2.anki.workarounds.SafeWebViewLayout
+import com.ichi2.anki.ui.internationalization.sentenceCase
+import com.ichi2.anki.workarounds.OnWebViewRecreatedListener
+import com.ichi2.anki.workarounds.SafeWebViewClient
 import com.ichi2.utils.FileNameAndExtension
+import com.ichi2.utils.message
+import com.ichi2.utils.negativeButton
+import com.ichi2.utils.neutralButton
+import com.ichi2.utils.positiveButton
+import com.ichi2.utils.show
+import com.ichi2.utils.title
 import dev.androidbroadcast.vbpd.viewBinding
 import timber.log.Timber
 import java.io.Serializable
 import kotlin.random.Random
+import com.ichi2.anki.common.android.R as CommonR
 
 /**
  * Browse AnkiWeb shared decks with the functionality to download and import them.
  *
  * @see SharedDecksDownloadFragment
  */
-class SharedDecksActivity : AnkiActivity(R.layout.activity_shared_decks) {
+class SharedDecksActivity :
+    AnkiActivity(R.layout.activity_shared_decks),
+    OnWebViewRecreatedListener {
     private val binding by viewBinding(ActivitySharedDecksBinding::bind)
     lateinit var downloadManager: DownloadManager
 
     private var shouldHistoryBeCleared = false
 
+    private var isReturningAfterLogin = false
+
+    private val pagesBeforeLogin = mutableListOf<String>()
+
+    private var loginRequiredDialog: AlertDialog? = null
+
     private val allowedHosts = listOf(Regex("""^(?:.*\.)?ankiweb\.net$"""), Regex("""^ankiuser\.net$"""), Regex("""^ankisrs\.net$"""))
     private val onBackPressedCallback =
-        object : OnBackPressedCallback(true) {
+        object : OnBackPressedCallback(false) {
             override fun handleOnBackPressed() {
-                if (binding.webView.canGoBack()) binding.webView.goBack()
+                if (isReturningAfterLogin) return
+                if (binding.webView.canGoBack()) {
+                    binding.webView.goBack()
+                } else {
+                    pagesBeforeLogin.removeLastOrNull()?.let { returnTo(it) } ?: run {
+                        isEnabled = false
+                        onBackPressedDispatcher.onBackPressed()
+                    }
+                }
             }
         }
 
@@ -67,16 +91,21 @@ class SharedDecksActivity : AnkiActivity(R.layout.activity_shared_decks) {
      * an extra entry in the history since the previous page would not get cleared.
      */
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
-    internal inner class SharedDeckWebViewClient : WebViewClient() {
-        private var redirectTimes = 0
-
+    internal inner class SharedDeckWebViewClient : SafeWebViewClient() {
         override fun doUpdateVisitedHistory(
             view: WebView?,
             url: String?,
             isReload: Boolean,
         ) {
             super.doUpdateVisitedHistory(view, url, isReload)
-            onBackPressedCallback.isEnabled = binding.webView.canGoBack()
+            if (isReturningAfterLogin && url?.startsWith(SHARED_PAGES_PREFIX) == true) {
+                binding.webView.clearHistory()
+                isReturningAfterLogin = false
+            }
+            updateBackPressedCallback()
+            if (url?.startsWith(AFTER_LOGIN_URL) == true && isLoggedInToAnkiWeb()) {
+                returnToSharedDecks()
+            }
         }
 
         override fun onPageFinished(
@@ -87,6 +116,7 @@ class SharedDecksActivity : AnkiActivity(R.layout.activity_shared_decks) {
             if (shouldHistoryBeCleared) {
                 binding.webView.clearHistory()
                 shouldHistoryBeCleared = false
+                updateBackPressedCallback()
             }
             super.onPageFinished(view, url)
         }
@@ -113,26 +143,6 @@ class SharedDecksActivity : AnkiActivity(R.layout.activity_shared_decks) {
             return true
         }
 
-        private val cookieManager: CookieManager by lazy {
-            CookieManager.getInstance()
-        }
-
-        @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
-        internal val isLoggedInToAnkiWeb: Boolean
-            get() {
-                try {
-                    // cookies are null after the user logs out, or if the site is first visited
-                    val cookies = cookieManager.getCookie("https://ankiweb.net") ?: return false
-                    // ankiweb currently (2024-09-25) sets two cookies:
-                    // * `ankiweb`, which is base64-encoded JSON
-                    // * `has_auth`, which is 1
-                    return cookies.contains("has_auth=1")
-                } catch (e: Exception) {
-                    Timber.w(e, "Could not determine login status")
-                    return false
-                }
-            }
-
         override fun onReceivedHttpError(
             view: WebView?,
             request: WebResourceRequest?,
@@ -144,12 +154,12 @@ class SharedDecksActivity : AnkiActivity(R.layout.activity_shared_decks) {
 
             // If a user is logged in, they see: "Daily limit exceeded; please try again tomorrow."
             // We have nothing we can do here
-            if (isLoggedInToAnkiWeb) return
+            if (isLoggedInToAnkiWeb()) return
 
             // The following cases are handled below:
             // "Please log in to download more decks." - on clicking "Download"
             // "Please log in to perform more searches" - on searching
-            redirectUserToSignUpOrLogin()
+            showLoginRequiredDialog()
         }
 
         override fun onReceivedError(
@@ -161,42 +171,54 @@ class SharedDecksActivity : AnkiActivity(R.layout.activity_shared_decks) {
             shouldHistoryBeCleared = false
             super.onReceivedError(view, request, error)
         }
+    }
 
-        /**
-         * Redirects the user to a login page
-         *
-         * A message is shown informing the user they need to log in to download more decks
-         *
-         * If the user has not logged in **inside AnkiDroid** then the message provides
-         * the user with an action to sign up
-         *
-         * The redirect is not performed if [redirectTimes] is 3 or more
-         */
-        private fun redirectUserToSignUpOrLogin() {
-            // inform the user they need to log in as they've hit a rate limit
-            showSnackbar(CommonString.shared_decks_login_required, LENGTH_INDEFINITE) {
-                if (isLoggedIn()) return@showSnackbar
-
-                // If a user is not logged in inside AnkiDroid, assume they have no AnkiWeb account
-                // and give them the option to sign up
-                setAction(CommonString.sign_up) {
-                    binding.webView.loadUrl(getString(R.string.shared_decks_sign_up_url))
-                }
+    internal fun showLoginRequiredDialog() {
+        if (loginRequiredDialog?.isShowing == true) return
+        Timber.i("HTTP 429, asking the user to log in")
+        loginRequiredDialog =
+            AlertDialog.Builder(this).show {
+                title(CommonString.not_logged_in_title)
+                message(CommonString.shared_decks_ankiweb_login_limit)
+                positiveButton(text = TR.sentenceCase.logIn) { redirectToLogin() }
+                neutralButton(CommonString.sign_up) { redirectToSignUp() }
+                negativeButton(CommonString.dialog_cancel)
             }
+    }
 
-            // redirect user to /account/login
-            // TODO: the result of login is typically redirecting the user to their decks
-            // this should be improved
+    /** Loads the AnkiWeb login page in the WebView, where the user can log in. */
+    private fun redirectToLogin() {
+        val url = getString(R.string.shared_decks_login_url)
+        Timber.i("HTTP 429, redirecting to login: '$url'")
+        binding.webView.loadUrl(url)
+    }
 
-            if (redirectTimes++ < 3) {
-                val url = getString(R.string.shared_decks_login_url)
-                Timber.i("HTTP 429, redirecting to login: '$url'")
-                binding.webView.loadUrl(url)
-            } else {
-                // Ensure that we do not have an infinite redirect
-                Timber.w("HTTP 429 redirect limit exceeded, only displaying message")
-            }
-        }
+    private fun redirectToSignUp() {
+        val url = getString(R.string.shared_decks_sign_up_url)
+        Timber.i("HTTP 429, redirecting to sign up: '$url'")
+        binding.webView.loadUrl(url)
+    }
+
+    private fun returnToSharedDecks() {
+        if (isReturningAfterLogin) return
+        val history = binding.webView.copyBackForwardList()
+        val sharedPages =
+            history.urlsBeforeCurrent
+                .filter { it.startsWith(SHARED_PAGES_PREFIX) }
+                .toList()
+        val url = sharedPages.lastOrNull() ?: return
+        Timber.d("Logged in to AnkiWeb, returning to '$url'")
+        pagesBeforeLogin += sharedPages.dropLast(1)
+        returnTo(url)
+    }
+
+    private fun returnTo(url: String) {
+        isReturningAfterLogin = true
+        binding.webView.loadUrl(url)
+    }
+
+    private fun updateBackPressedCallback() {
+        onBackPressedCallback.isEnabled = binding.webView.canGoBack() || pagesBeforeLogin.isNotEmpty()
     }
 
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
@@ -204,10 +226,12 @@ class SharedDecksActivity : AnkiActivity(R.layout.activity_shared_decks) {
 
     companion object {
         const val SHARED_DECKS_DOWNLOAD_FRAGMENT = "SharedDecksDownloadFragment"
-        const val DOWNLOAD_FILE = "DownloadFile"
+        const val ARG_DOWNLOAD_FILE = "DownloadFile"
 
-        @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
         const val HTTP_STATUS_TOO_MANY_REQUESTS = 429
+
+        private const val AFTER_LOGIN_URL = "https://ankiweb.net/account/login?afterAuth=1"
+        private const val SHARED_PAGES_PREFIX = "https://ankiweb.net/shared/"
     }
 
     // Show WebView with AnkiWeb shared decks with the functionality to capture downloads and import decks.
@@ -226,7 +250,7 @@ class SharedDecksActivity : AnkiActivity(R.layout.activity_shared_decks) {
         setTitle(CommonString.download_deck)
         setupEdgeToEdge()
 
-        binding.webviewToolbar.setTitleTextColor(getColor(R.color.white))
+        binding.webviewToolbar.setTitleTextColor(getColor(CommonR.color.white))
         setSupportActionBar(binding.webviewToolbar)
 
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
@@ -249,7 +273,7 @@ class SharedDecksActivity : AnkiActivity(R.layout.activity_shared_decks) {
                 val sharedDecksDownloadFragment = SharedDecksDownloadFragment()
                 sharedDecksDownloadFragment.arguments =
                     Bundle().apply {
-                        putSerializable(DOWNLOAD_FILE, DownloadFile(url, userAgent, contentDisposition, mimetype))
+                        putSerializable(ARG_DOWNLOAD_FILE, DownloadFile(url, userAgent, contentDisposition, mimetype))
                     }
                 supportFragmentManager.commit {
                     add(
@@ -260,7 +284,13 @@ class SharedDecksActivity : AnkiActivity(R.layout.activity_shared_decks) {
                 }
             }
         }
-        binding.webView.webViewClient = webViewClient
+        binding.webView.setWebViewClient(webViewClient)
+    }
+
+    override fun onWebViewRecreated() {
+        onBackPressedCallback.isEnabled = false
+        pagesBeforeLogin.clear()
+        setupWebView()
     }
 
     /** Applies edge-to-edge insets for the screen */
@@ -302,6 +332,7 @@ class SharedDecksActivity : AnkiActivity(R.layout.activity_shared_decks) {
         if (item.itemId == R.id.home) {
             // R.id.home refers to a custom 'home' menu item defined in your app resources (res/menu/...).
             shouldHistoryBeCleared = true
+            pagesBeforeLogin.clear()
             binding.webView.loadUrl(resources.getString(R.string.shared_decks_url))
         } else if (item.itemId == android.R.id.home) {
             // android.R.id.home refers to the system-provided "up" button in the app toolbar
@@ -311,7 +342,8 @@ class SharedDecksActivity : AnkiActivity(R.layout.activity_shared_decks) {
     }
 
     override fun onDestroy() {
-        SafeWebViewLayout.destroyWebView(binding.webView)
+        loginRequiredDialog?.dismiss()
+        binding.webView.destroy()
         super.onDestroy()
     }
 }
@@ -344,3 +376,24 @@ data class DownloadFile(
                     .toString()
             }
 }
+
+/**
+ * Whether the WebView's cookies indicate a logged-in AnkiWeb session.
+ *
+ * Used to tell a download failure caused by AnkiWeb's download limit for anonymous users
+ * apart from other failures: only a logged-out user can fix a 429 by logging in.
+ */
+internal fun isLoggedInToAnkiWeb(): Boolean =
+    try {
+        // ankiweb currently (2024-09-25) sets two cookies:
+        // * `ankiweb`, which is base64-encoded JSON
+        // * `has_auth`, which is 1
+        // cookies are null after the user logs out, or if the site is first visited
+        CookieManager.getInstance().getCookie("https://ankiweb.net")?.contains("has_auth=1") == true
+    } catch (e: Exception) {
+        Timber.w(e, "Could not determine login status")
+        false
+    }
+
+private val WebBackForwardList.urlsBeforeCurrent: Sequence<String>
+    get() = (0 until currentIndex).asSequence().map { getItemAtIndex(it).url }

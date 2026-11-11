@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// SPDX-FileCopyrightText: Copyright (c) 2025 lukstbit <52494258+lukstbit@users.noreply.github.com>
 
 package com.ichi2.anki.browser
 
@@ -7,6 +6,8 @@ import android.content.Context
 import android.os.Bundle
 import android.widget.Spinner
 import android.widget.SpinnerAdapter
+import androidx.coordinatorlayout.widget.CoordinatorLayout
+import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.testing.FragmentScenario
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.assertion.ViewAssertions.matches
@@ -28,9 +29,38 @@ import org.hamcrest.CoreMatchers.equalTo
 import org.hamcrest.MatcherAssert.assertThat
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Robolectric
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import com.ichi2.anki.common.android.R as CommonR
 
 @RunWith(AndroidJUnit4::class)
 class FindAndReplaceDialogFragmentTest : RobolectricTest() {
+    @Test
+    fun `missing selection dismisses find and replace`() = assertUnavailableSelection { assertTrue(delete()) }
+
+    @Test
+    fun `truncated selection dismisses find and replace`() = assertUnavailableSelection { writeBytes(byteArrayOf(0)) }
+
+    private fun assertUnavailableSelection(changeFile: IdsFile.() -> Unit) =
+        runTest {
+            val file = IdsFile(targetContext.cacheDir, listOf(addBasicNote().id), IdsFile.Purpose.PREVIEW).apply(changeFile)
+            val fragment =
+                FindAndReplaceDialogFragment().apply {
+                    arguments = Bundle().apply { putParcelable(FindAndReplaceDialogFragment.ARG_IDS, file) }
+                }
+            Robolectric.buildActivity(FragmentActivity::class.java).use { controller ->
+                controller.get().setTheme(CommonR.style.Theme_Light)
+                val activity = controller.setup().get()
+                activity.setContentView(CoordinatorLayout(activity).apply { id = R.id.root_layout })
+                fragment.show(activity.supportFragmentManager, "find-replace")
+                advanceRobolectricLooper()
+                advanceUntilIdle()
+                advanceRobolectricLooper()
+                assertNull(activity.supportFragmentManager.findFragmentByTag("find-replace"))
+            }
+        }
+
     @Test
     fun `with no selected notes 'only selected notes' check box is not actionable`() =
         runTest {
@@ -75,12 +105,12 @@ class FindAndReplaceDialogFragmentTest : RobolectricTest() {
     fun `'selected notes only' status is correct after fragment restore`() =
         runTest {
             val note = createFindReplaceTestNote("A", "kart", "kilogram")
-            val file = IdsFile(targetContext.cacheDir, listOf(note.id))
+            val file = IdsFile(targetContext.cacheDir, listOf(note.id), IdsFile.Purpose.PREVIEW)
             FragmentScenario
                 .launch(
                     fragmentClass = FindAndReplaceDialogFragment::class.java,
                     fragmentArgs = Bundle().apply { putParcelable(FindAndReplaceDialogFragment.ARG_IDS, file) },
-                    themeResId = R.style.Theme_Light,
+                    themeResId = CommonR.style.Theme_Light,
                 ).use { scenario ->
                     scenario.onFragment { fragment ->
                         advanceUntilIdle()
@@ -115,12 +145,12 @@ class FindAndReplaceDialogFragmentTest : RobolectricTest() {
         noteIds: List<NoteId>,
         action: FindAndReplaceDialogFragment.() -> Unit,
     ) {
-        val file = IdsFile(targetContext.cacheDir, noteIds)
+        val file = IdsFile(targetContext.cacheDir, noteIds, IdsFile.Purpose.PREVIEW)
         FragmentScenario
             .launch(
                 fragmentClass = FindAndReplaceDialogFragment::class.java,
                 fragmentArgs = Bundle().apply { putParcelable(FindAndReplaceDialogFragment.ARG_IDS, file) },
-                themeResId = R.style.Theme_Light,
+                themeResId = CommonR.style.Theme_Light,
             ).use { scenario -> scenario.onFragment { fragment -> fragment.action() } }
     }
 

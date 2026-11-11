@@ -2,14 +2,16 @@
 
 package com.ichi2.anki
 
-import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.ichi2.anki.CollectionManager.collectionLease
 import com.ichi2.anki.CollectionManager.tryWithCol
 import com.ichi2.anki.CollectionManager.withCol
 import com.ichi2.anki.CollectionManager.withColExclusive
 import com.ichi2.anki.CollectionManager.withLeaseForTest
+import com.ichi2.anki.exception.CollectionLockedException
+import com.ichi2.testutils.JvmTest
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
@@ -19,13 +21,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import net.ankiweb.rsdroid.Backend
-import net.ankiweb.rsdroid.BackendException
 import org.hamcrest.MatcherAssert.assertThat
 import org.hamcrest.Matchers.equalTo
 import org.hamcrest.Matchers.notNullValue
 import org.hamcrest.Matchers.nullValue
 import org.junit.Test
-import org.junit.runner.RunWith
 import kotlin.coroutines.CoroutineContext
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -35,8 +35,7 @@ import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 /** Test of [CollectionLease], and of the callers which react to one being held */
-@RunWith(AndroidJUnit4::class)
-class CollectionLeaseTest : RobolectricTest() {
+class CollectionLeaseTest : JvmTest() {
     @Test
     fun `no lease is held by default`() =
         runTest {
@@ -144,6 +143,7 @@ class CollectionLeaseTest : RobolectricTest() {
     fun `a lease cannot overtake brief work paused before queue dispatch`() =
         runTest {
             val queue = StandardTestDispatcher(testScheduler)
+            val pausedBrief = CoroutineName("paused brief")
             var dispatchBrief: (() -> Unit)? = null
             val pausedQueue =
                 object : CoroutineDispatcher() {
@@ -151,8 +151,10 @@ class CollectionLeaseTest : RobolectricTest() {
                         context: CoroutineContext,
                         block: Runnable,
                     ) {
-                        if (dispatchBrief == null) {
+                        if (context[CoroutineName] === pausedBrief) {
                             // Pause after admission but before submitting to the serial queue.
+                            // Only this coroutine may save dispatchBrief: application background
+                            // work can dispatch concurrently and must not overwrite the saved task.
                             dispatchBrief = { queue.dispatch(context, block) }
                         } else {
                             queue.dispatch(context, block)
@@ -161,8 +163,11 @@ class CollectionLeaseTest : RobolectricTest() {
                 }
             withCollectionQueue(pausedQueue) {
                 val events = mutableListOf<String>()
+                // Application startup can submit unrelated work (for example, the rollover alarm).
+                // It must not steal the pause intended for the brief call below.
+                launch(start = CoroutineStart.UNDISPATCHED) { withCol { } }
                 val brief =
-                    async(start = CoroutineStart.UNDISPATCHED) {
+                    async(pausedBrief, start = CoroutineStart.UNDISPATCHED) {
                         tryWithCol { events.add("brief") }
                     }
                 val otherBrief =
@@ -395,7 +400,7 @@ class CollectionLeaseTest : RobolectricTest() {
         runTest {
             CollectionManager.emulatedOpenFailure = CollectionManager.CollectionOpenFailure.LOCKED
             try {
-                assertFailsWith<BackendException.BackendDbException.BackendDbLockedException> {
+                assertFailsWith<CollectionLockedException> {
                     withColExclusive(CollectionOperation.SYNC) { error("collection could not open") }
                 }
                 assertThat(collectionLease, nullValue())
@@ -407,7 +412,7 @@ class CollectionLeaseTest : RobolectricTest() {
             }
         }
 
-    /** Exercise the withContext queue, and restore Robolectric's lock before teardown. */
+    /** Exercise the withContext queue, and restore the collection queue before teardown. */
     private suspend fun TestScope.withCollectionQueue(
         dispatcher: CoroutineDispatcher,
         block: suspend CoroutineScope.() -> Unit,

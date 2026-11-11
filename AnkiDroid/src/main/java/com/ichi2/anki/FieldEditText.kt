@@ -15,7 +15,6 @@ import android.util.AttributeSet
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
 import androidx.annotation.VisibleForTesting
-import androidx.core.graphics.toColorInt
 import com.google.android.material.color.MaterialColors
 import com.ichi2.anki.common.preferences.sharedPrefs
 import com.ichi2.anki.common.utils.annotation.KotlinCleanup
@@ -32,6 +31,7 @@ import timber.log.Timber
 import java.util.Locale
 import kotlin.math.max
 import kotlin.math.min
+import com.ichi2.anki.common.android.R as CommonR
 
 class FieldEditText :
     FixedEditText,
@@ -76,14 +76,6 @@ class FieldEditText :
         // Fixes bug where new instances of this object have wrong colors, probably
         // from some reuse mechanic in Android.
         setDefaultStyle()
-
-        val highlightColor =
-            MaterialColors.getColor(
-                context,
-                R.attr.editTextHighlightColor,
-                "#99CCFF".toColorInt(), // light blue color for fallback just-in-case
-            )
-        setHighlightColor(highlightColor)
     }
 
     fun setPasteListener(pasteListener: PasteListener) {
@@ -113,7 +105,7 @@ class FieldEditText :
      * Modify the style of this view to represent a duplicate field.
      */
     fun setDupeStyle() {
-        setBackgroundColor(MaterialColors.getColor(context, R.attr.duplicateColor, 0))
+        setBackgroundColor(MaterialColors.getColor(context, CommonR.attr.duplicateColor, 0))
     }
 
     /**

@@ -9,6 +9,7 @@ import android.widget.EditText
 import androidx.annotation.ColorInt
 import androidx.appcompat.app.AlertDialog
 import androidx.core.widget.doAfterTextChanged
+import com.ichi2.anki.CommonString
 import com.ichi2.anki.R
 import com.ichi2.utils.customView
 import com.ichi2.utils.negativeButton
@@ -84,9 +85,9 @@ fun Context.showRichColourPicker(
     }
 
     AlertDialog.Builder(this).show {
-        title(R.string.choose_color)
+        title(CommonString.choose_color)
         customView(view)
-        positiveButton(R.string.dialog_ok) { onPicked(colour) }
-        negativeButton(R.string.dialog_cancel)
+        positiveButton(CommonString.dialog_ok) { onPicked(colour) }
+        negativeButton(CommonString.dialog_cancel)
     }
 }

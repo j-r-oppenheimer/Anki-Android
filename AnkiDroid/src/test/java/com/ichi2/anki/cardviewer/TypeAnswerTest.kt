@@ -2,21 +2,13 @@
 
 package com.ichi2.anki.cardviewer
 
-import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.ichi2.anki.RobolectricTest
 import com.ichi2.anki.cardviewer.TypeAnswer.Companion.contentForCloze
+import com.ichi2.testutils.JvmTest
 import org.intellij.lang.annotations.Language
 import org.junit.Assert.assertEquals
 import org.junit.Test
-import org.junit.runner.RunWith
 
-@RunWith(AndroidJUnit4::class)
-class TypeAnswerTest : RobolectricTest() {
-    override fun setUp() {
-        super.setUp()
-        col
-    }
-
+class TypeAnswerTest : JvmTest() {
     @Test
     fun testTypeAnsAnswerFilterNormalCorrect() {
         @Language("HTML")

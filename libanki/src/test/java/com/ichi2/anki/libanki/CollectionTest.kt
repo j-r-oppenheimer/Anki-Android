@@ -1,20 +1,9 @@
-/*
- *  Copyright (c) 2020 Arthur Milchior <arthur@milchior.fr>
- *
- *  This program is free software; you can redistribute it and/or modify it under
- *  the terms of the GNU General Public License as published by the Free Software
- *  Foundation; either version 3 of the License, or (at your option) any later
- *  version.
- *
- *  This program is distributed in the hope that it will be useful, but WITHOUT ANY
- *  WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
- *  PARTICULAR PURPOSE. See the GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along with
- *  this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: Copyright (c) 2020 Arthur Milchior <arthur@milchior.fr>
+
 package com.ichi2.anki.libanki
 
+import anki.collection.OpChanges
 import anki.notes.NoteFieldsCheckResponse
 import anki.notetypes.StockNotetype
 import com.ichi2.anki.libanki.testutils.InMemoryAnkiTest
@@ -376,5 +365,32 @@ class CollectionTest : InMemoryAnkiTest() {
     fun `nextId increments by default`() {
         assertEquals(1L, col.nextId(type = "someType"))
         assertEquals(2L, col.nextId(type = "someType"))
+    }
+
+    @Test
+    fun `opChanges when any field is true`() {
+        val setters =
+            OpChanges.Builder::class.java.declaredMethods.filter {
+                it.name.startsWith("set") && it.name != "setKind" &&
+                    it.parameterTypes.singleOrNull() == Boolean::class.javaPrimitiveType
+            }
+
+        assertTrue("Should find boolean setters", setters.isNotEmpty())
+
+        setters.forEach { setter ->
+            val changes = OpChanges.newBuilder().apply { setter.invoke(this, true) }.build()
+            val name = setter.name.drop(3).replaceFirstChar { it.lowercase() }
+
+            assertTrue("Missing '$name' in hasChanges()", col.opMadeChanges(changes))
+        }
+    }
+
+    @Test
+    fun `opChanges when all fields are false`() {
+        val changes = OpChanges.getDefaultInstance()
+        assertFalse(
+            "hasChanges() should return false for a default (all false) OpChanges instance",
+            col.opMadeChanges(changes),
+        )
     }
 }

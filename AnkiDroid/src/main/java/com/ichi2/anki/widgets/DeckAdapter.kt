@@ -9,6 +9,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageButton
+import androidx.annotation.VisibleForTesting
 import androidx.core.content.res.getDrawableOrThrow
 import androidx.core.content.withStyledAttributes
 import androidx.core.view.isGone
@@ -19,10 +20,10 @@ import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.ichi2.anki.CommonString
 import com.ichi2.anki.R
+import com.ichi2.anki.common.utils.dp
 import com.ichi2.anki.databinding.ItemDeckBinding
 import com.ichi2.anki.deckpicker.DisplayDeckNode
 import com.ichi2.anki.libanki.DeckId
-import com.ichi2.utils.dp
 import kotlinx.coroutines.runBlocking
 import net.ankiweb.rsdroid.RustCleanup
 import com.ichi2.anki.common.android.R as CommonR
@@ -52,7 +53,7 @@ class DeckAdapter(
     private val newCountColor: Int
     private val learnCountColor: Int
     private val reviewCountColor: Int
-    private val rowCurrentDrawable: Int
+    private val rowCurrentDrawable: Int = CommonR.drawable.item_background_selected
     private val deckNameDefaultColor: Int
     private val deckNameDynColor: Int
     private val expandImage: Drawable
@@ -60,14 +61,14 @@ class DeckAdapter(
 
     // intended to be `val` but was declared a `var` to allow initialization from the init {} block
     private var selectableItemBackground: Int = 0
-    private val endPadding: Int = context.resources.getDimension(R.dimen.deck_picker_right_padding).toInt()
+    private val endPadding: Int = context.resources.getDimension(CommonR.dimen.deck_picker_right_padding).toInt()
     private val startPadding: Int = context.resources.getDimension(R.dimen.deck_picker_left_padding).toInt()
 
     /** Left padding when the view has subdecks */
     val startPaddingSmall: Int = context.resources.getDimension(R.dimen.deck_picker_left_padding_small).toInt()
 
     /** Padding to apply for each depth level of a deck */
-    val nestedIndent = context.resources.getDimension(R.dimen.keyline_1).toInt()
+    val nestedIndent = context.resources.getDimension(CommonR.dimen.keyline_1).toInt()
 
     /** The width of the expander chevron icon */
     val expanderWidth = 48.dp.toPx(context)
@@ -233,27 +234,25 @@ class DeckAdapter(
         // Get the colors from the theme attributes
         val attrs =
             intArrayOf(
-                R.attr.zeroCountColor,
-                R.attr.newCountColor,
-                R.attr.learnCountColor,
-                R.attr.reviewCountColor,
-                R.attr.currentDeckBackground,
+                CommonR.attr.zeroCountColor,
+                CommonR.attr.newCountColor,
+                CommonR.attr.learnCountColor,
+                CommonR.attr.reviewCountColor,
                 android.R.attr.textColor,
-                R.attr.dynDeckColor,
-                R.attr.expandRef,
-                R.attr.collapseRef,
+                CommonR.attr.dynDeckColor,
+                CommonR.attr.expandRef,
+                CommonR.attr.collapseRef,
             )
         val ta = context.obtainStyledAttributes(attrs)
-        zeroCountColor = ta.getColor(0, context.getColor(R.color.black))
-        newCountColor = ta.getColor(1, context.getColor(R.color.black))
-        learnCountColor = ta.getColor(2, context.getColor(R.color.black))
-        reviewCountColor = ta.getColor(3, context.getColor(R.color.black))
-        rowCurrentDrawable = ta.getResourceId(4, 0)
-        deckNameDefaultColor = ta.getColor(5, context.getColor(R.color.black))
-        deckNameDynColor = ta.getColor(6, context.getColor(CommonR.color.material_blue_A700))
-        expandImage = ta.getDrawableOrThrow(7)
+        zeroCountColor = ta.getColor(0, context.getColor(CommonR.color.black))
+        newCountColor = ta.getColor(1, context.getColor(CommonR.color.black))
+        learnCountColor = ta.getColor(2, context.getColor(CommonR.color.black))
+        reviewCountColor = ta.getColor(3, context.getColor(CommonR.color.black))
+        deckNameDefaultColor = ta.getColor(4, context.getColor(CommonR.color.black))
+        deckNameDynColor = ta.getColor(5, context.getColor(CommonR.color.material_blue_A700))
+        expandImage = ta.getDrawableOrThrow(6)
         expandImage.isAutoMirrored = true
-        collapseImage = ta.getDrawableOrThrow(8)
+        collapseImage = ta.getDrawableOrThrow(7)
         collapseImage.isAutoMirrored = true
         ta.recycle()
         context.withStyledAttributes(attrs = intArrayOf(android.R.attr.selectableItemBackground)) {
@@ -262,7 +261,8 @@ class DeckAdapter(
     }
 }
 
-private val deckNodeDiffCallback =
+@VisibleForTesting
+internal val deckNodeDiffCallback =
     object : DiffUtil.ItemCallback<DisplayDeckNode>() {
         override fun areItemsTheSame(
             oldItem: DisplayDeckNode,
@@ -275,9 +275,19 @@ private val deckNodeDiffCallback =
         ): Boolean = oldItem == newItem
 
         // Reuse rows for expand/collapse updates to avoid cross-fading different chevrons.
+        // Count changes should cross-fade when cards move between normal and filtered decks.
         // Selection changes need a new row: replacing the background of a pressed row restarts its ripple.
         override fun getChangePayload(
             oldItem: DisplayDeckNode,
             newItem: DisplayDeckNode,
-        ): Any? = if (oldItem.isSelected != newItem.isSelected) null else true
+        ): Any? =
+            if (oldItem.isSelected != newItem.isSelected ||
+                oldItem.newCount != newItem.newCount ||
+                oldItem.lrnCount != newItem.lrnCount ||
+                oldItem.revCount != newItem.revCount
+            ) {
+                null
+            } else {
+                true
+            }
     }

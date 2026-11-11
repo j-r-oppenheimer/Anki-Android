@@ -1,25 +1,13 @@
-/*
- * Copyright (c) 2025 Ashish Yadav <mailtoashish693@gmail.com>
- *
- * This program is free software; you can redistribute it and/or modify it under
- * the terms of the GNU General Public License as published by the Free Software
- * Foundation; either version 3 of the License, or (at your option) any later
- * version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
- * details.
- *
- * You should have received a copy of the GNU General Public License along with
- * this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: Copyright (c) 2025 Ashish Yadav <mailtoashish693@gmail.com>
 
 package com.ichi2.anki.multiprofile
 
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.SharedPreferences
+import android.database.DatabaseErrorHandler
+import android.database.sqlite.SQLiteDatabase
 import com.ichi2.utils.withFileNameSafe
 import timber.log.Timber
 import java.io.File
@@ -68,12 +56,43 @@ class ProfileContextWrapper private constructor(
         if (profileId.isDefault()) {
             return super.getDatabasePath(name)
         }
+        // An absolute name, like WorkManager's database in no_backup, is already a full path
+        if (File(name).isAbsolute) return super.getDatabasePath(name)
+
         val dbDir = profileBaseDir.withFileNameSafe("databases").apply { mkdirs() }
 
         if (name == "init") return dbDir
 
         return dbDir.withFileNameSafe(name)
     }
+
+    override fun openOrCreateDatabase(
+        name: String,
+        mode: Int,
+        factory: SQLiteDatabase.CursorFactory?,
+    ): SQLiteDatabase = openOrCreateDatabase(name, mode, factory, null)
+
+    override fun openOrCreateDatabase(
+        name: String,
+        mode: Int,
+        factory: SQLiteDatabase.CursorFactory?,
+        errorHandler: DatabaseErrorHandler?,
+    ): SQLiteDatabase {
+        if (profileId.isDefault()) {
+            return super.openOrCreateDatabase(name, mode, factory, errorHandler)
+        }
+        var flags = SQLiteDatabase.CREATE_IF_NECESSARY
+        if (mode and MODE_ENABLE_WRITE_AHEAD_LOGGING != 0) flags = flags or SQLiteDatabase.ENABLE_WRITE_AHEAD_LOGGING
+        if (mode and MODE_NO_LOCALIZED_COLLATORS != 0) flags = flags or SQLiteDatabase.NO_LOCALIZED_COLLATORS
+        return SQLiteDatabase.openDatabase(getDatabasePath(name).path, factory, flags, errorHandler)
+    }
+
+    override fun deleteDatabase(name: String): Boolean =
+        if (profileId.isDefault()) {
+            super.deleteDatabase(name)
+        } else {
+            SQLiteDatabase.deleteDatabase(getDatabasePath(name))
+        }
 
     /**
      * Used for things like ACRA, textures, etc.
@@ -105,6 +124,8 @@ class ProfileContextWrapper private constructor(
 
         return super.getSharedPreferences("$prefix$name", mode)
     }
+
+    fun wrap(base: Context): Context = if (profileId.isDefault()) base else ProfileContextWrapper(base, profileId, profileBaseDir)
 
     /**
      * Creates the directories required for the Context Wrapper.

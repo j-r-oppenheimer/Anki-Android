@@ -10,6 +10,95 @@ import org.junit.Test
 
 /** Test for [InvalidStringFormatDetectorTest] */
 class InvalidStringFormatDetectorTest {
+    @Test
+    fun `invalid plural item is reported once`() {
+        TestLintTask
+            .lint()
+            .allowMissingSdk()
+            .files(
+                TestFiles.xml(
+                    "res/values/strings.xml",
+                    """
+                    <resources>
+                        <plurals name="cards">
+                            <item quantity="one">%D card</item>
+                            <item quantity="other">%d cards</item>
+                        </plurals>
+                    </resources>
+                    """.trimIndent(),
+                ),
+            ).issues(InvalidStringFormatDetector.ISSUE)
+            .run()
+            .expectErrorCount(1)
+    }
+
+    @Test
+    fun `invalid string-array item is reported once`() {
+        TestLintTask
+            .lint()
+            .allowMissingSdk()
+            .files(
+                TestFiles.xml(
+                    "res/values/strings.xml",
+                    """
+                    <resources>
+                        <string-array name="cards">
+                            <item>%D card</item>
+                            <item>%d cards</item>
+                        </string-array>
+                    </resources>
+                    """.trimIndent(),
+                ),
+            ).issues(InvalidStringFormatDetector.ISSUE)
+            .run()
+            .expectErrorCount(1)
+    }
+
+    @Test
+    fun `string-array item with misplaced percent sign is reported`() {
+        TestLintTask
+            .lint()
+            .allowMissingSdk()
+            .files(
+                TestFiles.xml(
+                    "res/values/strings.xml",
+                    """
+                    <resources>
+                        <string-array name="progress">
+                            <item>I have completed% %s cards</item>
+                        </string-array>
+                    </resources>
+                    """.trimIndent(),
+                ),
+            ).issues(InvalidStringFormatDetector.ISSUE)
+            .run()
+            .expectErrorCount(1)
+    }
+
+    @Test
+    fun `valid string-array is not reported`() {
+        TestLintTask
+            .lint()
+            .allowMissingSdk()
+            .files(
+                TestFiles.xml(
+                    "res/values/strings.xml",
+                    """
+                    <resources>
+                        <string-array name="cards">
+                            <item>%d card</item>
+                            <item>%1${'$'}d of %2${'$'}d cards</item>
+                            <item>100%%</item>
+                            <item>no format specifier</item>
+                        </string-array>
+                    </resources>
+                    """.trimIndent(),
+                ),
+            ).issues(InvalidStringFormatDetector.ISSUE)
+            .run()
+            .expectClean()
+    }
+
     @Language("XML")
     private val invalid =
         """<resources>

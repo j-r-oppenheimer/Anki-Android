@@ -17,6 +17,7 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.PopupWindow
 import androidx.activity.OnBackPressedCallback
+import androidx.annotation.VisibleForTesting
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.view.menu.MenuBuilder
 import androidx.appcompat.widget.PopupMenu
@@ -32,6 +33,7 @@ import com.ichi2.anki.R
 import com.ichi2.anki.android.back.doubleBackPressCallback
 import com.ichi2.anki.cardviewer.Gesture
 import com.ichi2.anki.common.utils.android.systemIsInNightMode
+import com.ichi2.anki.common.utils.dp
 import com.ichi2.anki.compat.CompatHelper.Companion.compat
 import com.ichi2.anki.databinding.FragmentWhiteboardBinding
 import com.ichi2.anki.databinding.PopupBrushOptionsBinding
@@ -41,7 +43,6 @@ import com.ichi2.anki.reviewer.BindingMap
 import com.ichi2.anki.reviewer.ReviewerBinding
 import com.ichi2.anki.snackbar.showSnackbar
 import com.ichi2.anki.utils.ext.sharedPrefs
-import com.ichi2.utils.dp
 import com.ichi2.utils.increaseHorizontalPaddingOfMenuIcons
 import com.ichi2.utils.toRGBAHex
 import dev.androidbroadcast.vbpd.viewBinding
@@ -51,6 +52,7 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import timber.log.Timber
 import kotlin.math.roundToInt
+import com.ichi2.anki.common.android.R as CommonR
 
 /**
  * Fragment that displays a whiteboard and its controls.
@@ -59,7 +61,8 @@ class WhiteboardFragment :
     Fragment(R.layout.fragment_whiteboard),
     PopupMenu.OnMenuItemClickListener,
     DispatchKeyEventListener {
-    private val viewModel: WhiteboardViewModel by viewModels {
+    @VisibleForTesting
+    internal val viewModel: WhiteboardViewModel by viewModels {
         WhiteboardViewModel.factory(AnkiDroidApp.sharedPrefs())
     }
 
@@ -90,6 +93,7 @@ class WhiteboardFragment :
         binding.whiteboardView.onNewPath = viewModel::addPath
         binding.whiteboardView.onEraseGestureStart = viewModel::startPathEraseGesture
         binding.whiteboardView.onEraseGestureMove = viewModel::erasePathsToPoint
+        binding.whiteboardView.onEraseGestureCancel = viewModel::cancelPathEraseGesture
         binding.whiteboardView.onEraseGestureEnd = viewModel::endPathEraseGesture
         binding.whiteboardView.onStylusButtonStateChanged = { isPressed ->
             viewModel.setStylusButtonPressed(isPressed)
@@ -210,7 +214,7 @@ class WhiteboardFragment :
                     4 -> Gesture.FOUR_FINGER_TAP
                     else -> return@setOnMultiTouchListener
                 }
-            val result = bindingMap.onGesture(gesture)
+            val result = onGesture(gesture)
             if (!result) {
                 gestureFallbackListener?.invoke(gesture)
             }
@@ -218,11 +222,14 @@ class WhiteboardFragment :
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        if (event.action != KeyEvent.ACTION_DOWN) return false
+        if (isHidden || event.action != KeyEvent.ACTION_DOWN) return false
         return bindingMap.onKeyDown(event)
     }
 
-    fun onScreenShake(): Boolean = bindingMap.onGesture(Gesture.SHAKE)
+    fun onScreenShake(): Boolean = !isHidden && onGesture(Gesture.SHAKE)
+
+    /** Handles gestures detected on the whiteboard or on the card beneath it in stylus mode. */
+    fun onGesture(gesture: Gesture): Boolean = bindingMap.onGesture(gesture)
 
     /**
      * Sets up observers for the ViewModel's flows.
@@ -348,7 +355,7 @@ class WhiteboardFragment :
             PopupWindow(popupBrushBinding.root, ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, true)
 
         val typedValue = TypedValue()
-        val hasAttr = requireContext().theme.resolveAttribute(R.attr.studyScreenElevation, typedValue, true)
+        val hasAttr = requireContext().theme.resolveAttribute(CommonR.attr.studyScreenElevation, typedValue, true)
         brushConfigPopup?.elevation =
             if (hasAttr && typedValue.type == TypedValue.TYPE_DIMENSION) {
                 typedValue.getDimension(resources.displayMetrics)

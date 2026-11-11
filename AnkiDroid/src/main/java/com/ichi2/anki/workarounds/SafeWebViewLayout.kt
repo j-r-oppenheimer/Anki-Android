@@ -2,11 +2,15 @@
 
 package com.ichi2.anki.workarounds
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.print.PrintDocumentAdapter
 import android.util.AttributeSet
 import android.view.ViewGroup
 import android.webkit.CookieManager
+import android.webkit.DownloadListener
+import android.webkit.ValueCallback
+import android.webkit.WebBackForwardList
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -15,6 +19,8 @@ import androidx.annotation.MainThread
 import androidx.core.view.ancestors
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.findFragment
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
 import com.ichi2.anki.BuildConfig
 import com.ichi2.anki.common.annotations.NeedsTest
 import com.ichi2.anki.common.crashreporting.runCatchingWithReport
@@ -33,50 +39,60 @@ open class SafeWebViewLayout :
         DESTROYED_TERMINAL,
     }
 
-    private var webView: WebView = createWebView()
+    /** May be destroyed: prefer [activeWebView] unless the destroyed instance is needed. */
+    private var uncheckedWebView: WebView = createWebView()
 
     private var webViewState = WebViewState.ACTIVE
 
-    var scrollBars: Int = webView.scrollBarStyle
+    /** The inner [WebView], or `null` while it is destroyed. Public methods should go through this. */
+    private val activeWebView: WebView?
+        get() {
+            if (webViewState == WebViewState.ACTIVE) return uncheckedWebView
+            Timber.w("WebView call ignored: WebView was destroyed")
+            return null
+        }
+
+    var scrollBars: Int
+        get() = uncheckedWebView.scrollBarStyle
         set(value) {
-            field = value
-            if (warnIfNotActive("scrollBars setter")) return
-            webView.scrollBarStyle = value
+            activeWebView?.scrollBarStyle = value
         }
 
     @NeedsTest("Verify background color applies to inner WebView")
     override fun setBackgroundColor(color: Int) {
         super.setBackgroundColor(color)
-        if (warnIfNotActive("setBackgroundColor")) return
-        webView.setBackgroundColor(color)
+        activeWebView?.setBackgroundColor(color)
     }
 
     protected open fun createWebView() = WebView(context)
 
     init {
-        addView(webView, webViewLayoutParams)
+        addView(uncheckedWebView, webViewLayoutParams)
     }
 
     // Not guarded when not [WebViewState.ACTIVE]: callers rarely use these after destroy and a no-op is impossible.
-    val settings: WebSettings get() = webView.settings
+    @get:MainThread
+    val settings: WebSettings get() = uncheckedWebView.settings
 
+    @get:MainThread
     @Suppress("DEPRECATION")
-    val scale get() = webView.scale
+    val scale get() = uncheckedWebView.scale
 
     @MainThread
-    fun zoomBy(zoomFactor: Float) = webView.zoomBy(zoomFactor)
+    fun zoomBy(zoomFactor: Float) {
+        activeWebView?.zoomBy(zoomFactor)
+    }
 
     @MainThread
     fun setWebViewClient(webViewClient: SafeWebViewClient) {
-        if (warnIfNotActive("setWebViewClient")) return
+        val webView = activeWebView ?: return
         webViewClient.setOnRenderProcessGoneListener(this)
         webView.webViewClient = webViewClient
     }
 
     @MainThread
     fun setWebChromeClient(webChromeClient: WebChromeClient) {
-        if (warnIfNotActive("setWebChromeClient")) return
-        webView.webChromeClient = webChromeClient
+        activeWebView?.webChromeClient = webChromeClient
     }
 
     @MainThread
@@ -84,10 +100,8 @@ open class SafeWebViewLayout :
         script: String,
         resultCallback: ((String) -> Unit)? = null,
     ) {
-        if (warnIfNotActive("evaluateJavascript")) return
-        webView.evaluateJavascript(script) { callback ->
-            resultCallback?.invoke(callback)
-        }
+        // Without a callback, the WebView does not send the result back.
+        activeWebView?.evaluateJavascript(script, resultCallback?.let { callback -> ValueCallback<String> { callback(it) } })
     }
 
     @MainThread
@@ -95,14 +109,43 @@ open class SafeWebViewLayout :
         javascriptInterface: Any,
         name: String,
     ) {
-        if (warnIfNotActive("addJavascriptInterface")) return
-        webView.addJavascriptInterface(javascriptInterface, name)
+        activeWebView?.addJavascriptInterface(javascriptInterface, name)
+    }
+
+    /**
+     * Requires [WebViewFeature.WEB_MESSAGE_LISTENER]
+     *
+     * @see WebViewCompat.addWebMessageListener
+     */
+    @SuppressLint("RequiresFeature") // checked by the caller
+    @MainThread
+    fun addWebMessageListener(
+        jsObjectName: String,
+        allowedOriginRules: Set<String>,
+        listener: WebViewCompat.WebMessageListener,
+    ) {
+        val webView = activeWebView ?: return
+        WebViewCompat.addWebMessageListener(webView, jsObjectName, allowedOriginRules, listener)
+    }
+
+    /**
+     * Requires [WebViewFeature.DOCUMENT_START_SCRIPT]
+     *
+     * @see WebViewCompat.addDocumentStartJavaScript
+     */
+    @SuppressLint("RequiresFeature") // checked by the caller
+    @MainThread
+    fun addDocumentStartJavaScript(
+        script: String,
+        allowedOriginRules: Set<String>,
+    ) {
+        val webView = activeWebView ?: return
+        WebViewCompat.addDocumentStartJavaScript(webView, script, allowedOriginRules)
     }
 
     @MainThread
     fun loadUrl(url: String) {
-        if (warnIfNotActive("loadUrl")) return
-        webView.loadUrl(url)
+        activeWebView?.loadUrl(url)
     }
 
     @MainThread
@@ -113,77 +156,65 @@ open class SafeWebViewLayout :
         encoding: String?,
         historyUrl: String?,
     ) {
-        if (warnIfNotActive("loadDataWithBaseURL")) return
-        webView.loadDataWithBaseURL(baseUrl, data, mimeType, encoding, historyUrl)
+        activeWebView?.loadDataWithBaseURL(baseUrl, data, mimeType, encoding, historyUrl)
     }
 
+    @MainThread
     fun setAcceptThirdPartyCookies(accept: Boolean) {
-        if (warnIfNotActive("setAcceptThirdPartyCookies")) return
+        val webView = activeWebView ?: return
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, accept)
     }
 
     @MainThread
     fun goBack() {
-        if (warnIfNotActive("goBack")) return
-        webView.goBack()
+        activeWebView?.goBack()
     }
 
     @MainThread
-    fun pageUp(): Boolean {
-        if (warnIfNotActive("pageUp")) return false
-        return webView.pageUp(false)
+    fun canGoBack(): Boolean = activeWebView?.canGoBack() ?: false
+
+    @MainThread
+    fun clearHistory() {
+        activeWebView?.clearHistory()
     }
 
     @MainThread
-    fun pageDown(): Boolean {
-        if (warnIfNotActive("pageDown")) return false
-        return webView.pageDown(false)
+    fun copyBackForwardList(): WebBackForwardList = uncheckedWebView.copyBackForwardList()
+
+    @MainThread
+    fun setDownloadListener(listener: DownloadListener?) {
+        activeWebView?.setDownloadListener(listener)
     }
+
+    @MainThread
+    fun pageUp(): Boolean = activeWebView?.pageUp(false) ?: false
+
+    @MainThread
+    fun pageDown(): Boolean = activeWebView?.pageDown(false) ?: false
 
     @MainThread
     fun reload() {
-        if (warnIfNotActive("reload")) return
-        webView.reload()
+        activeWebView?.reload()
     }
 
     @MainThread
     fun focusOnWebView() {
-        if (warnIfNotActive("focusOnWebView")) return
-        webView.requestFocus()
-    }
-
-    @MainThread
-    fun destroy() {
-        when (webViewState) {
-            WebViewState.ACTIVE -> webView.destroy()
-            // Crash cleanup already destroyed the native WebView; promote to terminal so reattach
-            // does not recover.
-            WebViewState.DESTROYED_RECOVERABLE -> Unit
-            WebViewState.DESTROYED_TERMINAL -> {
-                Timber.w("destroy called after WebView was destroyed")
-                return
-            }
-        }
-        webViewState = WebViewState.DESTROYED_TERMINAL
+        activeWebView?.requestFocus()
     }
 
     @MainThread
     fun scrollVerticallyBy(y: Int) {
-        if (warnIfNotActive("scrollVerticallyBy")) return
+        val webView = activeWebView ?: return
         if (webView.canScrollVertically(y)) {
             webView.scrollBy(0, y)
         }
     }
 
     @MainThread
-    fun createPrintDocumentAdapter(documentName: String): PrintDocumentAdapter? {
-        if (warnIfNotActive("createPrintDocumentAdapter")) return null
-        return webView.createPrintDocumentAdapter(documentName)
-    }
+    fun createPrintDocumentAdapter(documentName: String): PrintDocumentAdapter? = activeWebView?.createPrintDocumentAdapter(documentName)
 
     override fun setOnScrollChangeListener(l: OnScrollChangeListener?) {
-        if (warnIfNotActive("setOnScrollChangeListener")) return
-        webView.setOnScrollChangeListener(l)
+        activeWebView?.setOnScrollChangeListener(l)
     }
 
     /**
@@ -194,7 +225,7 @@ open class SafeWebViewLayout :
      * [onAttachedToWindow] recreates the inner [WebView] from [WebViewState.DESTROYED_RECOVERABLE].
      */
     override fun onRenderProcessGone(webView: WebView) {
-        if (webView !== this.webView) {
+        if (webView !== uncheckedWebView) {
             destroyWebView(webView)
             return
         }
@@ -205,106 +236,82 @@ open class SafeWebViewLayout :
         removeView(webView)
         webView.destroy()
 
-        val fragment =
-            try {
-                findFragment<Fragment>()
-            } catch (e: IllegalStateException) {
-                Timber.w(e, "skipping WebView recreation; layout is not attached to a Fragment")
-                webViewState = WebViewState.DESTROYED_RECOVERABLE
-                return
-            }
-        if (fragment.view == null) {
-            Timber.w("skipping WebView recreation; fragment view is gone")
-            webViewState = WebViewState.DESTROYED_RECOVERABLE
-            return
-        }
         if (!isAttachedToWindow) {
             Timber.w("skipping WebView recreation; layout is not attached to a window")
             webViewState = WebViewState.DESTROYED_RECOVERABLE
             return
         }
 
-        recreateInnerWebView(fragment)
+        val listener = findListener()
+        if (listener == null) {
+            Timber.w("skipping WebView recreation; no OnWebViewRecreatedListener found")
+            webViewState = WebViewState.DESTROYED_RECOVERABLE
+            return
+        }
+
+        recreateInnerWebView(listener)
     }
 
-    private fun recreateInnerWebView(fragment: Fragment) {
-        val previousWebView = this.webView
-        if (previousWebView.parent == this) {
-            removeView(previousWebView)
+    /** Finds the [OnWebViewRecreatedListener] from the host Fragment, falling back to the host Activity. */
+    private fun findListener(): OnWebViewRecreatedListener? {
+        val fragment = findFragmentOrNull()
+        if (fragment != null && fragment.view == null) {
+            Timber.w("skipping WebView recreation; fragment view is gone")
+            return null
         }
-        this.webView = createWebView()
+        val host: Any = fragment ?: context
+        if (host is OnWebViewRecreatedListener) return host
+        val message = "'${host.javaClass.simpleName}' must implement OnWebViewRecreatedListener"
+        if (BuildConfig.DEBUG && !isInEditMode) throw IllegalStateException(message)
+        Timber.w("%s; WebView recreation may not be handled", message)
+        return null
+    }
+
+    private fun findFragmentOrNull(): Fragment? =
+        try {
+            findFragment<Fragment>()
+        } catch (e: IllegalStateException) {
+            null
+        }
+
+    private fun recreateInnerWebView(listener: OnWebViewRecreatedListener) {
+        uncheckedWebView = createWebView()
         webViewState = WebViewState.ACTIVE
-        addView(this.webView, webViewLayoutParams)
-        (fragment as? OnWebViewRecreatedListener)?.onWebViewRecreated(this.webView)
+        addView(uncheckedWebView, webViewLayoutParams)
+        listener.onWebViewRecreated()
     }
 
-    private fun tryRecoverDestroyedWebViewIfNeeded(fragment: Fragment) {
+    private fun tryRecoverDestroyedWebViewIfNeeded(listener: OnWebViewRecreatedListener) {
         if (webViewState != WebViewState.DESTROYED_RECOVERABLE) return
-        val fragmentView = fragment.view ?: return
-        if (this === fragmentView || ancestors.any { it === fragmentView }) {
-            recreateInnerWebView(fragment)
-        } else {
-            Timber.w("skipping WebView recovery; layout is not in the fragment's current view hierarchy")
+        // For Fragment hosts, ensure the layout is still in the fragment's current view hierarchy.
+        val fragment = findFragmentOrNull()
+        if (fragment != null) {
+            val fragmentView = fragment.view ?: return
+            if (this !== fragmentView && ancestors.none { it === fragmentView }) {
+                Timber.w("skipping WebView recovery; layout is not in the fragment's current view hierarchy")
+                return
+            }
         }
-    }
-
-    private fun warnIfNotActive(methodName: String): Boolean {
-        if (webViewState != WebViewState.ACTIVE) {
-            Timber.w("$methodName called after WebView was destroyed")
-            return true
-        }
-        return false
+        recreateInnerWebView(listener)
     }
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
-
-        val fragment =
-            try {
-                findFragment<Fragment>()
-            } catch (e: IllegalStateException) {
-                // findFragment throws if the View is not attached to a Fragment.
-                // This can happen in scenarios like Android Studio previews
-                // or if the view is added directly to an Activity.
-                if (webViewState == WebViewState.DESTROYED_RECOVERABLE) {
-                    Timber.w(e, "SafeWebViewLayout not attached to a Fragment; skipping WebView recovery")
-                    return
-                }
-                if (BuildConfig.DEBUG && !isInEditMode) {
-                    throw IllegalStateException(
-                        "SafeWebViewLayout must be used within a Fragment",
-                        e,
-                    )
-                } else {
-                    Timber.w(e, "SafeWebViewLayout not attached to a Fragment")
-                }
-                return
-            }
-
-        if (fragment !is OnWebViewRecreatedListener) {
-            if (BuildConfig.DEBUG && !isInEditMode) {
-                throw IllegalStateException(
-                    "Fragment '${fragment::class.simpleName}' must implement OnWebViewRecreatedListener",
-                )
-            } else {
-                Timber.w("Fragment does not implement OnWebViewRecreatedListener. WebView recreation may not be handled")
-            }
-            return
-        }
-
-        tryRecoverDestroyedWebViewIfNeeded(fragment)
+        val listener = findListener() ?: return
+        tryRecoverDestroyedWebViewIfNeeded(listener)
     }
 
     /**
-     * Destroys the internal state of the wrapped [webView]
+     * Destroys the inner [WebView] with [destroyWebView]: unlike [WebView.destroy], this also
+     * stops loading, clears callbacks and removes it from the layout.
      *
-     * No other methods may be called on this WebView after destroy
+     * Afterwards, calls on this layout are ignored and the [WebView] is never recreated.
      */
     @MainThread
-    fun safeDestroy() {
+    fun destroy() {
         when (webViewState) {
             WebViewState.ACTIVE -> {
-                destroyWebView(webView, this)
+                destroyWebView(uncheckedWebView, this)
                 // Mark destroyed even if [destroyWebView] partially failed; using a partially torn-down
                 // WebView is unsafe.
             }
@@ -312,7 +319,7 @@ open class SafeWebViewLayout :
             // does not recover.
             WebViewState.DESTROYED_RECOVERABLE -> Unit
             WebViewState.DESTROYED_TERMINAL -> {
-                Timber.w("safeDestroy called after WebView was destroyed")
+                Timber.w("destroy called after WebView was destroyed")
                 return
             }
         }
@@ -337,7 +344,7 @@ open class SafeWebViewLayout :
         ) {
             Timber.d("Destroying WebView")
 
-            runCatchingWithReport("safeDestroy", onlyIfSilent = true) {
+            runCatchingWithReport("destroyWebView", onlyIfSilent = true) {
                 webView?.apply {
                     stopLoading()
                     loadUrl("about:blank")
@@ -351,7 +358,7 @@ open class SafeWebViewLayout :
             }
 
             // attempt to run destroy() even if the above fails
-            runCatchingWithReport("safeDestroy", onlyIfSilent = true) {
+            runCatchingWithReport("destroyWebView", onlyIfSilent = true) {
                 webView?.destroy()
             }
         }
@@ -369,15 +376,14 @@ open class SafeWebViewLayout :
  */
 fun interface OnWebViewRecreatedListener {
     /**
-     * Reconfigures a [WebView] after [SafeWebViewLayout.onRenderProcessGone] has replaced
-     * the old instance. Implementations must reapply all clients, settings and content
-     * that were configured on the original [WebView], as [SafeWebViewLayout] only handles
-     * the structural replacement and cannot reapply app level configuration.
+     * Reconfigures the [SafeWebViewLayout] after [SafeWebViewLayout.onRenderProcessGone] has
+     * replaced its [WebView]. Implementations must reapply, through the layout, all clients,
+     * settings and content that were configured on the original [WebView], as
+     * [SafeWebViewLayout] only handles the structural replacement and cannot reapply app level
+     * configuration.
      *
      * To manually trigger this path, call `webViewLayout.loadUrl("chrome://crash")`.
      * Automated testing requires an instrumented test; a unit test is not sufficient.
-     *
-     * @param webView the new [WebView], already attached to [SafeWebViewLayout]
      */
-    fun onWebViewRecreated(webView: WebView)
+    fun onWebViewRecreated()
 }

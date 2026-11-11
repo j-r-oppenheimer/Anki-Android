@@ -6,14 +6,18 @@ import android.app.PendingIntent
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.work.NetworkType
 import androidx.work.testing.TestListenableWorkerBuilder
 import androidx.work.testing.WorkManagerTestInitHelper
-import com.ichi2.anki.NOTIFICATION_MIN_DELAY_MS
+import anki.sync.syncAuth
+import com.ichi2.anki.NOTIFICATION_MIN_DELAY
+import com.ichi2.anki.sync.SyncAuth
 import com.ichi2.testutils.EmptyApplication
 import com.ichi2.utils.TruncatedString
 import org.hamcrest.MatcherAssert.assertThat
 import org.hamcrest.Matchers.equalTo
 import org.hamcrest.Matchers.not
+import org.hamcrest.Matchers.nullValue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -35,7 +39,19 @@ class SyncMediaWorkerTest {
     @Test
     @Suppress("SimplifyBooleanWithConstants")
     fun `notification update delay is not lower than min delay`() {
-        assert(SyncMediaWorker.NOTIFICATION_UPDATE_RATE_MS >= NOTIFICATION_MIN_DELAY_MS)
+        assert(SyncMediaWorker.NOTIFICATION_UPDATE_RATE >= NOTIFICATION_MIN_DELAY)
+    }
+
+    // Issue 18937: an unset protobuf string must not become an explicitly empty URL in work data.
+    @Test
+    fun `default AnkiWeb endpoint remains absent in work data`() {
+        val auth = SyncAuth(syncAuth { hkey = "test" })
+
+        val input = SyncMediaWorker.getWorkRequest(auth, NetworkType.CONNECTED).workSpec.input
+        val restoredAuth = input.toSyncAuth()!!
+
+        assertThat(restoredAuth.endpoint, nullValue())
+        assertThat(restoredAuth.hkey, equalTo("test"))
     }
 
     // https://github.com/ankidroid/Anki-Android/issues/20826

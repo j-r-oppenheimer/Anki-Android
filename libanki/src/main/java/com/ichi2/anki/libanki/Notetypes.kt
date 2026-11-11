@@ -1,28 +1,8 @@
-/*
- * Copyright (c) 2009 Daniel Svärd <daniel.svard@gmail.com>                             *
- * Copyright (c) 2010 Rick Gruber-Riemer <rick@vanosten.net>                            *
- * Copyright (c) 2011 Norbert Nagold <norbert.nagold@gmail.com>                         *
- * Copyright (c) 2011 Kostas Spyropoulos <inigo.aldana@gmail.com>                       *
- *
- *  This program is free software; you can redistribute it and/or modify it under
- *  the terms of the GNU General Public License as published by the Free Software
- *  Foundation; either version 3 of the License, or (at your option) any later
- *  version.
- *
- *  This program is distributed in the hope that it will be useful, but WITHOUT ANY
- *  WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
- *  PARTICULAR PURPOSE. See the GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along with
- *  this program.  If not, see <http://www.gnu.org/licenses/>.
- *
- * This file incorporates code under the following license
- * https://github.com/ankitects/anki/blob/c4db4bd2913234d077aa289543da6405a62f53dc/pylib/anki/models.py
- *
- *    Copyright: Ankitects Pty Ltd and contributors
- *    License: GNU AGPL, version 3 or later; http://www.gnu.org/licenses/agpl.html
- *
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: Copyright (c) 2009 Daniel Svärd <daniel.svard@gmail.com>
+// SPDX-FileCopyrightText: Copyright (c) 2010 Rick Gruber-Riemer <rick@vanosten.net>
+// SPDX-FileCopyrightText: Copyright (c) 2011 Norbert Nagold <norbert.nagold@gmail.com>
+// SPDX-FileCopyrightText: Copyright (c) 2011 Kostas Spyropoulos <inigo.aldana@gmail.com>
 
 // This file is called models.py in the desktop code for legacy reasons.
 
@@ -61,7 +41,9 @@ import net.ankiweb.rsdroid.exceptions.BackendNotFoundException
 import org.intellij.lang.annotations.Language
 import org.json.JSONArray
 import org.json.JSONObject
-import timber.log.Timber
+import org.slf4j.LoggerFactory
+
+private val logger = LoggerFactory.getLogger(Notetypes::class.java)
 
 class NoteTypeNameID(
     val name: String,
@@ -149,7 +131,7 @@ class Notetypes(
     /** Get current model.*/
     @RustCleanup("Should use defaultsForAdding() instead")
     fun current(forDeck: Boolean = true): NotetypeJson {
-        var noteType = get(col.decks.current().getLongOrNull("mid"))
+        var noteType = get(col.decks.current().noteTypeId)
         if (!forDeck || noteType == null) {
             noteType = get(col.config.get("curModel") ?: 1L)
         }
@@ -694,24 +676,24 @@ class Notetypes(
         val cardIdsToDeleteSql =
             "select c2.id from cards c2, notes n2 where c2.nid=n2.id and n2.mid = ? and c2.ord  in ${Utils.ids2str(ords)}"
         val cids: List<CardId> = col.db.queryLongList(cardIdsToDeleteSql, noteTypeId)
-        // Timber.d("cardIdsToDeleteSql was ' %s' and got %s", cardIdsToDeleteSql, Utils.ids2str(cids));
-        Timber.d("getCardIdsForModel found %s cards to delete for model %s and ords %s", cids.size, noteTypeId, Utils.ids2str(ords))
+        // logger.debug("cardIdsToDeleteSql was ' {}' and got {}", cardIdsToDeleteSql, Utils.ids2str(cids));
+        logger.debug("getCardIdsForModel found {} cards to delete for model {} and ords {}", cids.size, noteTypeId, Utils.ids2str(ords))
 
         // all notes with this template must have at least two cards, or we could end up creating orphaned notes
         val noteCountPreDeleteSql = "select count(distinct(nid)) from cards where nid in (select id from notes where mid = ?)"
         val preDeleteNoteCount: Int = col.db.queryScalar(noteCountPreDeleteSql, noteTypeId)
-        Timber.d("noteCountPreDeleteSql was '%s'", noteCountPreDeleteSql)
-        Timber.d("preDeleteNoteCount is %s", preDeleteNoteCount)
+        logger.debug("noteCountPreDeleteSql was '{}'", noteCountPreDeleteSql)
+        logger.debug("preDeleteNoteCount is {}", preDeleteNoteCount)
         val noteCountPostDeleteSql =
             "select count(distinct(nid)) from cards where nid in (select id from notes where mid = ?) and ord not in ${Utils.ids2str(ords)}"
-        Timber.d("noteCountPostDeleteSql was '%s'", noteCountPostDeleteSql)
+        logger.debug("noteCountPostDeleteSql was '{}'", noteCountPostDeleteSql)
         val postDeleteNoteCount: Int = col.db.queryScalar(noteCountPostDeleteSql, noteTypeId)
-        Timber.d("postDeleteNoteCount would be %s", postDeleteNoteCount)
+        logger.debug("postDeleteNoteCount would be {}", postDeleteNoteCount)
         if (preDeleteNoteCount != postDeleteNoteCount) {
-            Timber.d("There will be orphan notes if these cards are deleted.")
+            logger.debug("There will be orphan notes if these cards are deleted.")
             return null
         }
-        Timber.d("Deleting these cards will not orphan notes.")
+        logger.debug("Deleting these cards will not orphan notes.")
         return cids
     }
 
@@ -740,23 +722,6 @@ class Notetypes(
                 template.setOrd(i)
             }
         }
-    }
-}
-
-/**
- * @return null if the key doesn't exist, or the value is not a long. The long value of the key
- * otherwise
- *
- * This better approximates `JSON.get` in the Python
- */
-private fun Deck.getLongOrNull(key: String): Long? {
-    if (!has(key)) {
-        return null
-    }
-    try {
-        return getLong(key)
-    } catch (ex: Exception) {
-        return null
     }
 }
 

@@ -1,19 +1,6 @@
-/*
- * Copyright (c) 2011 Kostas Spyropoulos <inigo.aldana@gmail.com>
- * Copyright (c) 2014 Houssam Salem <houssam.salem.au@gmail.com>
- *
- * This program is free software; you can redistribute it and/or modify it under
- * the terms of the GNU General Public License as published by the Free Software
- * Foundation; either version 3 of the License, or (at your option) any later
- * version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
- * PARTICULAR PURPOSE. See the GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License along with
- * this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: Copyright (c) 2011 Kostas Spyropoulos <inigo.aldana@gmail.com>
+// SPDX-FileCopyrightText: Copyright (c) 2014 Houssam Salem <houssam.salem.au@gmail.com>
 
 package com.ichi2.anki.libanki
 
@@ -26,8 +13,10 @@ import com.ichi2.anki.libanki.exception.EmptyMediaException
 import com.ichi2.anki.libanki.utils.LibAnkiAlias
 import com.ichi2.anki.libanki.utils.NotInPyLib
 import net.ankiweb.rsdroid.RustCleanup
-import timber.log.Timber
+import org.slf4j.LoggerFactory
 import java.io.File
+
+private val logger = LoggerFactory.getLogger(Media::class.java)
 
 /**
  * Media manager - handles the addition and removal of media files from the media directory (collection.media) and
@@ -49,10 +38,10 @@ open class Media(
     }
 
     init {
-        Timber.v("dir %s", col.mediaFolder)
+        logger.trace("dir {}", col.mediaFolder)
         col.mediaFolder?.let {
             if (!it.exists()) {
-                Timber.i("Creating collection.media")
+                logger.info("Creating collection.media")
                 it.mkdirs()
             }
         }
@@ -180,7 +169,7 @@ open class Media(
     /** Move provided files to the trash. */
     @LibAnkiAlias("trash_files")
     fun trashFiles(fnames: List<String>) {
-        Timber.i("Deleting %d file(s) from %s", fnames.size, dir)
+        logger.info("Deleting {} file(s) from {}", fnames.size, dir)
         col.backend.trashMediaFiles(fnames = fnames)
     }
 

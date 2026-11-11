@@ -1,18 +1,5 @@
-/*
- *  Copyright (c) 2024 RohanRaj123 <rajrohan88293@gmail.com>
- *
- *  This program is free software; you can redistribute it and/or modify it under
- *  the terms of the GNU General Public License as published by the Free Software
- *  Foundation; either version 3 of the License, or (at your option) any later
- *  version.
- *
- *  This program is distributed in the hope that it will be useful, but WITHOUT ANY
- *  WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
- *  PARTICULAR PURPOSE. See the GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along with
- *  this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: Copyright (c) 2024 RohanRaj123 <rajrohan88293@gmail.com>
 
 package com.ichi2.anki.dialogs
 
@@ -35,8 +22,9 @@ object TtsPlaybackErrorDialog {
         fragmentManager: FragmentManager,
         ttsTag: TTSTag?,
     ) {
-        Timber.i("Dialog is shown to guide users correctly to troubleshoot the Tts error: Missing voice error")
         activity.runOnUiThread {
+            if (showMissingEngineDialogIfNeeded(activity)) return@runOnUiThread
+            Timber.i("Displaying TTS Error: 'Language not supported'")
             AlertDialog.Builder(activity).show {
                 setTitle(activity.getString(CommonString.tts_error_dialog_title))
                 setMessage(activity.getString(CommonString.tts_error_dialog_reason_text, TtsVoices.ttsEngine, ttsTag?.lang))
@@ -49,6 +37,26 @@ object TtsPlaybackErrorDialog {
                 }
             }
         }
+    }
+
+    /**
+     * Shows installation guidance if no TTS engine is installed.
+     *
+     * @return `true` if the dialog is shown or queued on the UI thread; `false` if an engine is installed.
+     */
+    fun showMissingEngineDialogIfNeeded(activity: Activity): Boolean {
+        if (TtsVoices.hasInstalledEngine(activity)) return false
+
+        Timber.w("no TTS engines installed")
+        activity.runOnUiThread {
+            AlertDialog.Builder(activity).show {
+                setTitle(CommonString.tts_no_engine_title)
+                setMessage(CommonString.tts_no_engine_message)
+                setPositiveButton(CommonString.dialog_ok, null)
+                setNeutralButton(CommonString.help) { _, _ -> activity.openUrl(R.string.link_faq_tts_no_engine) }
+            }
+        }
+        return true
     }
 
     private fun openSettings(activity: Activity) {

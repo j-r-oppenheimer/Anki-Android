@@ -2,20 +2,29 @@
 
 package com.ichi2.utils
 
+import android.annotation.SuppressLint
 import android.content.ClipData
 import android.content.ClipDescription
 import android.content.ContentResolver
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.provider.MediaStore
 import androidx.annotation.CheckResult
 import androidx.core.net.toUri
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.ichi2.anki.AnkiActivity
 import com.ichi2.anki.CommonString
 import com.ichi2.anki.RobolectricTest
 import com.ichi2.anki.common.crashreporting.CrashReportService
 import com.ichi2.anki.common.crashreporting.CrashReporter
+import com.ichi2.anki.common.time.MockTime
+import com.ichi2.anki.common.time.TimeManager
+import com.ichi2.anki.dialogs.DialogHandler
 import com.ichi2.utils.ImportUtils.FileImporter
+import io.mockk.every
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
 import org.hamcrest.MatcherAssert.assertThat
 import org.hamcrest.Matchers.containsString
 import org.hamcrest.Matchers.endsWith
@@ -30,6 +39,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.mock
+import org.mockito.kotlin.spy
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyNoInteractions
 import org.mockito.kotlin.whenever
@@ -38,13 +48,26 @@ import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
 import java.io.InputStream
+import java.util.function.Supplier
 import kotlin.test.assertIs
+import kotlin.test.assertNull
 
 /** Tests for [ImportUtils]. */
 @RunWith(AndroidJUnit4::class)
 class ImportUtilsTest : RobolectricTest() {
     private lateinit var originalCrashReporter: CrashReporter
     private val crashReporter = mock(CrashReporter::class.java)
+    private val packageMimeTypes =
+        mapOf(
+            "application/apkg" to ImportResolution.DeckPackage::class,
+            "application/x-apkg" to ImportResolution.DeckPackage::class,
+            "application/vnd.anki" to ImportResolution.DeckPackage::class,
+            "application/colpkg" to ImportResolution.CollectionPackage::class,
+            "application/x-colpkg" to ImportResolution.CollectionPackage::class,
+        )
+    private val storageDocumentUri = "content://com.android.externalstorage.documents/document/denied.apkg".toUri()
+    private val mediaStoreUri = "content://media/external_primary/file/52".toUri()
+    private val storageProviderRefusal = SecurityException("com.android.externalstorage has no access to $mediaStoreUri")
 
     @Before
     fun captureCrashReports() {
@@ -63,7 +86,7 @@ class ImportUtilsTest : RobolectricTest() {
         val missingFile = File(tempFolder.root, "deleted.apkg")
         shadowOf(targetContext.contentResolver).registerInputStreamSupplier(uri) { missingFile.inputStream() }
 
-        val result = importerWithFileName("deleted.apkg").handleFileImport(targetContext, Intent(Intent.ACTION_VIEW, uri))
+        val result = importerWithFileName("deleted.apkg").prepareImport(targetContext, Intent(Intent.ACTION_VIEW, uri))
 
         val failure = assertIs<ImportResult.Failure>(result)
         assertIs<FileNotFoundException>(failure.exception)
@@ -77,10 +100,63 @@ class ImportUtilsTest : RobolectricTest() {
         val exception = IOException("Provider failed")
         shadowOf(targetContext.contentResolver).registerInputStreamSupplier(uri) { throw exception }
 
-        val result = importerWithFileName("broken.apkg").handleFileImport(targetContext, Intent(Intent.ACTION_VIEW, uri))
+        val result = importerWithFileName("broken.apkg").prepareImport(targetContext, Intent(Intent.ACTION_VIEW, uri))
 
         assertEquals(exception, assertIs<ImportResult.Failure>(result).exception)
         verify(crashReporter).sendExceptionReport(exception, "ImportUtils", null, false)
+    }
+
+    @Test
+    fun `pending or trashed download returns an import failure without a crash report`() {
+        val uri = "content://import/pending.apkg".toUri()
+        val exception = IllegalStateException("Only owner is able to interact with pending/trashed item $uri")
+        shadowOf(targetContext.contentResolver).registerInputStreamSupplier(uri) { throw exception }
+
+        val result = importerWithFileName("pending.apkg").prepareImport(targetContext, Intent(Intent.ACTION_VIEW, uri))
+
+        assertEquals(exception, assertIs<ImportResult.Failure>(result).exception)
+        verifyNoInteractions(crashReporter)
+    }
+
+    @Test
+    fun `other illegal state errors from the source are still reported`() {
+        val uri = "content://import/illegal-state.apkg".toUri()
+        val exception = IllegalStateException("Provider failed")
+        shadowOf(targetContext.contentResolver).registerInputStreamSupplier(uri) { throw exception }
+
+        val result = importerWithFileName("illegal-state.apkg").prepareImport(targetContext, Intent(Intent.ACTION_VIEW, uri))
+
+        assertEquals(exception, assertIs<ImportResult.Failure>(result).exception)
+        verify(crashReporter).sendExceptionReport(exception, "ImportUtils", null, false)
+    }
+
+    @Test
+    fun `storage provider refused by media store imports through media store`() {
+        val result = importRefusedStorageDocument { "package contents".byteInputStream() }
+
+        assertEquals("package contents", File(assertIs<ImportResult.Success>(result).path).readText())
+        verifyNoInteractions(crashReporter)
+    }
+
+    @Test
+    fun `storage provider refusal is still reported if media store cannot open the file`() {
+        val result = importRefusedStorageDocument { throw SecurityException() }
+
+        assertEquals(storageProviderRefusal, assertIs<ImportResult.Failure>(result).exception)
+        verify(crashReporter).sendExceptionReport(storageProviderRefusal, "ImportUtils", null, false)
+    }
+
+    @SuppressLint("NewApi")
+    private fun importRefusedStorageDocument(mediaStoreSource: Supplier<InputStream>): ImportResult {
+        mockkStatic(MediaStore::class)
+        try {
+            every { MediaStore.getMediaUri(targetContext, storageDocumentUri) } returns mediaStoreUri
+            shadowOf(targetContext.contentResolver).registerInputStreamSupplier(storageDocumentUri) { throw storageProviderRefusal }
+            shadowOf(targetContext.contentResolver).registerInputStreamSupplier(mediaStoreUri, mediaStoreSource)
+            return importerWithFileName("denied.apkg").prepareImport(targetContext, Intent(Intent.ACTION_VIEW, storageDocumentUri))
+        } finally {
+            unmockkStatic(MediaStore::class)
+        }
     }
 
     @Test
@@ -93,7 +169,7 @@ class ImportUtilsTest : RobolectricTest() {
             }
         }
 
-        val result = importerWithFileName("unreadable.apkg").handleFileImport(targetContext, Intent(Intent.ACTION_VIEW, uri))
+        val result = importerWithFileName("unreadable.apkg").prepareImport(targetContext, Intent(Intent.ACTION_VIEW, uri))
 
         assertEquals(exception, assertIs<ImportResult.Failure>(result).exception)
         verify(crashReporter).sendExceptionReport(exception, "ImportUtils", null, false)
@@ -106,6 +182,205 @@ class ImportUtilsTest : RobolectricTest() {
                 data: Uri,
             ): String = fileName
         }
+
+    @Test
+    fun `preparation keeps the filename resolved before copying`() {
+        var queries = 0
+        val importer =
+            object : FileImporter() {
+                override fun getFileNameFromContentProvider(
+                    context: Context,
+                    data: Uri,
+                ): String {
+                    queries++
+                    return if (queries == 1) "deck name.apkg" else "collection.colpkg"
+                }
+
+                override fun copyFileToCache(
+                    context: Context,
+                    data: Uri,
+                    tempPath: String,
+                ) = CacheFileResult.Success(tempPath)
+            }
+        val uri = "content://import/document/123".toUri()
+
+        val result = assertIs<ImportResult.Success>(importer.prepareImport(targetContext, Intent(Intent.ACTION_VIEW, uri)))
+
+        assertIs<ImportResolution.DeckPackage>(result.file)
+        assertEquals(uri, result.file.source.uri)
+        assertEquals("deck name.apkg", File(Uri.decode(result.path)).name)
+        assertEquals(1, queries)
+    }
+
+    @Test
+    fun `preparing packages does not store a confirmation`() {
+        val handler = DialogHandler(mock(AnkiActivity::class.java))
+        val uri = "content://import/document/123".toUri()
+        val packages =
+            listOf(
+                "deck.apkg" to ImportResolution.DeckPackage::class,
+                "backup.colpkg" to ImportResolution.CollectionPackage::class,
+            )
+
+        for ((fileName, expectedType) in packages) {
+            val result =
+                assertIs<ImportResult.Success>(
+                    TestFileImporter(fileName).prepareImport(targetContext, Intent(Intent.ACTION_VIEW, uri)),
+                )
+
+            assertEquals(expectedType, result.file::class)
+            assertNull(handler.popMessage(), "Preparation must not store a confirmation for $fileName")
+        }
+    }
+
+    @Test
+    fun `resolution reports missing filenames instead of assuming text`() {
+        val intent = Intent(Intent.ACTION_VIEW).setDataAndType("content://import/document/123".toUri(), "text/plain")
+
+        assertIs<ImportResolution.Failure>(TestFileImporter(null).resolveImport(targetContext, intent))
+    }
+
+    @Test
+    fun `resolution does not copy the source`() {
+        val importer =
+            object : FileImporter() {
+                override fun getFileNameFromContentProvider(
+                    context: Context,
+                    data: Uri,
+                ) = "collection.colpkg"
+
+                override fun copyFileToCache(
+                    context: Context,
+                    data: Uri,
+                    tempPath: String,
+                ): CacheFileResult = error("Resolving an import must not copy its contents")
+            }
+        val intent = Intent(Intent.ACTION_VIEW, "content://import/document/123".toUri())
+
+        assertIs<ImportResolution.CollectionPackage>(importer.resolveImport(targetContext, intent))
+    }
+
+    @Test
+    fun `legacy collection name is classified after sanitization`() {
+        val intent = Intent(Intent.ACTION_VIEW, "content://import/document/123".toUri())
+
+        val result = TestFileImporter("../collection.apkg").resolveImport(targetContext, intent)
+
+        assertIs<ImportResolution.CollectionPackage>(result)
+        assertEquals("collection.apkg", result.source.fileName)
+    }
+
+    @Test
+    fun `text MIME can come from the intent or the provider`() {
+        val intent = Intent(Intent.ACTION_VIEW).setDataAndType("content://import/document/123".toUri(), "text/plain")
+        assertIs<ImportResolution.Text>(TestFileImporter("notes").resolveImport(targetContext, intent))
+
+        intent.setDataAndType(intent.data, "application/octet-stream")
+        assertIs<ImportResolution.Text>(TestFileImporter("notes").resolveImport(mockContextWithMime("text/csv"), intent))
+    }
+
+    @Test
+    fun `text filenames remain importable without useful MIME metadata`() {
+        val intent = Intent(Intent.ACTION_VIEW).setDataAndType("content://import/document/123".toUri(), "application/octet-stream")
+        for (filename in listOf("notes.csv", "notes.TSV", "notes.txt")) {
+            assertIs<ImportResolution.Text>(TestFileImporter(filename).resolveImport(targetContext, intent))
+        }
+    }
+
+    @Test
+    fun `specific package MIME types take precedence over text metadata`() {
+        for ((packageMime, expectedType) in packageMimeTypes) {
+            for (filename in listOf("notes.csv", "notes.tsv", "notes.txt", "download", "download.zip", "")) {
+                for ((intentMime, providerMime) in listOf(
+                    packageMime to "text/plain",
+                    "text/plain" to packageMime,
+                    packageMime to "text/csv",
+                    "text/csv" to packageMime,
+                    null to packageMime,
+                    "application/octet-stream" to packageMime,
+                )) {
+                    val resolution = resolveWithMetadata(filename, intentMime, providerMime)
+
+                    assertEquals("$filename, intent=$intentMime, provider=$providerMime", expectedType, resolution::class)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `specific package MIME types provide a fallback filename`() {
+        for ((packageMime, expectedType) in packageMimeTypes) {
+            for ((intentMime, providerMime) in listOf(packageMime to "text/plain", "text/plain" to packageMime, null to packageMime)) {
+                val resolution = assertIs<ImportResolution.ResolvedFile>(resolveWithMetadata(null, intentMime, providerMime))
+
+                assertEquals(expectedType, resolution::class)
+                val extension = if (expectedType == ImportResolution.CollectionPackage::class) "colpkg" else "apkg"
+                assertEquals("unknown_filename.$extension", resolution.source.fileName)
+            }
+        }
+    }
+
+    @Test
+    fun `package filenames determine the package kind before MIME hints`() {
+        for ((filename, expectedType) in listOf(
+            "deck.apkg" to ImportResolution.DeckPackage::class,
+            "legacy.APKG" to ImportResolution.DeckPackage::class,
+            "backup.colpkg" to ImportResolution.CollectionPackage::class,
+            "collection.apkg" to ImportResolution.CollectionPackage::class,
+        )) {
+            for (packageMime in packageMimeTypes.keys) {
+                assertEquals(expectedType, resolveWithMetadata(filename, packageMime, packageMime)::class)
+            }
+        }
+    }
+
+    @Test
+    fun `intent package MIME wins when the provider supplies another package MIME`() {
+        assertIs<ImportResolution.DeckPackage>(resolveWithMetadata("download", "application/apkg", "application/colpkg"))
+        assertIs<ImportResolution.CollectionPackage>(resolveWithMetadata("download", "application/colpkg", "application/apkg"))
+    }
+
+    @Test
+    fun `generic MIME types do not identify named files as Anki packages`() {
+        for (mime in listOf("application/octet-stream", "application/zip", "text/plain")) {
+            assertIs<ImportResolution.Text>(resolveWithMetadata("notes.csv", mime, mime))
+        }
+        for (mime in listOf("application/octet-stream", "application/zip")) {
+            assertIs<ImportResolution.Failure>(resolveWithMetadata("download", mime, mime))
+        }
+        assertIs<ImportResolution.Text>(resolveWithMetadata("download", "text/plain", "text/plain"))
+    }
+
+    @Test
+    fun `nameless ZIP fallback defers to a specific package MIME`() {
+        assertIs<ImportResolution.DeckPackage>(resolveWithMetadata(null, "application/zip", null))
+        val collection =
+            assertIs<ImportResolution.CollectionPackage>(resolveWithMetadata(null, "application/zip", "application/colpkg"))
+        assertEquals("unknown_filename.colpkg", collection.source.fileName)
+    }
+
+    @Test
+    fun `unavailable provider MIME does not invalidate usable filenames or an intent package MIME`() {
+        val context = mockContextWithMime(null)
+        whenever(context.contentResolver.getType(any())).thenThrow(SecurityException("MIME metadata is unavailable"))
+        val intent = Intent(Intent.ACTION_VIEW).setDataAndType("content://import/document/123".toUri(), "text/plain")
+
+        assertIs<ImportResolution.Text>(TestFileImporter("notes.csv").resolveImport(context, intent))
+        assertIs<ImportResolution.DeckPackage>(TestFileImporter("deck.apkg").resolveImport(context, intent))
+
+        intent.setDataAndType(intent.data, "application/apkg")
+        assertIs<ImportResolution.DeckPackage>(TestFileImporter("download").resolveImport(context, intent))
+        assertIs<ImportResolution.DeckPackage>(TestFileImporter(null).resolveImport(context, intent))
+    }
+
+    private fun resolveWithMetadata(
+        filename: String?,
+        intentMime: String?,
+        providerMime: String?,
+    ): ImportResolution {
+        val intent = Intent(Intent.ACTION_VIEW).setDataAndType("content://import/document/123".toUri(), intentMime)
+        return TestFileImporter(filename).resolveImport(mockContextWithMime(providerMime), intent)
+    }
 
     @Test
     fun cjkNamesAreConvertedToUnicode() {
@@ -140,7 +415,7 @@ class ImportUtilsTest : RobolectricTest() {
     private fun importValidFile(fileName: String): String {
         val testFileImporter = TestFileImporter(fileName)
         val intent = getValidClipDataUri(fileName)
-        testFileImporter.handleFileImport(targetContext, intent)
+        testFileImporter.prepareImport(targetContext, intent)
 
         // COULD_BE_BETTER: Strip off the file path
         return testFileImporter.cacheFileName
@@ -164,10 +439,10 @@ class ImportUtilsTest : RobolectricTest() {
         for (maliciousFilename in maliciousFilenames) {
             val testFileImporter = TestFileImporter(maliciousFilename)
             val intent = getValidClipDataUri(maliciousFilename)
-            val result = testFileImporter.handleFileImport(targetContext, intent)
+            val result = testFileImporter.prepareImport(targetContext, intent)
             assertTrue("Import should succeed after basename sanitization: $maliciousFilename", result is ImportResult.Success)
 
-            // the cached path is Uri-encoded (see handleContentProviderFile): decode it before resolving it on disk
+            // the cached path is Uri-encoded (see cacheImport): decode it before resolving it on disk
             val cachedFile = File(Uri.decode(testFileImporter.cacheFileName)).canonicalFile
             assertEquals(
                 "Cached file must be a direct child of cacheDir: $maliciousFilename -> $cachedFile",
@@ -202,6 +477,19 @@ class ImportUtilsTest : RobolectricTest() {
     }
 
     @Test
+    fun getFileCachedCopyUsesFallbackFileNameWhenDecodingFails() {
+        TimeManager.resetWith(MockTime(1_600_000_000_000))
+        val prefix = "a".repeat(89)
+        val invalidShortenedFileName = "${prefix}ääääääääää.apkg"
+        val expectedFallbackFileName = "file_1600000000000.apkg"
+        val expectedFilepath = File(targetContext.cacheDir, expectedFallbackFileName).absolutePath
+
+        val actualFilepath = TestFileImporter(invalidShortenedFileName).getFileCachedCopy(targetContext, "dummy".toUri())
+
+        assertEquals(expectedFilepath, actualFilepath)
+    }
+
+    @Test
     fun collectionApkgIsValid() {
         assertTrue(ImportUtils.isValidPackageName("collection.apkg"))
     }
@@ -232,7 +520,7 @@ class ImportUtilsTest : RobolectricTest() {
     }
 
     @Test
-    fun onlyValidTextOrDataMimeTypesReturnTrue() {
+    fun onlySupportedTextMimeTypesSelectTheTextImporter() {
         val uri = "content://com.example".toUri()
         val validMimeTypes =
             listOf(
@@ -253,21 +541,21 @@ class ImportUtilsTest : RobolectricTest() {
 
         for (mime in validMimeTypes) {
             val context = mockContextWithMime(mime)
-            val isValid = ImportUtils.isValidTextOrDataFile(context, uri)
-            assertTrue("Expected MIME to be accepted: $mime", isValid)
+            val resolution = TestFileImporter("notes").resolveImport(context, Intent(Intent.ACTION_VIEW, uri))
+            assertIs<ImportResolution.Text>(resolution, "Expected text MIME to be accepted: $mime")
         }
 
         for (mime in invalidMimeTypes) {
             val context = mockContextWithMime(mime)
-            val isValid = ImportUtils.isValidTextOrDataFile(context, uri)
-            assertFalse("Expected MIME to be rejected: $mime", isValid)
+            val resolution = TestFileImporter("notes").resolveImport(context, Intent(Intent.ACTION_VIEW, uri))
+            assertIs<ImportResolution.Failure>(resolution, "Expected unsupported MIME to be rejected: $mime")
         }
     }
 
     private fun mockContextWithMime(mimeType: String?): Context {
         val resolver = mock(ContentResolver::class.java)
         whenever(resolver.getType(any())).thenReturn(mimeType)
-        val context = mock(Context::class.java)
+        val context = spy(targetContext)
         whenever(context.contentResolver).thenReturn(resolver)
         return context
     }

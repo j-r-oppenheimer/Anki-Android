@@ -4,11 +4,12 @@ package com.ichi2.anki.cardviewer
 
 import android.content.SharedPreferences
 import android.view.KeyEvent
-import com.ichi2.anki.reviewer.Binding.Companion.keyCode
 import com.ichi2.anki.reviewer.Binding.Companion.unicode
+import com.ichi2.anki.reviewer.Binding.KeyCode
 import com.ichi2.anki.reviewer.Binding.ModifierKeys
 import com.ichi2.anki.reviewer.Binding.ModifierKeys.Companion.ctrl
 import com.ichi2.anki.reviewer.Binding.ModifierKeys.Companion.shift
+import com.ichi2.anki.reviewer.BindingUnicodeCharacter
 import com.ichi2.anki.reviewer.CardSide
 import com.ichi2.anki.reviewer.MappableAction
 import com.ichi2.anki.reviewer.ReviewerBinding
@@ -108,20 +109,20 @@ enum class ViewerCommand : MappableAction<ReviewerBinding> {
                         keyCode(KeyEvent.KEYCODE_NUMPAD_4, CardSide.ANSWER),
                     )
                 EDIT -> listOf(keyCode(KeyEvent.KEYCODE_E, CardSide.BOTH))
-                MARK -> listOf(unicode('*', CardSide.BOTH))
-                BURY_CARD -> listOf(unicode('-', CardSide.BOTH))
-                BURY_NOTE -> listOf(unicode('=', CardSide.BOTH))
-                SUSPEND_CARD -> listOf(unicode('@', CardSide.BOTH))
-                SUSPEND_NOTE -> listOf(unicode('!', CardSide.BOTH))
+                MARK -> listOf(unicode(BindingUnicodeCharacter('*'), CardSide.BOTH))
+                BURY_CARD -> listOf(unicode(BindingUnicodeCharacter('-'), CardSide.BOTH))
+                BURY_NOTE -> listOf(unicode(BindingUnicodeCharacter('='), CardSide.BOTH))
+                SUSPEND_CARD -> listOf(unicode(BindingUnicodeCharacter('@'), CardSide.BOTH))
+                SUSPEND_NOTE -> listOf(unicode(BindingUnicodeCharacter('!'), CardSide.BOTH))
                 PLAY_MEDIA -> listOf(keyCode(KeyEvent.KEYCODE_R, CardSide.BOTH), keyCode(KeyEvent.KEYCODE_F5, CardSide.BOTH))
                 REPLAY_VOICE -> listOf(keyCode(KeyEvent.KEYCODE_V, CardSide.BOTH))
                 RECORD_VOICE -> listOf(keyCode(KeyEvent.KEYCODE_V, CardSide.BOTH, shift()))
                 SAVE_VOICE -> listOf(keyCode(KeyEvent.KEYCODE_S, CardSide.BOTH, shift()))
                 UNDO -> listOf(keyCode(KeyEvent.KEYCODE_Z, CardSide.BOTH, ctrl()))
-                REDO -> listOf(keyCode(KeyEvent.KEYCODE_Z, CardSide.BOTH, ModifierKeys(shift = true, ctrl = true, alt = false)))
+                REDO -> listOf(keyCode(KeyEvent.KEYCODE_Z, CardSide.BOTH, ModifierKeys(shift = true, ctrl = true)))
                 PREVIOUS_CARD_INFO ->
                     listOf(
-                        keyCode(KeyEvent.KEYCODE_I, CardSide.BOTH, ModifierKeys(shift = false, ctrl = true, alt = true)),
+                        keyCode(KeyEvent.KEYCODE_I, CardSide.BOTH, ModifierKeys(ctrl = true, alt = true)),
                     )
                 TOGGLE_FLAG_RED ->
                     listOf(
@@ -192,10 +193,10 @@ enum class ViewerCommand : MappableAction<ReviewerBinding> {
         keycode: Int,
         side: CardSide,
         keys: ModifierKeys = ModifierKeys.none(),
-    ): ReviewerBinding = ReviewerBinding(keyCode(keys, keycode), side)
+    ): ReviewerBinding = ReviewerBinding(KeyCode(keycode, keys), side)
 
     private fun unicode(
-        c: Char,
+        c: BindingUnicodeCharacter,
         side: CardSide,
     ): ReviewerBinding = ReviewerBinding(unicode(c), side)
 

@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: Copyright (c) 2024 Anoop <xenonnn4w@gmail.com>
-// SPDX-FileCopyrightText: Copyright (c) 2025 lukstbit <52494258+lukstbit@users.noreply.github.com>
 
 package com.ichi2.widget.cardanalysis
 
@@ -20,11 +19,9 @@ import androidx.core.view.updateMargins
 import com.ichi2.anki.AnkiActivity
 import com.ichi2.anki.CollectionManager.TR
 import com.ichi2.anki.CommonString
-import com.ichi2.anki.R
 import com.ichi2.anki.common.android.AnkiBroadcastReceiver
 import com.ichi2.anki.common.utils.android.showThemedToast
 import com.ichi2.anki.common.utils.ext.unregisterReceiverSilently
-import com.ichi2.anki.databinding.ActivityCardAnalysisWidgetConfigBinding
 import com.ichi2.anki.dialogs.registerDeckSelectedHandler
 import com.ichi2.anki.dialogs.startDeckSelection
 import com.ichi2.anki.isCollectionEmpty
@@ -32,10 +29,13 @@ import com.ichi2.anki.launchCatchingTask
 import com.ichi2.anki.model.SelectableDeck
 import com.ichi2.anki.startup.ensureStorageIsReady
 import com.ichi2.anki.ui.internationalization.sentenceCase
+import com.ichi2.anki.widgets.R
+import com.ichi2.anki.widgets.databinding.ActivityCardAnalysisWidgetConfigBinding
 import com.ichi2.anki.withProgress
 import com.ichi2.widget.AppWidgetId.Companion.INVALID_APPWIDGET_ID
 import com.ichi2.widget.AppWidgetId.Companion.getAppWidgetId
 import com.ichi2.widget.cardanalysis.CardAnalysisWidget.Companion.EXTRA_SELECTED_DECK_ID
+import com.ichi2.widget.getAppWidgetManager
 import dev.androidbroadcast.vbpd.viewBinding
 import timber.log.Timber
 
@@ -90,7 +90,7 @@ class CardAnalysisWidgetConfig : AnkiActivity(R.layout.activity_card_analysis_wi
             deck =
                 BundleCompat.getParcelable(
                     savedInstanceState,
-                    KEY_DECK,
+                    STATE_DECK,
                     SelectableDeck.Deck::class.java,
                 )
             binding.deckName.text = deck?.name
@@ -109,7 +109,7 @@ class CardAnalysisWidgetConfig : AnkiActivity(R.layout.activity_card_analysis_wi
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
-        outState.putParcelable(KEY_DECK, deck)
+        outState.putParcelable(STATE_DECK, deck)
     }
 
     override fun onDestroy() {
@@ -169,6 +169,7 @@ class CardAnalysisWidgetConfig : AnkiActivity(R.layout.activity_card_analysis_wi
     }
 
     private fun updateWidget() {
+        val appWidgetManager = getAppWidgetManager(this) ?: return
         val updateIntent =
             Intent(this, CardAnalysisWidget::class.java).apply {
                 action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
@@ -178,7 +179,6 @@ class CardAnalysisWidgetConfig : AnkiActivity(R.layout.activity_card_analysis_wi
 
         sendBroadcast(updateIntent)
 
-        val appWidgetManager = AppWidgetManager.getInstance(this)
         CardAnalysisWidget.updateWidget(this, appWidgetManager, appWidgetId)
     }
 
@@ -209,6 +209,6 @@ class CardAnalysisWidgetConfig : AnkiActivity(R.layout.activity_card_analysis_wi
         }
 
     companion object {
-        private const val KEY_DECK = "key_deck"
+        private const val STATE_DECK = "key_deck"
     }
 }

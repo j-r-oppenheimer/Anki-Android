@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// SPDX-FileCopyrightText: Copyright (c) 2025 lukstbit <52494258+lukstbit@users.noreply.github.com>
 
 package com.ichi2.anki.browser
 
@@ -76,10 +75,10 @@ class RepositionCardFragment : DialogFragment() {
                     setFragmentResult(
                         REQUEST_REPOSITION_NEW_CARDS,
                         Bundle().apply {
-                            putInt(ARG_POSITION, position)
-                            putInt(ARG_STEP, step)
-                            putBoolean(ARG_RANDOM, binding.randomizeOrderCheck.isChecked)
-                            putBoolean(ARG_SHIFT, binding.shiftPositionCheck.isChecked)
+                            putInt(RESULT_POSITION, position)
+                            putInt(RESULT_STEP, step)
+                            putBoolean(RESULT_RANDOM, binding.randomizeOrderCheck.isChecked)
+                            putBoolean(RESULT_SHIFT, binding.shiftPositionCheck.isChecked)
                         },
                     )
                 }
@@ -125,10 +124,13 @@ class RepositionCardFragment : DialogFragment() {
         const val REQUEST_REPOSITION_NEW_CARDS = "request_repositions_new_cards"
         private const val ARG_QUEUE_TOP = "arg_queue_top"
         private const val ARG_QUEUE_BOTTOM = "arg_queue_bottom"
-        const val ARG_POSITION = "arg_position"
-        const val ARG_STEP = "arg_step"
-        const val ARG_RANDOM = "arg_random"
-        const val ARG_SHIFT = "arg_shift"
+        const val RESULT_POSITION = "arg_position"
+        const val RESULT_STEP = "arg_step"
+        const val RESULT_RANDOM = "arg_random"
+        const val RESULT_SHIFT = "arg_shift"
+
+        private const val ARG_RANDOM = "arg_random"
+        private const val ARG_SHIFT = "arg_shift"
 
         fun newInstance(
             queueTop: Int,

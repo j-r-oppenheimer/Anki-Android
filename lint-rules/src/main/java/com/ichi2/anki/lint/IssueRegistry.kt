@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// SPDX-FileCopyrightText: Copyright (c) 2020 lukstbit <52494258+lukstbit@users.noreply.github.com>
 
 package com.ichi2.anki.lint
 
@@ -8,6 +7,8 @@ import com.android.tools.lint.client.api.Vendor
 import com.android.tools.lint.detector.api.CURRENT_API
 import com.android.tools.lint.detector.api.Issue
 import com.ichi2.anki.lint.rules.AvoidAlertDialogUsage
+import com.ichi2.anki.lint.rules.CommonPreferenceKeyDetector
+import com.ichi2.anki.lint.rules.DirectAppWidgetManagerInstanceUsage
 import com.ichi2.anki.lint.rules.DirectCalendarInstanceUsage
 import com.ichi2.anki.lint.rules.DirectDateInstantiation
 import com.ichi2.anki.lint.rules.DirectGregorianInstantiation
@@ -16,7 +17,12 @@ import com.ichi2.anki.lint.rules.DirectSystemCurrentTimeMillisUsage
 import com.ichi2.anki.lint.rules.DirectSystemTimeInstantiation
 import com.ichi2.anki.lint.rules.DirectToastMakeTextUsage
 import com.ichi2.anki.lint.rules.DuplicateCrowdInStrings
+import com.ichi2.anki.lint.rules.FragmentArgumentKeyNamingDetector
+import com.ichi2.anki.lint.rules.FragmentRequestKeyNamingDetector
+import com.ichi2.anki.lint.rules.FragmentResultKeyNamingDetector
 import com.ichi2.anki.lint.rules.HardcodedPreferenceKey
+import com.ichi2.anki.lint.rules.IntentActionNamingDetector
+import com.ichi2.anki.lint.rules.IntentExtraNamingDetector
 import com.ichi2.anki.lint.rules.InvalidStringFormatDetector
 import com.ichi2.anki.lint.rules.JUnitNullAssertionDetector
 import com.ichi2.anki.lint.rules.LayoutPrefixDetector
@@ -24,7 +30,9 @@ import com.ichi2.anki.lint.rules.LicenseHeaderExists
 import com.ichi2.anki.lint.rules.LocaleRootDetector
 import com.ichi2.anki.lint.rules.NonPositionalFormatSubstitutions
 import com.ichi2.anki.lint.rules.OpenInputStreamSafeDetector
+import com.ichi2.anki.lint.rules.PreferenceKeyNamingDetector
 import com.ichi2.anki.lint.rules.PrintStackTraceUsage
+import com.ichi2.anki.lint.rules.SavedStateKeyNamingDetector
 import com.ichi2.anki.lint.rules.SentenceCaseConventions
 import com.ichi2.anki.lint.rules.TranslationTypo
 import com.ichi2.anki.lint.rules.VariableNamingDetector
@@ -35,7 +43,9 @@ class IssueRegistry : IssueRegistry() {
         get() {
             // Keep this list lexicographically ordered.
             return listOf(
+                CommonPreferenceKeyDetector.ISSUE,
                 LayoutPrefixDetector.ISSUE,
+                DirectAppWidgetManagerInstanceUsage.ISSUE,
                 DirectCalendarInstanceUsage.ISSUE,
                 DirectDateInstantiation.ISSUE,
                 DirectGregorianInstantiation.ISSUE,
@@ -44,13 +54,20 @@ class IssueRegistry : IssueRegistry() {
                 DirectSystemTimeInstantiation.ISSUE,
                 DirectToastMakeTextUsage.ISSUE,
                 DuplicateCrowdInStrings.ISSUE,
+                FragmentArgumentKeyNamingDetector.ISSUE,
+                FragmentRequestKeyNamingDetector.ISSUE,
+                FragmentResultKeyNamingDetector.ISSUE,
                 HardcodedPreferenceKey.ISSUE,
+                IntentActionNamingDetector.ISSUE,
+                IntentExtraNamingDetector.ISSUE,
                 JUnitNullAssertionDetector.ISSUE,
                 LicenseHeaderExists.ISSUE,
                 LocaleRootDetector.ISSUE,
                 PrintStackTraceUsage.ISSUE,
                 NonPositionalFormatSubstitutions.ISSUE,
                 OpenInputStreamSafeDetector.ISSUE,
+                PreferenceKeyNamingDetector.ISSUE,
+                SavedStateKeyNamingDetector.ISSUE,
                 SentenceCaseConventions.ISSUE,
                 TranslationTypo.ISSUE,
                 VariableNamingDetector.ISSUE,

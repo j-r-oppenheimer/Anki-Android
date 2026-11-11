@@ -26,19 +26,19 @@ import com.ichi2.anki.CollectionManager.CollectionOpenFailure
 import com.ichi2.anki.RobolectricTest.CollectionStorageMode.IN_MEMORY_NO_FOLDERS
 import com.ichi2.anki.RobolectricTest.CollectionStorageMode.IN_MEMORY_WITH_MEDIA
 import com.ichi2.anki.RobolectricTest.CollectionStorageMode.ON_DISK
+import com.ichi2.anki.common.android.AdaptionUtil
 import com.ichi2.anki.common.annotations.UseContextParameter
+import com.ichi2.anki.common.preferences.SharedPreferencesTestHook
 import com.ichi2.anki.common.preferences.sharedPrefs
 import com.ichi2.anki.common.time.MockTime
 import com.ichi2.anki.common.time.TimeManager
 import com.ichi2.anki.dialogs.DialogHandler
 import com.ichi2.anki.libanki.Card
 import com.ichi2.anki.libanki.Collection
+import com.ichi2.anki.libanki.CollectionFiles
 import com.ichi2.anki.libanki.Note
 import com.ichi2.anki.libanki.NotetypeJson
 import com.ichi2.anki.libanki.testutils.AnkiTest
-import com.ichi2.anki.libanki.testutils.InMemoryCollectionManager
-import com.ichi2.anki.libanki.testutils.InMemoryCollectionManagerWithMediaFolder
-import com.ichi2.anki.libanki.testutils.TestCollectionManager
 import com.ichi2.anki.observability.ChangeManager
 import com.ichi2.anki.observability.undoableOp
 import com.ichi2.anki.utils.OnlyOnce
@@ -50,7 +50,8 @@ import com.ichi2.testutils.common.FailOnUnhandledExceptionRule
 import com.ichi2.testutils.common.IgnoreFlakyTestsInCIRule
 import com.ichi2.testutils.filter
 import com.ichi2.testutils.grantPermissions
-import kotlinx.coroutines.CoroutineDispatcher
+import com.ichi2.testutils.rules.CollectionStorageRule
+import com.ichi2.testutils.withCollectionTestDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.TestDispatcher
@@ -76,14 +77,17 @@ import org.robolectric.shadows.ShadowLooper
 import org.robolectric.shadows.ShadowMediaPlayer
 import timber.log.Timber
 import kotlin.test.assertNotNull
-import kotlin.test.assertSame
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
 import com.ichi2.testutils.Robolectric as RobolectricActivities
 
-open class RobolectricTest :
-    AnkiTest,
+/**
+ * @param loadBackend Disable for tests which do not use the native backend.
+ */
+open class RobolectricTest(
+    private val loadBackend: Boolean = true,
+) : AnkiTest,
     AndroidTest {
     @Suppress("PLATFORM_CLASS_MAPPED_TO_KOTLIN")
     private fun Any.wait(timeMs: Long) = (this as Object).wait(timeMs)
@@ -110,6 +114,17 @@ open class RobolectricTest :
     @get:Rule
     val tempFolder = TemporaryFolder()
 
+    // Run inside tempFolder so in-memory collections can use its media directory.
+    @get:Rule(order = 0)
+    val collectionStorage =
+        CollectionStorageRule {
+            when (getCollectionStorageMode()) {
+                ON_DISK -> null
+                IN_MEMORY_WITH_MEDIA -> CollectionFiles.InMemoryWithMedia(tempFolder.newFolder())
+                IN_MEMORY_NO_FOLDERS -> CollectionFiles.InMemory
+            }
+        }
+
     /**
      * After all `@After` methods, fail if any Robolectric activities are still live.
      * Retained AppCompat delegates can recreate activities on later night-mode changes.
@@ -119,14 +134,7 @@ open class RobolectricTest :
     @get:Rule(order = Int.MIN_VALUE)
     val noLiveActivities = NoLiveRobolectricActivitiesRule()
 
-    override val collectionManager: TestCollectionManager by lazy {
-        when (getCollectionStorageMode()) {
-            ON_DISK -> ProductionCollectionManager as TestCollectionManager
-            // tempFolder.newFolder() requires `lazy { }`
-            IN_MEMORY_WITH_MEDIA -> InMemoryCollectionManagerWithMediaFolder(tempFolder.newFolder())
-            IN_MEMORY_NO_FOLDERS -> InMemoryCollectionManager()
-        }
-    }
+    override val collectionManager = ProductionCollectionManager
 
     protected open fun getCollectionStorageMode(): CollectionStorageMode = IN_MEMORY_NO_FOLDERS
 
@@ -163,10 +171,9 @@ open class RobolectricTest :
 
         WorkManagerTestInitHelper.initializeTestWorkManager(targetContext, config)
 
-        // resolved issues with the collection being reused if useInMemoryDatabase is false
-        CollectionManager.setColForTests(null)
+        CollectionManager.closeCollectionBlocking()
 
-        maybeSetupBackend()
+        if (loadBackend) setupBackend()
 
         // Reset static variable for custom tabs failure.
         CustomTabActivityHelper.resetFailed()
@@ -179,6 +186,8 @@ open class RobolectricTest :
 
         // https://github.com/ankidroid/Anki-Android/pull/19004#discussion_r2739833965
         grantPermissions(Manifest.permission.INTERNET)
+
+        AdaptionUtil.resetWebBrowserAvailabilityCacheForTests()
     }
 
     @After
@@ -197,6 +206,10 @@ open class RobolectricTest :
         }
         controllersForCleanup.clear()
 
+        if (SharedPreferencesTestHook.override != null) {
+            Timber.w("SharedPreferencesTestHook was not reset! Setting it to null.")
+            SharedPreferencesTestHook.override = null
+        }
         if (AnkiDroidApp.sharedPreferencesTestingOverride != null) {
             Timber.w("AnkiDroidApp SharedPrefs test override was not reset to null! Setting it to null.")
             AnkiDroidApp.sharedPreferencesTestingOverride = null
@@ -227,6 +240,7 @@ open class RobolectricTest :
         }
         WorkManagerTestInitHelper.closeWorkDatabase()
         Dispatchers.resetMain()
+        ioDispatcher = Dispatchers.IO
         runBlocking { CollectionManager.discardBackend() }
         val pendingMethods = OnlyOnce.pendingMethods
         Assert.assertTrue(
@@ -333,6 +347,7 @@ open class RobolectricTest :
                     .visible()
             advanceRobolectricLooper()
             testClass.saveControllerForCleanup(controller)
+            (controller.get() as? DeckPicker)?.viewModel?.awaitStartup()
             return controller
         }
     }
@@ -374,7 +389,6 @@ open class RobolectricTest :
     /** Call this method in your test if you to test behavior with a null collection  */
     protected fun enableNullCollection() {
         CollectionManager.closeCollectionBlocking()
-        CollectionManager.setColForTests(null)
         CollectionManager.emulatedOpenFailure = CollectionOpenFailure.LOCKED
     }
 
@@ -384,7 +398,7 @@ open class RobolectricTest :
     }
 
     /**
-     * Emulates a null collection and a `BackendDbLockedException` while [block] runs,
+     * Emulates a null collection and a `CollectionLockedException` while [block] runs,
      * restoring normal collection behavior afterwards.
      *
      * @see enableNullCollection
@@ -462,16 +476,7 @@ open class RobolectricTest :
             undoableOp<OpChanges> { col.updateNote(note) }
         }
 
-    private fun maybeSetupBackend() {
-        try {
-            targetContext
-        } catch (exc: IllegalStateException) {
-            // We must make sure not to load the backend library into a test running outside
-            // the Robolectric classloader, or subsequent Robolectric tests that run in this
-            // process will be unable to make calls into the backend.
-            println("not annotated with junit, not setting up backend")
-            return
-        }
+    private fun setupBackend() {
         try {
             RustBackendLoader.ensureSetup()
         } catch (e: UnsatisfiedLinkError) {
@@ -500,20 +505,7 @@ open class RobolectricTest :
     override fun withTestDispatcher(
         dispatcher: TestDispatcher,
         block: () -> Unit,
-    ) {
-        val previousDispatcher = CollectionManager.setTestDispatcher(dispatcher)
-        val dispatcherAfterTest: CoroutineDispatcher
-        try {
-            block()
-        } finally {
-            dispatcherAfterTest = CollectionManager.setTestDispatcher(previousDispatcher)
-        }
-        assertSame(
-            dispatcher,
-            dispatcherAfterTest,
-            "CollectionManager dispatcher was not restored. Save and restore it in a finally block.",
-        )
-    }
+    ) = withCollectionTestDispatcher(dispatcher, block)
 }
 
 private fun getLatestAlertDialog(): AlertDialog =

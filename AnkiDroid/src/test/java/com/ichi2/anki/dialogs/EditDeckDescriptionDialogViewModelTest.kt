@@ -3,7 +3,6 @@
 package com.ichi2.anki.dialogs
 
 import androidx.lifecycle.SavedStateHandle
-import androidx.test.ext.junit.runners.AndroidJUnit4
 import app.cash.turbine.test
 import com.ichi2.anki.dialogs.EditDeckDescriptionDialogViewModel.Companion.ARG_DECK_ID
 import com.ichi2.anki.dialogs.EditDeckDescriptionDialogViewModel.Companion.STATE_DESCRIPTION
@@ -17,12 +16,10 @@ import com.ichi2.testutils.JvmTest
 import org.hamcrest.MatcherAssert.assertThat
 import org.hamcrest.Matchers.equalTo
 import org.junit.Test
-import org.junit.runner.RunWith
 
 /**
  * Tests [EditDeckDescriptionDialogViewModel]
  */
-@RunWith(AndroidJUnit4::class)
 class EditDeckDescriptionDialogViewModelTest : JvmTest() {
     @Test
     fun `title is set`() =

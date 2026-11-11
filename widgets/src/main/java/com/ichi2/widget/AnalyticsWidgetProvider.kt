@@ -10,7 +10,9 @@ import android.content.Intent
 import androidx.annotation.CallSuper
 import com.ichi2.anki.common.analytics.Analytics
 import com.ichi2.anki.common.analytics.AnalyticsEvent
-import com.ichi2.anki.common.storage.grantedStoragePermissions
+import com.ichi2.anki.common.preferences.sharedPrefs
+import com.ichi2.anki.common.storage.CollectionHelper
+import com.ichi2.anki.common.storage.StorageDecision
 import timber.log.Timber
 
 /**
@@ -28,6 +30,8 @@ import timber.log.Timber
  * - Override [onUpdate] if additional logic is required beyond [performUpdate].
  */
 abstract class AnalyticsWidgetProvider : AppWidgetProvider() {
+    protected open val requiresCollection = true
+
     /**
      * Called when the widget is enabled. Sends an analytics event.
      *
@@ -62,7 +66,7 @@ abstract class AnalyticsWidgetProvider : AppWidgetProvider() {
     }
 
     /**
-     * Called to update the widget. Checks storage permissions and delegates to [performUpdate].
+     * Called to update the widget. Checks that storage is set up and delegates to [performUpdate].
      *
      * @param context The context in which the receiver is running.
      * @param appWidgetManager The AppWidgetManager instance to use for updating widgets.
@@ -74,7 +78,7 @@ abstract class AnalyticsWidgetProvider : AppWidgetProvider() {
         appWidgetIds: IntArray,
     ) {
         super.onUpdate(context, appWidgetManager, appWidgetIds)
-        if (runCatching { grantedStoragePermissions(context) }.getOrNull() != true) {
+        if (requiresCollection && CollectionHelper.storageDecision(context.sharedPrefs()) == StorageDecision.Undecided) {
             Timber.w("Opening widget ${this.javaClass.name} without storage access")
             return
         }

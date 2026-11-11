@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// SPDX-FileCopyrightText: Copyright (c) 2022 lukstbit <lukstbit@users.noreply.github.com>
 
 package com.ichi2.anki.dialogs
 
@@ -11,12 +10,12 @@ import androidx.test.espresso.matcher.RootMatchers.isDialog
 import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
 import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.ichi2.anki.R
 import com.ichi2.anki.dialogs.NoteTypeFieldEditorContextMenu.NoteTypeFieldEditorContextMenuAction
 import com.ichi2.anki.tests.InstrumentedTest
 import org.junit.Ignore
 import org.junit.Test
 import org.junit.runner.RunWith
+import com.ichi2.anki.common.android.R as CommonR
 
 /** Tests [NoteTypeFieldEditorContextMenu] */
 @RunWith(AndroidJUnit4::class)
@@ -27,8 +26,8 @@ class NoteTypeFieldEditorContextMenuTest : InstrumentedTest() {
     @Ignore("flaky")
     fun showsAllOptions() {
         launchFragment(
-            fragmentArgs = Bundle().apply { putString(NoteTypeFieldEditorContextMenu.KEY_LABEL, testDialogTitle) },
-            themeResId = R.style.Theme_Light,
+            fragmentArgs = Bundle().apply { putString(NoteTypeFieldEditorContextMenu.ARG_LABEL, testDialogTitle) },
+            themeResId = CommonR.style.Theme_Light,
         ) { NoteTypeFieldEditorContextMenu() }
         onView(withText(testDialogTitle))
             .inRoot(isDialog())

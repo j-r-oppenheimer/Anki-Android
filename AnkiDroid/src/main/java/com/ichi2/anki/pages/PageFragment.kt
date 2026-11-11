@@ -5,19 +5,18 @@ package com.ichi2.anki.pages
 import android.os.Bundle
 import android.view.View
 import android.webkit.JavascriptInterface
-import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.annotation.CallSuper
 import androidx.annotation.LayoutRes
 import androidx.core.net.toUri
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.progressindicator.CircularProgressIndicator
 import com.ichi2.anki.R
 import com.ichi2.anki.workarounds.OnWebViewRecreatedListener
 import com.ichi2.anki.workarounds.SafeWebViewLayout
 import com.ichi2.themes.Themes
-import com.ichi2.utils.WebViewVersion
 import com.ichi2.utils.showDialogIfWebViewOutdated
 import timber.log.Timber
 
@@ -30,7 +29,6 @@ abstract class PageFragment(
     PostRequestHandler,
     OnWebViewRecreatedListener {
     lateinit var webViewLayout: SafeWebViewLayout
-    private lateinit var server: AnkiServer
     protected abstract val pagePath: String
 
     /**
@@ -52,8 +50,6 @@ abstract class PageFragment(
     protected open fun onCreateWebViewClient(savedInstanceState: Bundle?) = PageWebViewClient()
 
     protected open fun onWebViewCreated() { }
-
-    protected open val minimumWebViewVersion: WebViewVersion? = null
 
     /**
      * When the webview calls `BridgeCommand("foo")`, the PageFragment execute `bridgeCommands["foo"]`.
@@ -91,20 +87,18 @@ abstract class PageFragment(
         view: View,
         savedInstanceState: Bundle?,
     ) {
-        server = AnkiServer(this).also { it.start() }
         webViewLayout = view.findViewById(R.id.webview_layout)
 
-        minimumWebViewVersion?.let { minVersion ->
-            val isOutdated =
-                with(requireContext()) {
-                    showDialogIfWebViewOutdated(minVersion) {
-                        requireActivity().finish()
-                    }
+        // the pages can't send requests without PostRequestBridge, which requires a modern WebView
+        val isOutdated =
+            with(requireContext()) {
+                showDialogIfWebViewOutdated {
+                    requireActivity().finish()
                 }
-            if (isOutdated) {
-                Timber.w("${this::class.simpleName} requires modern WebView version, aborting load")
-                return
             }
+        if (isOutdated) {
+            Timber.w("${this::class.simpleName} requires modern WebView version, aborting load")
+            return
         }
         view.findViewById<MaterialToolbar>(R.id.toolbar)?.setNavigationOnClickListener {
             requireActivity().onBackPressedDispatcher.onBackPressed()
@@ -127,8 +121,9 @@ abstract class PageFragment(
             setupBridgeCommand(pageWebViewClient)
             onWebViewCreated()
         }
+        PostRequestBridge(this, viewLifecycleOwner.lifecycleScope).attachTo(webViewLayout)
         val nightMode = if (Themes.isNightTheme) "#night" else ""
-        val url = "${server.baseUrl()}$pagePath$nightMode".toUri()
+        val url = "${PostRequestBridge.BASE_URL}$pagePath$nightMode".toUri()
         Timber.i("Loading $url")
         webViewLayout.loadUrl(url.toString())
     }
@@ -157,12 +152,11 @@ abstract class PageFragment(
 
     @CallSuper
     override fun onDestroyView() {
-        server.stop()
-        webViewLayout.safeDestroy()
+        webViewLayout.destroy()
         super.onDestroyView()
     }
 
-    override fun onWebViewRecreated(webView: WebView) {
+    override fun onWebViewRecreated() {
         setupWebView(null)
     }
 }

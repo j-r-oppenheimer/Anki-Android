@@ -17,9 +17,10 @@ import com.ichi2.anki.common.time.TimeManager
 import com.ichi2.anki.compat.CompatHelper.Companion.getPackageInfoCompat
 import com.ichi2.anki.compat.PackageInfoFlagsCompat
 import com.ichi2.anki.isLoggedIn
-import com.ichi2.anki.millisecondsSinceLastSync
+import com.ichi2.anki.millisecondsSinceLastSyncAttempt
 import com.ichi2.anki.servicelayer.ScopedStorageService.collectionWillBeMadeInaccessibleAfterUninstall
 import com.ichi2.anki.servicelayer.ScopedStorageService.userIsPromptedToDeleteCollectionOnUninstall
+import com.ichi2.utils.ImportUtils
 import com.ichi2.utils.Permissions
 import com.ichi2.utils.cancelable
 import com.ichi2.utils.checkBoxPrompt
@@ -30,6 +31,7 @@ import com.ichi2.utils.positiveButton
 import com.ichi2.utils.show
 import com.ichi2.utils.title
 import timber.log.Timber
+import java.io.File
 
 /**
  * Prompts a user to backup via either sync or 'export collection'
@@ -161,6 +163,15 @@ class BackupPromptDialog private constructor(
             return true
         }
 
+        fun onFileExported(
+            context: Context,
+            file: File,
+        ) {
+            if (!ImportUtils.isCollectionPackage(file.name)) return
+            Timber.i("Collection exported, postponing the backup reminder")
+            BackupPromptDialog(context).onBackup()
+        }
+
         /**
          *
          * @return A confirmation message to show the user before 'don't show this again' takes place
@@ -242,8 +253,8 @@ class BackupPromptDialog private constructor(
         // If we are on a 'full' build, the user can always restore access to their collection.
         // But we want them to sync regularly as a backup
         if (isLoggedIn()) {
-            // Show dialog to sync if user hasn't synced in a while
-            return millisecondsSinceLastSync() >= ONE_DAY_IN_MS * 7
+            // Show dialog to sync if no sync attempt has been recorded in a while
+            return millisecondsSinceLastSyncAttempt() >= ONE_DAY_IN_MS * 7
         }
 
         // Android proposes the user deletes non-legacy locations on uninstall

@@ -2,9 +2,11 @@
 
 package com.ichi2.anki
 
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.os.Bundle
 import android.text.Html
+import android.text.Layout
 import android.text.Spanned
 import android.text.method.LinkMovementMethod
 import android.view.LayoutInflater
@@ -14,9 +16,11 @@ import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.ScrollView
 import android.widget.TextView
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.StringRes
 import androidx.annotation.VisibleForTesting
 import androidx.constraintlayout.widget.Group
 import androidx.core.text.HtmlCompat
@@ -27,6 +31,7 @@ import androidx.core.view.WindowInsetsCompat.Type.displayCutout
 import androidx.core.view.WindowInsetsCompat.Type.ime
 import androidx.core.view.WindowInsetsCompat.Type.systemBars
 import androidx.core.view.doOnAttach
+import androidx.core.view.doOnLayout
 import androidx.core.view.isVisible
 import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
@@ -44,10 +49,11 @@ import com.ichi2.anki.filtered.FilteredDeckOptionsFragment
 import com.ichi2.anki.libanki.DeckId
 import com.ichi2.anki.libanki.Decks
 import com.ichi2.anki.observability.ChangeManager
+import com.ichi2.anki.progress.observeProgress
 import com.ichi2.anki.settings.Prefs
 import com.ichi2.anki.ui.internationalization.sentenceCase
 import com.ichi2.anki.utils.doOnApplyWindowInsets
-import com.ichi2.anki.utils.ext.launchCollectionInLifecycleScope
+import com.ichi2.anki.utils.ext.launchCollectionInViewLifecycleScope
 import com.ichi2.anki.utils.ext.setFragmentResultListener
 import com.ichi2.anki.utils.ext.showDialogFragment
 import com.ichi2.ui.CollectionMediaImageGetter
@@ -70,6 +76,11 @@ class StudyOptionsFragment :
     @VisibleForTesting
     internal val viewModel: StudyOptionsViewModel by viewModels()
 
+    private var shownState: StudyOptionsState = StudyOptionsState.Loading
+
+    @VisibleForTesting
+    val shownDeckId: DeckId? get() = shownState.deckIdOrNull()
+
     private lateinit var deckInfoLayout: Group
     private lateinit var buttonStart: Button
     private lateinit var textDeckName: TextView
@@ -86,6 +97,12 @@ class StudyOptionsFragment :
 
     private var fragmented = false
 
+    /** Deck whose scroll position is held by the current or saved view. */
+    // TODO: Include deckId in StudyOptionsState, and stop resetting scroll based on this
+    private var displayedDeckId: DeckId? = null
+
+    private var descriptionLayoutBeforeResizing: DescriptionLayoutSettings? = null
+
     private val buttonClickListener =
         View.OnClickListener { v: View ->
             if (v.id == R.id.studyoptions_start) {
@@ -99,6 +116,14 @@ class StudyOptionsFragment :
             }
         }
 
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        displayedDeckId = savedInstanceState?.getLong(STATE_DISPLAYED_DECK_ID)?.takeIf { it != 0L }
+        // Subscribe once per fragment: returning from another panel can recreate its view.
+        ChangeManager.subscribe(this)
+        observeProgress(viewModel) { progress -> getString(progress.messageRes) }
+    }
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -106,9 +131,9 @@ class StudyOptionsFragment :
     ): View? {
         Timber.i("onCreateView()")
         val studyOptionsView = inflater.inflate(R.layout.fragment_study_options, container, false)
+        descriptionLayoutBeforeResizing = null
         fragmented = requireActivity().javaClass != StudyOptionsActivity::class.java
         initAllContentViews(studyOptionsView)
-        ChangeManager.subscribe(this)
         return studyOptionsView
     }
 
@@ -122,8 +147,37 @@ class StudyOptionsFragment :
             requireAnkiActivity().setToolbarText(title = "")
         }
         setupContentInsets(view)
-        viewModel.flowOfState.launchCollectionInLifecycleScope(::rebuildUi)
+        viewModel.flowOfState.launchCollectionInViewLifecycleScope(::rebuildUi)
         refreshInterface()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        displayedDeckId?.let { outState.putLong(STATE_DISPLAYED_DECK_ID, it) }
+    }
+
+    /** Uses cheaper wrapping during a divider drag, then restores the view's original settings. */
+    fun onResizingChanged(isResizing: Boolean) {
+        if (view == null) return
+        val description = textDeckDescription
+        if (isResizing) {
+            if (descriptionLayoutBeforeResizing != null) return
+            descriptionLayoutBeforeResizing =
+                DescriptionLayoutSettings(
+                    breakStrategy = description.breakStrategy,
+                    hyphenationFrequency = description.hyphenationFrequency,
+                )
+            // Avoid whole-paragraph optimization while the width changes. Setters invalidate the
+            // text layout, so only change these settings at the start and end of the gesture.
+            @SuppressLint("WrongConstant")
+            description.breakStrategy = Layout.BREAK_STRATEGY_SIMPLE
+            description.hyphenationFrequency = Layout.HYPHENATION_FREQUENCY_NONE
+        } else {
+            val originalSettings = descriptionLayoutBeforeResizing ?: return
+            description.breakStrategy = originalSettings.breakStrategy
+            description.hyphenationFrequency = originalSettings.hyphenationFrequency
+            descriptionLayoutBeforeResizing = null
+        }
     }
 
     /** Keeps the content clear of the system bars, display cutout and keyboard. */
@@ -237,26 +291,21 @@ class StudyOptionsFragment :
             }
             R.id.action_unbury -> {
                 Timber.i("StudyOptionsFragment:: unbury button pressed")
-                viewModel.unbury()
+                val deckId = shownDeckId ?: return false
+                viewModel.unbury(deckId)
                 item.isVisible = false
                 return true
             }
             R.id.action_rebuild -> {
                 Timber.i("StudyOptionsFragment:: rebuild cram deck button pressed")
-                launchCatchingTask {
-                    withProgress(CommonString.rebuild_filtered_deck) {
-                        viewModel.rebuildCram()
-                    }
-                }
+                val deckId = shownDeckId?.takeIf { shownState.isFiltered() } ?: return false
+                launchCatchingTask { viewModel.rebuildCram(deckId) }
                 return true
             }
             R.id.action_empty -> {
                 Timber.i("StudyOptionsFragment:: empty cram deck button pressed")
-                launchCatchingTask {
-                    withProgress(CommonString.empty_filtered_deck) {
-                        viewModel.emptyCram()
-                    }
-                }
+                val deckId = shownDeckId?.takeIf { shownState.isFiltered() } ?: return false
+                launchCatchingTask { viewModel.emptyCram(deckId) }
                 return true
             }
             else -> return false
@@ -269,18 +318,17 @@ class StudyOptionsFragment :
         val state = viewModel.state
         if (state is StudyOptionsState.Loading) return
 
+        val showsFilteredDeck = shownState.isFiltered()
+        menu.findItem(R.id.action_rebuild)?.isVisible = showsFilteredDeck
+        menu.findItem(R.id.action_empty)?.isVisible = showsFilteredDeck
         if (viewModel.isFilteredDeck) {
-            menu.findItem(R.id.action_rebuild)?.isVisible = true
-            menu.findItem(R.id.action_empty)?.isVisible = true
             menu.findItem(R.id.action_custom_study)?.isVisible = false
             menu.findItem(R.id.action_deck_or_study_options)?.setTitle(CommonString.menu__study_options)
         } else {
-            menu.findItem(R.id.action_rebuild)?.isVisible = false
-            menu.findItem(R.id.action_empty)?.isVisible = false
             menu.findItem(R.id.action_custom_study)?.isVisible = true
             menu.findItem(R.id.action_deck_or_study_options)?.title = TR.sentenceCase.deckOptions
         }
-        if (state is StudyOptionsState.Congrats) {
+        if (state is StudyOptionsState.Congrats || state is StudyOptionsState.Empty) {
             menu.findItem(R.id.action_custom_study)?.isVisible = false
         }
         menu.findItem(R.id.action_schedule_reminders)?.isVisible = Prefs.newReviewRemindersEnabled
@@ -310,7 +358,7 @@ class StudyOptionsFragment :
 
     fun refreshInterface() {
         Timber.d("Refreshing StudyOptionsFragment")
-        launchCatchingTask { viewModel.refreshData() }
+        launchCatchingViewTask { viewModel.refreshData() }
     }
 
     private fun rebuildUi(state: StudyOptionsState) {
@@ -326,7 +374,14 @@ class StudyOptionsFragment :
 
         initAllContentViews(studyOptionsView)
 
+        if (displayedDeckId != null && displayedDeckId != viewModel.selectedDeckId) {
+            // ScrollView restores its saved position during its first layout after a panel returns.
+            studyOptionsView.findViewById<ScrollView>(R.id.studyoptions_scrollview).doOnLayout { it.scrollTo(0, 0) }
+        }
+        displayedDeckId = viewModel.selectedDeckId
+
         updateDeckNameView(state)
+        shownState = state
 
         when (state) {
             is StudyOptionsState.Empty -> {
@@ -339,6 +394,7 @@ class StudyOptionsFragment :
                     buttonStart.visibility = View.VISIBLE
                     buttonStart.text = TR.sentenceCase.customStudy
                 } else {
+                    deckInfoLayout.visibility = View.VISIBLE
                     buttonStart.visibility = View.GONE
                 }
             }
@@ -396,7 +452,7 @@ class StudyOptionsFragment :
         buryInfoLabel.isVisible = data.hasBuriedCards
 
         fun TextView.updateBuryText(count: Int) {
-            this.isVisible = count > 0
+            this.isVisible = deckInfoLayout.isVisible && count > 0
             this.text =
                 when {
                     count > 0 ->
@@ -405,7 +461,6 @@ class StudyOptionsFragment :
                             count,
                             count,
                         )
-                    // #18094 - potential race condition: view may be visible with a count of 0
                     else -> ""
                 }
         }
@@ -440,7 +495,14 @@ class StudyOptionsFragment :
         textDeckName.text = nameBuilder.toString()
     }
 
+    private data class DescriptionLayoutSettings(
+        val breakStrategy: Int,
+        val hyphenationFrequency: Int,
+    )
+
     companion object {
+        private const val STATE_DISPLAYED_DECK_ID = "displayedDeckId"
+
         /**
          * Identifier for a fragment result request to study(open the reviewer). Activities using
          * this fragment need to handle this request and initialize the study screen as they see fit.
@@ -512,3 +574,11 @@ class StudyOptionsFragment :
         }
     }
 }
+
+@get:StringRes
+private val StudyOptionsProgress.messageRes: Int
+    get() =
+        when (this) {
+            StudyOptionsProgress.REBUILDING_FILTERED_DECK -> CommonString.rebuild_filtered_deck
+            StudyOptionsProgress.EMPTYING_FILTERED_DECK -> CommonString.empty_filtered_deck
+        }

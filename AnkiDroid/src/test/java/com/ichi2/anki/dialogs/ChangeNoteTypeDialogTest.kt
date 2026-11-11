@@ -22,9 +22,15 @@ import org.hamcrest.Matchers.equalTo
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
+import com.ichi2.anki.common.android.R as CommonR
 
 @RunWith(AndroidJUnit4::class)
 class ChangeNoteTypeDialogTest : RobolectricTest() {
+    @Test
+    fun `no changes failure has a translated message`() {
+        assertThat(ChangeNoteTypeException.Kind.NO_CHANGES.toString(targetContext), equalTo("No changes to save"))
+    }
+
     /**
      * #20944: with an accessibility service enabled, a Spinner reports its initial selection.
      * A template selection is meaningless for cloze, and used to be fatal
@@ -103,7 +109,7 @@ class ChangeNoteTypeDialogTest : RobolectricTest() {
     ) {
         launchFragment<ChangeNoteTypeDialog>(
             fragmentArgs = Bundle().apply { putLongArray(ARG_NOTE_IDS, longArrayOf(noteId)) },
-            themeResId = R.style.Theme_Light,
+            themeResId = CommonR.style.Theme_Light,
         ).use { scenario -> scenario.onFragment { action(it) } }
     }
 }

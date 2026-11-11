@@ -1,0 +1,60 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package com.ichi2.compose.ui.dialogs
+
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.material3.BasicAlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
+import com.ichi2.anki.common.android.R
+
+/**
+ * A [BasicAlertDialog] whose content renders inline in Compose previews.
+ *
+ * Callers supply the card's styling and any action buttons, which appear in both modes.
+ * [modifier] applies to the content container; [properties] and [onDismissRequest] configure
+ * the dialog window at runtime.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AnkiDroidDialog(
+    onDismissRequest: () -> Unit,
+    modifier: Modifier = Modifier,
+    properties: DialogProperties = DialogProperties(),
+    content: @Composable () -> Unit,
+) {
+    if (LocalInspectionMode.current) {
+        // TODO: Preview the surrounding dialog window, including its scrim, positioning and system UI.
+        // Match BasicAlertDialog's content constraints, including caller overrides.
+        Box(
+            modifier = modifier.padding(horizontal = 24.dp, vertical = 16.dp).sizeIn(minWidth = 280.dp, maxWidth = 560.dp),
+            propagateMinConstraints = true,
+        ) {
+            content()
+        }
+    } else {
+        BasicAlertDialog(
+            onDismissRequest = onDismissRequest,
+            modifier = modifier.padding(horizontal = 24.dp, vertical = 16.dp),
+            properties = properties,
+        ) {
+            val window = (LocalView.current.parent as DialogWindowProvider).window
+            // A slide here competes with initial field focus and keyboard positioning.
+            SideEffect {
+                if (window.attributes.windowAnimations != R.style.Animation_AnkiDroidDialog) {
+                    window.setWindowAnimations(R.style.Animation_AnkiDroidDialog)
+                }
+            }
+            content()
+        }
+    }
+}

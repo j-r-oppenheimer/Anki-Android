@@ -1,18 +1,4 @@
-/*
- * Copyright (c) 2025 lukstbit <52494258+lukstbit@users.noreply.github.com>
- *
- * This program is free software; you can redistribute it and/or modify it under
- * the terms of the GNU General Public License as published by the Free Software
- * Foundation; either version 3 of the License, or (at your option) any later
- * version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
- * PARTICULAR PURPOSE. See the GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License along with
- * this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
 
 package com.ichi2.anki.notetype
 
@@ -21,15 +7,22 @@ import androidx.annotation.VisibleForTesting.Companion.PRIVATE
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import anki.collection.OpChanges
+import anki.collection.OpChangesWithId
 import anki.notetypes.Notetype
+import anki.notetypes.StockNotetype
 import anki.notetypes.copy
 import com.ichi2.anki.CollectionManager.withCol
 import com.ichi2.anki.exception.CombinedException
 import com.ichi2.anki.exception.ReportableException
 import com.ichi2.anki.libanki.Collection
 import com.ichi2.anki.libanki.NoteTypeId
+import com.ichi2.anki.libanki.addNotetype
+import com.ichi2.anki.libanki.addNotetypeLegacy
+import com.ichi2.anki.libanki.backend.BackendUtils
 import com.ichi2.anki.libanki.getNotetype
 import com.ichi2.anki.libanki.getNotetypeNameIdUseCount
+import com.ichi2.anki.libanki.getNotetypeNames
+import com.ichi2.anki.libanki.getStockNotetype
 import com.ichi2.anki.libanki.removeNotetype
 import com.ichi2.anki.libanki.updateNotetype
 import com.ichi2.anki.notetype.ManageNoteTypesState.CardEditor
@@ -37,6 +30,10 @@ import com.ichi2.anki.notetype.ManageNoteTypesState.FieldsEditor
 import com.ichi2.anki.notetype.ManageNoteTypesState.UserMessage
 import com.ichi2.anki.notetype.NoteTypeItemState.Companion.asModel
 import com.ichi2.anki.observability.undoableOp
+import com.ichi2.anki.progress.HasProgress
+import com.ichi2.anki.progress.ProgressManager
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -44,9 +41,17 @@ import kotlinx.coroutines.launch
 import net.ankiweb.rsdroid.BackendException
 import timber.log.Timber
 
-class ManageNoteTypesViewModel : ViewModel() {
+class ManageNoteTypesViewModel :
+    ViewModel(),
+    HasProgress<Nothing> {
+    override val progressManager = ProgressManager<Nothing>()
+
     val state: StateFlow<ManageNoteTypesState>
         field = MutableStateFlow(ManageNoteTypesState())
+
+    /** An add or clone that is still running, so a recreated screen can still show its errors */
+    var pendingAdd: Deferred<Unit>? = null
+        private set
 
     init {
         refreshNoteTypes()
@@ -54,19 +59,85 @@ class ManageNoteTypesViewModel : ViewModel() {
 
     fun refreshNoteTypes() {
         Timber.i("Refreshing list of notetypes")
-        state.update { oldState -> oldState.copy(isLoading = true) }
         viewModelScope.launch {
-            withCol { safeGetNotetypeNameIdUseCount() }
-                .onFailure {
-                    state.update { oldState ->
-                        oldState.copy(isLoading = false, error = ReportableException(it))
-                    }
-                }.onSuccess {
-                    state.update { oldState ->
-                        oldState.copy(isLoading = false, noteTypes = it)
-                    }
-                }
+            progressManager.withProgress { loadNoteTypes() }
         }
+    }
+
+    internal suspend fun loadAddNoteTypeOptions(): Pair<List<AddNotetypeUiModel>, List<String>> =
+        progressManager.withProgress {
+            withCol {
+                val standardNotetypesModels =
+                    StockNotetype.Kind.entries
+                        .filter { it != StockNotetype.Kind.UNRECOGNIZED }
+                        .map {
+                            AddNotetypeUiModel(
+                                id = it.number.toLong(),
+                                name = getStockNotetype(it).name,
+                                isStandard = true,
+                            )
+                        }
+                val foundNotetypes = getNotetypeNames()
+                Pair(
+                    mutableListOf<AddNotetypeUiModel>().apply {
+                        addAll(standardNotetypesModels)
+                        addAll(foundNotetypes.map { it.toUiModel() })
+                    },
+                    foundNotetypes.map { it.name },
+                )
+            }
+        }
+
+    fun addStockNoteType(
+        newName: String,
+        kind: StockNotetype.Kind,
+    ): Deferred<Unit> {
+        Timber.i("Adding notetype from stock kind $kind")
+        return addNoteType {
+            val stockNoteType = getStockNotetype(kind).apply { name = newName }
+            addNotetypeLegacy(BackendUtils.toJsonBytes(stockNoteType))
+        }
+    }
+
+    fun cloneNoteType(
+        newName: String,
+        ntid: NoteTypeId,
+    ): Deferred<Unit> {
+        Timber.i("Cloning notetype with id $ntid")
+        return addNoteType {
+            val newNoteType =
+                getNotetype(ntid).copy {
+                    id = 0
+                    name = newName
+                }
+            addNotetype(newNoteType)
+        }
+    }
+
+    private fun addNoteType(add: Collection.() -> OpChangesWithId): Deferred<Unit> {
+        val added =
+            viewModelScope.async {
+                progressManager.withProgress {
+                    withCol { add() }
+                    loadNoteTypes()
+                }
+            }
+        pendingAdd = added
+        added.invokeOnCompletion { if (pendingAdd === added) pendingAdd = null }
+        return added
+    }
+
+    private suspend fun loadNoteTypes() {
+        withCol { safeGetNotetypeNameIdUseCount() }
+            .onFailure {
+                state.update { oldState ->
+                    oldState.copy(error = ReportableException(it))
+                }
+            }.onSuccess {
+                state.update { oldState ->
+                    oldState.copy(noteTypes = it)
+                }
+            }
     }
 
     fun filter(query: String) {
@@ -76,7 +147,7 @@ class ManageNoteTypesViewModel : ViewModel() {
                 oldState.noteTypes.map {
                     it.copy(shouldBeDisplayed = it.name.contains(query, ignoreCase = true))
                 }
-            oldState.copy(isLoading = false, noteTypes = matchedNoteTypes, searchQuery = query)
+            oldState.copy(noteTypes = matchedNoteTypes, searchQuery = query)
         }
     }
 
@@ -85,30 +156,30 @@ class ManageNoteTypesViewModel : ViewModel() {
         name: String,
     ) {
         Timber.i("Renaming notetype with id $ntid")
-        state.update { oldState -> oldState.copy(isLoading = true) }
         viewModelScope.launch {
-            undoableOp<OpChanges> {
-                safeRenameNoteType(ntid, name)
-                    .onSuccess { changes ->
-                        state.update { oldState ->
-                            val updatedNoteTypes =
-                                oldState.noteTypes.withUpdatedItem(ntid) { old -> old.copy(name = name) }
-                            oldState.copy(isLoading = false, noteTypes = updatedNoteTypes)
+            progressManager.withProgress {
+                undoableOp<OpChanges> {
+                    safeRenameNoteType(ntid, name)
+                        .onSuccess { changes ->
+                            state.update { oldState ->
+                                val updatedNoteTypes =
+                                    oldState.noteTypes.withUpdatedItem(ntid) { old -> old.copy(name = name) }
+                                oldState.copy(noteTypes = updatedNoteTypes)
+                            }
+                            return@undoableOp changes
+                        }.onFailure {
+                            // TODO: Change to CardTypeException: https://github.com/ankidroid/Anki-Android-Backend/issues/537
+                            // Card template 1 in note type 'character' has a problem.
+                            // Expected to find a field replacement on the front of the card template.
+                            state.update { oldState ->
+                                oldState.copy(
+                                    error = ReportableException(it, it !is BackendException),
+                                )
+                            }
+                            OpChanges.getDefaultInstance()
                         }
-                        return@undoableOp changes
-                    }.onFailure {
-                        // TODO: Change to CardTypeException: https://github.com/ankidroid/Anki-Android-Backend/issues/537
-                        // Card template 1 in note type 'character' has a problem.
-                        // Expected to find a field replacement on the front of the card template.
-                        state.update { oldState ->
-                            oldState.copy(
-                                isLoading = false,
-                                error = ReportableException(it, it !is BackendException),
-                            )
-                        }
-                        OpChanges.getDefaultInstance()
-                    }
-                OpChanges.getDefaultInstance()
+                    OpChanges.getDefaultInstance()
+                }
             }
         }
     }
@@ -116,34 +187,31 @@ class ManageNoteTypesViewModel : ViewModel() {
     /** Deletes the note type with [ntid] and also updates the multi select mode status if needed */
     fun delete(ntid: NoteTypeId) {
         Timber.i("Deleting notetype with id $ntid")
-        state.update { oldState -> oldState.copy(isLoading = true) }
-        val noteTypesCount = state.value.noteTypes.size
+        if (state.value.noteTypes.size <= 1) {
+            state.update { oldState -> oldState.copy(message = UserMessage.DeletingLastModel) }
+            return
+        }
         viewModelScope.launch {
-            undoableOp<OpChanges> {
-                if (noteTypesCount <= 1) {
-                    state.update { oldState ->
-                        oldState.copy(isLoading = false, message = UserMessage.DeletingLastModel)
-                    }
-                    return@undoableOp OpChanges.getDefaultInstance()
+            progressManager.withProgress {
+                undoableOp<OpChanges> {
+                    safeRemoveNoteType(ntid)
+                        .onSuccess { changes ->
+                            state.update { oldState ->
+                                val updatedNoteTypes = oldState.noteTypes.filterNot { it.id == ntid }
+                                oldState.copy(
+                                    noteTypes = updatedNoteTypes,
+                                    isInMultiSelectMode = updatedNoteTypes.multiSelectModeStatus,
+                                )
+                            }
+                            return@undoableOp changes
+                        }.onFailure {
+                            state.update { oldState ->
+                                oldState.copy(error = ReportableException(it))
+                            }
+                            return@undoableOp OpChanges.getDefaultInstance()
+                        }
+                    OpChanges.getDefaultInstance()
                 }
-                safeRemoveNoteType(ntid)
-                    .onSuccess { changes ->
-                        state.update { oldState ->
-                            val updatedNoteTypes = oldState.noteTypes.filterNot { it.id == ntid }
-                            oldState.copy(
-                                isLoading = false,
-                                noteTypes = updatedNoteTypes,
-                                isInMultiSelectMode = updatedNoteTypes.multiSelectModeStatus,
-                            )
-                        }
-                        return@undoableOp changes
-                    }.onFailure {
-                        state.update { oldState ->
-                            oldState.copy(isLoading = false, error = ReportableException(it))
-                        }
-                        return@undoableOp OpChanges.getDefaultInstance()
-                    }
-                OpChanges.getDefaultInstance()
             }
         }
     }
@@ -239,39 +307,39 @@ class ManageNoteTypesViewModel : ViewModel() {
                     noteType.copy(isSelected = false)
                 }
             oldState.copy(
-                isLoading = true,
                 noteTypes = updateNotetypes,
                 isInMultiSelectMode = false,
             )
         }
         viewModelScope.launch {
-            val errors = mutableMapOf<NoteTypeItemState, Throwable>()
-            noteTypesToDelete.forEach { noteType ->
-                undoableOp<OpChanges> {
-                    safeRemoveNoteType(noteType.id)
-                        .onFailure { exception ->
-                            errors[noteType] = exception
-                            OpChanges.getDefaultInstance()
-                        }.onSuccess { return@undoableOp it }
-                    OpChanges.getDefaultInstance()
+            progressManager.withProgress {
+                val errors = mutableMapOf<NoteTypeItemState, Throwable>()
+                noteTypesToDelete.forEach { noteType ->
+                    undoableOp<OpChanges> {
+                        safeRemoveNoteType(noteType.id)
+                            .onFailure { exception ->
+                                errors[noteType] = exception
+                                OpChanges.getDefaultInstance()
+                            }.onSuccess { return@undoableOp it }
+                        OpChanges.getDefaultInstance()
+                    }
                 }
-            }
-            // look through any errors we might have and remove from our list of note types the ones
-            // that were in noteTypesToDelete but not in errors map(which presumably weren't deleted)
-            val removedIds = noteTypesToDelete.map { it.id } - errors.keys.map { it.id }.toSet()
-            val updatedNoteTypes = state.value.noteTypes.filterNot { it.id in removedIds }
-            val combinedException =
-                CombinedException.from(
-                    errors.map { (state, throwable) ->
-                        "${state.name} - $throwable" to throwable
-                    },
-                )
-            state.update { oldState ->
-                oldState.copy(
-                    isLoading = false,
-                    noteTypes = updatedNoteTypes,
-                    error = combinedException?.let { throwable -> ReportableException(throwable) },
-                )
+                // look through any errors we might have and remove from our list of note types the ones
+                // that were in noteTypesToDelete but not in errors map(which presumably weren't deleted)
+                val removedIds = noteTypesToDelete.map { it.id } - errors.keys.map { it.id }.toSet()
+                val updatedNoteTypes = state.value.noteTypes.filterNot { it.id in removedIds }
+                val combinedException =
+                    CombinedException.from(
+                        errors.map { (state, throwable) ->
+                            "${state.name} - $throwable" to throwable
+                        },
+                    )
+                state.update { oldState ->
+                    oldState.copy(
+                        noteTypes = updatedNoteTypes,
+                        error = combinedException?.let { throwable -> ReportableException(throwable) },
+                    )
+                }
             }
         }
     }

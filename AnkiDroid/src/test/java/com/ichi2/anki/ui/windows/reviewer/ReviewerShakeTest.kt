@@ -2,6 +2,7 @@
 
 package com.ichi2.anki.ui.windows.reviewer
 
+import android.graphics.Path
 import android.hardware.Sensor
 import android.hardware.SensorManager
 import android.os.SystemClock
@@ -12,21 +13,25 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.ichi2.anki.RobolectricTest
 import com.ichi2.anki.cardviewer.Gesture
 import com.ichi2.anki.preferences.reviewer.ViewerAction
+import com.ichi2.anki.preferences.reviewer.WhiteboardAction
 import com.ichi2.anki.previewer.CardViewerActivity
 import com.ichi2.anki.reviewer.MappableBinding.Companion.toPreferenceString
 import com.ichi2.anki.reviewer.ReviewerBinding
 import com.ichi2.anki.scheduling.SetDueDateDialog
+import com.ichi2.anki.ui.windows.reviewer.whiteboard.WhiteboardFragment
+import com.ichi2.anki.ui.windows.reviewer.whiteboard.WhiteboardRepository
 import com.ichi2.anki.utils.ext.DIALOG_FRAGMENT_TAG
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.shadows.SensorBuilder
 import org.robolectric.shadows.SensorEventBuilder
-import org.robolectric.shadows.ShadowSensor
 import org.robolectric.shadows.ShadowSensorManager
 import org.robolectric.shadows.ShadowSystemClock
 import java.time.Duration
+import kotlin.reflect.jvm.jvmName
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 
@@ -43,7 +48,7 @@ class ReviewerShakeTest : RobolectricTest() {
         }
         sensors =
             shadowOf(targetContext.getSystemService<SensorManager>()).apply {
-                addSensor(ShadowSensor.newInstance(Sensor.TYPE_ACCELEROMETER))
+                addSensor(SensorBuilder.newBuilder().setType(Sensor.TYPE_ACCELEROMETER).build())
             }
     }
 
@@ -93,6 +98,37 @@ class ReviewerShakeTest : RobolectricTest() {
             assertEquals(0, sensors.listeners.size)
         }
 
+    @Test
+    fun `shake bound only to the whiteboard clears it`() = checkShakeClearsWhiteboard(stylusOnly = false)
+
+    @Test
+    fun `shake clears the whiteboard in stylus mode`() = checkShakeClearsWhiteboard(stylusOnly = true)
+
+    private fun checkShakeClearsWhiteboard(stylusOnly: Boolean) =
+        runTest {
+            editPreferences {
+                remove(ViewerAction.RESCHEDULE_NOTE.preferenceKey)
+                putString(WhiteboardAction.CLEAR.preferenceKey, listOf(ReviewerBinding.fromGesture(Gesture.SHAKE)).toPreferenceString())
+            }
+            StudyScreenRepository().isWhiteboardEnabled = true
+            WhiteboardRepository(getPreferences()).stylusOnlyMode = stylusOnly
+            addBasicNote()
+            withReviewer { scenario ->
+                scenario.onActivity { activity ->
+                    val reviewer = activity.fragment as ReviewerFragment
+                    val whiteboard =
+                        assertIs<WhiteboardFragment>(reviewer.childFragmentManager.findFragmentByTag(WhiteboardFragment::class.jvmName))
+                    whiteboard.binding.whiteboardView.onNewPath!!(Path().apply { lineTo(10f, 10f) })
+                    assertEquals(1, whiteboard.viewModel.paths.value.size)
+
+                    sensors.shake()
+
+                    assertEquals(emptyList(), whiteboard.viewModel.paths.value)
+                    assertEquals(stylusOnly, whiteboard.binding.whiteboardView.isStylusOnlyMode)
+                }
+            }
+        }
+
     private fun withReviewer(block: (ActivityScenario<CardViewerActivity>) -> Unit) {
         ActivityScenario.launch<CardViewerActivity>(ReviewerFragment.getIntent(targetContext)).use { scenario ->
             advanceRobolectricLooper()
@@ -113,10 +149,8 @@ class ReviewerShakeTest : RobolectricTest() {
         repeat(5) {
             val event =
                 SensorEventBuilder
-                    .newBuilder()
-                    .setSensor(getSensorList(Sensor.TYPE_ACCELEROMETER).single())
+                    .newBuilder(getSensorList(Sensor.TYPE_ACCELEROMETER).single(), floatArrayOf(20f, 0f, 0f))
                     .setTimestamp(SystemClock.elapsedRealtimeNanos())
-                    .setValues(floatArrayOf(20f, 0f, 0f))
                     .build()
             sendSensorEventToListeners(event)
             ShadowSystemClock.advanceBy(Duration.ofMillis(100))

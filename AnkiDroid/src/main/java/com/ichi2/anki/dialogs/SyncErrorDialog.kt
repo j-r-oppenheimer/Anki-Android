@@ -17,6 +17,7 @@ import com.ichi2.anki.CommonString
 import com.ichi2.anki.ConflictResolution
 import com.ichi2.anki.R
 import com.ichi2.anki.common.time.TimeManager
+import com.ichi2.anki.dialogs.SyncErrorDialog.Type.DIALOG_COLLECTION_TOO_LARGE
 import com.ichi2.anki.dialogs.SyncErrorDialog.Type.DIALOG_CONNECTION_ERROR
 import com.ichi2.anki.dialogs.SyncErrorDialog.Type.DIALOG_MEDIA_SYNC_ERROR
 import com.ichi2.anki.dialogs.SyncErrorDialog.Type.DIALOG_SYNC_BASIC_CHECK_ERROR
@@ -60,7 +61,7 @@ class SyncErrorDialog : AsyncDialogFragment() {
 
     /** The type of the sync error dialog*/
     private val dialogType: Type
-        get() = Type.fromCode(requireArguments().getInt(SYNC_ERROR_DIALOG_TYPE_KEY))
+        get() = Type.fromCode(requireArguments().getInt(ARG_DIALOG_TYPE))
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         val dialog =
@@ -157,12 +158,12 @@ class SyncErrorDialog : AsyncDialogFragment() {
                     .create()
             }
             DIALOG_SYNC_CORRUPT_COLLECTION -> {
+                isCancelable = false
                 dialog
                     .setPositiveButton(CommonString.dialog_ok) { _, _ -> }
                     .setNegativeButton(CommonString.help) { _, _ ->
                         requireContext().openUrl(R.string.repair_deck)
-                    }.setCancelable(false)
-                    .create()
+                    }.create()
             }
             DIALOG_SYNC_BASIC_CHECK_ERROR -> {
                 dialog
@@ -192,6 +193,14 @@ class SyncErrorDialog : AsyncDialogFragment() {
                         setupEnterKeyHandler()
                     }
             }
+            DIALOG_COLLECTION_TOO_LARGE -> {
+                dialog
+                    .setPositiveButton(TR.sentenceCase.checkDatabase) { _, _ ->
+                        requireSyncErrorDialogListener().integrityCheck()
+                        activity?.dismissAllDialogFragments()
+                    }.setNegativeButton(CommonString.dialog_cancel) { _, _ -> }
+                    .create()
+            }
         }
     }
 
@@ -211,6 +220,7 @@ class SyncErrorDialog : AsyncDialogFragment() {
                 DIALOG_MEDIA_SYNC_ERROR,
                 DIALOG_SYNC_CORRUPT_COLLECTION,
                 DIALOG_SYNC_BASIC_CHECK_ERROR,
+                DIALOG_COLLECTION_TOO_LARGE,
                 -> res().getString(CommonString.sync_error)
                 DIALOG_SYNC_CLOCK_OFF -> res().getString(CommonString.vague_error)
             }
@@ -244,7 +254,7 @@ class SyncErrorDialog : AsyncDialogFragment() {
                         CommonString.sync_conflict_remote_confirm_new,
                     )
                 DIALOG_SYNC_CORRUPT_COLLECTION -> {
-                    val syncMessage = requireArguments().getString(DIALOG_MESSAGE_KEY)
+                    val syncMessage = requireArguments().getString(ARG_DIALOG_MESSAGE)
                     val repairUrl = res().getString(R.string.repair_deck)
                     val dialogMessage = res().getString(CommonString.sync_corrupt_database, repairUrl)
                     joinSyncMessages(dialogMessage, syncMessage)
@@ -252,10 +262,10 @@ class SyncErrorDialog : AsyncDialogFragment() {
                 DIALOG_SYNC_CLOCK_OFF ->
                     res().getString(
                         CommonString.sync_clock_off_with_current_time,
-                        requireArguments().getString(DIALOG_MESSAGE_KEY).orEmpty(),
+                        requireArguments().getString(ARG_DIALOG_MESSAGE).orEmpty(),
                         DateFormat.getDateTimeInstance().format(TimeManager.time.currentDate),
                     )
-                else -> requireArguments().getString(DIALOG_MESSAGE_KEY)
+                else -> requireArguments().getString(ARG_DIALOG_MESSAGE)
             }
 
     private fun joinSyncMessages(
@@ -292,7 +302,7 @@ class SyncErrorDialog : AsyncDialogFragment() {
 
     override val dialogHandlerMessage: SyncErrorDialogMessageHandler
         get() {
-            val dialogMessage = requireArguments().getString(DIALOG_MESSAGE_KEY)
+            val dialogMessage = requireArguments().getString(ARG_DIALOG_MESSAGE)
             return SyncErrorDialogMessageHandler(dialogType, dialogMessage)
         }
 
@@ -319,6 +329,7 @@ class SyncErrorDialog : AsyncDialogFragment() {
         DIALOG_SYNC_CORRUPT_COLLECTION(9),
         DIALOG_SYNC_BASIC_CHECK_ERROR(10),
         DIALOG_SYNC_CLOCK_OFF(11),
+        DIALOG_COLLECTION_TOO_LARGE(12),
         ;
 
         companion object {
@@ -330,12 +341,12 @@ class SyncErrorDialog : AsyncDialogFragment() {
         /**
          * Key for the ordinal of the sync error in Type
          */
-        const val SYNC_ERROR_DIALOG_TYPE_KEY = "dialogType"
+        const val ARG_DIALOG_TYPE = "dialogType"
 
         /**
          * Key for the message to display in the dialog
          */
-        const val DIALOG_MESSAGE_KEY = "dialogMessage"
+        const val ARG_DIALOG_MESSAGE = "dialogMessage"
 
         /**
          * A set of dialogs belonging to AnkiActivity which deal with sync problems
@@ -350,8 +361,8 @@ class SyncErrorDialog : AsyncDialogFragment() {
         ) = SyncErrorDialog().apply {
             arguments =
                 Bundle().apply {
-                    putInt(SYNC_ERROR_DIALOG_TYPE_KEY, dialogType.code)
-                    putString(DIALOG_MESSAGE_KEY, dialogMessage)
+                    putInt(ARG_DIALOG_TYPE, dialogType.code)
+                    putString(ARG_DIALOG_MESSAGE, dialogMessage)
                 }
         }
     }
@@ -372,15 +383,15 @@ class SyncErrorDialog : AsyncDialogFragment() {
                 what = this@SyncErrorDialogMessageHandler.what
                 data =
                     Bundle().apply {
-                        putInt(SYNC_ERROR_DIALOG_TYPE_KEY, dialogType.code)
-                        putString(DIALOG_MESSAGE_KEY, dialogMessage)
+                        putInt(ARG_DIALOG_TYPE, dialogType.code)
+                        putString(ARG_DIALOG_MESSAGE, dialogMessage)
                     }
             }
 
         companion object {
             fun fromMessage(message: Message): SyncErrorDialogMessageHandler {
-                val dialogType = Type.fromCode(message.data.getInt(SYNC_ERROR_DIALOG_TYPE_KEY))
-                val dialogMessage = message.data.getString(DIALOG_MESSAGE_KEY)
+                val dialogType = Type.fromCode(message.data.getInt(ARG_DIALOG_TYPE))
+                val dialogMessage = message.data.getString(ARG_DIALOG_MESSAGE)
                 return SyncErrorDialogMessageHandler(dialogType, dialogMessage)
             }
         }

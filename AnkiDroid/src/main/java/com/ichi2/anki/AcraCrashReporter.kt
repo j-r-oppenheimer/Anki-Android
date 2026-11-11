@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// SPDX-FileCopyrightText: Copyright (c) 2022 lukstbit <lukstbit@users.noreply.github.com>
 
 package com.ichi2.anki
 
@@ -278,6 +277,8 @@ private object AcraCrashReporter : CrashReporter {
                 .sharedPrefs()
                 .getString(FEEDBACK_REPORT_KEY, FEEDBACK_REPORT_ASK)
         if (onlyIfSilent) {
+            // NOTE: handleException below still runs ACRA's toast interaction
+            // only submits if the consent dialog is skippable
             if (FEEDBACK_REPORT_ALWAYS != reportMode) {
                 Timber.i("sendExceptionReport - onlyIfSilent true, but ACRA is not 'always accept'. Skipping report send.")
                 return

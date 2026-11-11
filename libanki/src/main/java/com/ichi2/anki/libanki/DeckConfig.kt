@@ -1,18 +1,6 @@
-/*
- Copyright (c) 2020 Arthur Milchior <Arthur@Milchior.fr>
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: Copyright (c) 2020 Arthur Milchior <Arthur@Milchior.fr>
 
- This program is free software; you can redistribute it and/or modify it under
- the terms of the GNU General Public License as published by the Free Software
- Foundation; either version 3 of the License, or (at your option) any later
- version.
-
- This program is distributed in the hope that it will be useful, but WITHOUT ANY
- WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
- PARTICULAR PURPOSE. See the GNU General Public License for more details.
-
- You should have received a copy of the GNU General Public License along with
- this program.  If not, see <http://www.gnu.org/licenses/>.
- */
 package com.ichi2.anki.libanki
 
 import androidx.annotation.VisibleForTesting
@@ -25,7 +13,9 @@ import com.ichi2.anki.common.json.jsonLong
 import com.ichi2.anki.common.json.jsonString
 import org.intellij.lang.annotations.Language
 import org.json.JSONObject
-import timber.log.Timber
+import org.slf4j.LoggerFactory
+
+private val logger = LoggerFactory.getLogger(DeckConfig::class.java)
 
 /**
  * Creates a copy from [JSONObject] and use it as a string
@@ -78,11 +68,11 @@ data class DeckConfig(
                 // #6089 - Anki 2.1.24 changed this to a bool, reverted in 2.1.25.
                 jsonObject.getInt("timer") != 0
             } catch (e: Exception) {
-                Timber.w(e)
+                logger.warn("Unable to read timer configuration as an integer", e)
                 try {
                     jsonObject.getBoolean("timer")
                 } catch (ex: Exception) {
-                    Timber.w(ex)
+                    logger.warn("Unable to read timer configuration as a boolean", ex)
                     true
                 }
             }

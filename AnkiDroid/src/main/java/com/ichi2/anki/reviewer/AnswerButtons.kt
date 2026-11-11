@@ -4,11 +4,11 @@ package com.ichi2.anki.reviewer
 
 import android.content.Context
 import com.ichi2.anki.AnkiActivity
-import com.ichi2.anki.R
 import com.ichi2.anki.cardviewer.ViewerCommand
 import com.ichi2.anki.common.android.animationEnabled
 import com.ichi2.anki.common.utils.android.getColorsFromAttrs
 import com.ichi2.anki.common.utils.android.getResFromAttr
+import com.ichi2.anki.common.android.R as CommonR
 
 /**
  * Handles mapping from an answer button to its position.
@@ -69,33 +69,20 @@ enum class AnswerButtons {
 
     companion object {
         fun getBackgroundColors(ctx: AnkiActivity): IntArray {
-            val backgroundIds: IntArray =
-                if (ctx.animationEnabled()) {
-                    intArrayOf(
-                        R.attr.againButtonRippleRef,
-                        R.attr.hardButtonRippleRef,
-                        R.attr.goodButtonRippleRef,
-                        R.attr.easyButtonRippleRef,
-                    )
-                } else {
-                    intArrayOf(
-                        R.attr.againButtonRef,
-                        R.attr.hardButtonRef,
-                        R.attr.goodButtonRef,
-                        R.attr.easyButtonRef,
-                    )
-                }
-            return getResFromAttr(ctx, backgroundIds)
+            // One drawable for every ease: it takes the color from the button theme
+            val attr = if (ctx.animationEnabled()) CommonR.attr.answerButtonRippleRef else CommonR.attr.answerButtonRef
+            val background = getResFromAttr(ctx, attr)
+            return IntArray(entries.size) { background }
         }
 
         fun getTextColors(ctx: Context): IntArray =
             getColorsFromAttrs(
                 ctx,
                 intArrayOf(
-                    R.attr.againButtonTextColor,
-                    R.attr.hardButtonTextColor,
-                    R.attr.goodButtonTextColor,
-                    R.attr.easyButtonTextColor,
+                    CommonR.attr.againButtonTextColor,
+                    CommonR.attr.hardButtonTextColor,
+                    CommonR.attr.goodButtonTextColor,
+                    CommonR.attr.easyButtonTextColor,
                 ),
             )
     }

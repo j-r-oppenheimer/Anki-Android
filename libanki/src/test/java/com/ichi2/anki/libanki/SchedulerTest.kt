@@ -2,8 +2,6 @@
 
 package com.ichi2.anki.libanki
 
-import android.annotation.SuppressLint
-import androidx.test.filters.SdkSuppress
 import anki.scheduler.CardAnswer.Rating
 import anki.scheduler.UnburyDeckRequest
 import com.ichi2.anki.common.time.SECONDS_PER_DAY
@@ -33,8 +31,6 @@ import kotlin.math.roundToLong
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
-@SdkSuppress
-@SuppressLint("NewApi") // java.time.Instant needs API 26+/desugaring. Test-only
 open class SchedulerTest : InMemoryAnkiTest() {
     @Test
     @Throws(ConfirmModSchemaException::class)
@@ -840,7 +836,7 @@ open class SchedulerTest : InMemoryAnkiTest() {
         // cram deck
         val did = addDynamicDeck("Cram")
         val cram = col.decks.getLegacy(did)!!
-        cram.put("resched", false)
+        cram.resched = false
         col.decks.save(cram)
         col.sched.rebuildFilteredDeck(did)
         // grab the first card
@@ -1320,7 +1316,7 @@ open class SchedulerTest : InMemoryAnkiTest() {
         addBasicNote("foo", "bar")
         val did = addDynamicDeck("test")
         val deck = decks.getLegacy(did)!!
-        deck.put("resched", false)
+        deck.resched = false
         sched.rebuildFilteredDeck(did)
         var card: Card?
         for (i in 0..2) {

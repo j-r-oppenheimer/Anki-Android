@@ -13,6 +13,7 @@ import androidx.core.app.PendingIntentCompat
 import androidx.core.content.getSystemService
 import com.ichi2.anki.CollectionManager.withCol
 import com.ichi2.anki.CommonPlurals
+import com.ichi2.anki.CommonPreferenceKey
 import com.ichi2.anki.CommonString
 import com.ichi2.anki.DeckPicker
 import com.ichi2.anki.IntentHandler
@@ -25,6 +26,7 @@ import com.ichi2.anki.common.preferences.sharedPrefs
 import com.ichi2.anki.common.utils.ext.allDecksCounts
 import com.ichi2.anki.libanki.Decks
 import com.ichi2.anki.libanki.EpochMilliseconds
+import com.ichi2.anki.libanki.Utils
 import com.ichi2.anki.libanki.sched.Counts
 import com.ichi2.anki.preferences.PENDING_NOTIFICATIONS_ONLY
 import com.ichi2.anki.reviewreminders.ReviewReminder
@@ -54,6 +56,11 @@ import com.ichi2.anki.common.android.R as CommonR
  *
  * This service can be triggered in one of two possible ways, depending on whether the notification
  * being fired is a recurring notification or a one-time snoozed notification. See [NotificationServiceAction].
+ *
+ * TODO: Rename and reorganize the (handle/send/fire)ReviewReminderNotification functions for better readability and separation of concerns.
+ * These three verbs are way too similar. The "send" method should be split into "validate" and "hydrate". "send" sometimes aborts and does nothing.
+ * The distinction between "handle" and "send" should be made more clear. All uses of "fire" in the codebase, including in documentation,
+ * should be aligned to mean "trigger the OS display unconditionally."
  */
 class NotificationService : AnkiBroadcastReceiver() {
     companion object {
@@ -200,10 +207,13 @@ class NotificationService : AnkiBroadcastReceiver() {
                     }
                 }
             val dueCardsTotal = dueCardsCount.count()
-            if (dueCardsTotal < reviewReminder.cardTriggerThreshold.threshold) {
+            val consideredCardsCount = reviewReminder.thresholdFilter.filterCounts(dueCardsCount)
+            val consideredCardsTotal = consideredCardsCount.count()
+
+            if (consideredCardsTotal < reviewReminder.cardTriggerThreshold.threshold) {
                 Timber.i(
                     "${reminderLogPrefix(reviewReminder.id)} skip: Aborting notification due to cardTriggerThreshold " +
-                        "(due: $dueCardsTotal, threshold: ${reviewReminder.cardTriggerThreshold.threshold})",
+                        "(due: $dueCardsCount, considered: $consideredCardsCount, threshold: ${reviewReminder.cardTriggerThreshold.threshold})",
                 )
                 return
             }
@@ -306,8 +316,8 @@ class NotificationService : AnkiBroadcastReceiver() {
          * Used for the "only notify me if no reviews have been done today" review reminder feature.
          */
         private suspend fun wasScopeReviewedToday(scope: ReviewReminderScope): Boolean {
-            // Handles the global and deck-specific scope cases separately to avoid the need for string concatenation,
-            // thus protecting against SQL injection. Checks for existence rather than counting to increase efficiency.
+            // Handles the global and deck-specific scope cases separately.
+            // Checks for existence rather than counting to increase efficiency.
             val queryResult =
                 when (scope) {
                     is ReviewReminderScope.Global ->
@@ -328,17 +338,20 @@ class NotificationService : AnkiBroadcastReceiver() {
                     is ReviewReminderScope.DeckSpecific ->
                         withCol {
                             val startOfToday: EpochMilliseconds = sched.dayCutoff * 1000 - 1.days.inWholeMilliseconds
-                            // Essentially the same as above, but only check through cards with a deck ID matching the provided scope
+                            // Essentially the same as above, but only check through cards in the provided deck or its subdecks,
+                            // including cards temporarily moved into a filtered deck (whose home deck is stored in odid)
+                            // Deck IDs are numbers, so building the IN list from them is safe
+                            val deckIds = Utils.ids2str(decks.deckAndChildIds(scope.did))
                             val query = """
                         SELECT EXISTS (
                             SELECT 1
                             FROM cards
                             JOIN revlog ON revlog.cid = cards.id
                             WHERE revlog.id > ?
-                            AND cards.did = ?
+                            AND (cards.did IN $deckIds OR cards.odid IN $deckIds)
                         )
                     """
-                            db.queryScalar(query, startOfToday, scope.did)
+                            db.queryScalar(query, startOfToday)
                         }
                 }
             return (queryResult == 1)
@@ -357,7 +370,7 @@ class NotificationService : AnkiBroadcastReceiver() {
             val minCardsDue =
                 preferences
                     .getString(
-                        context.getString(R.string.pref_notifications_minimum_cards_due_key),
+                        context.getString(CommonPreferenceKey.pref_notifications_minimum_cards_due_key),
                         PENDING_NOTIFICATIONS_ONLY.toString(),
                     )!!
                     .toInt()

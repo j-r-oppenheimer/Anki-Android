@@ -13,11 +13,11 @@ on:
         required: true
         type: choice
         # If you alter system names in default + options here, also alter osArray below to match
-        default: '["windows-latest", "macos-14", "ubuntu-latest"]'
+        default: '["windows-latest", "macos-15", "ubuntu-latest"]'
         options:
-          - '["windows-latest", "macos-14", "ubuntu-latest"]'
+          - '["windows-latest", "macos-15", "ubuntu-latest"]'
           - '["windows-latest"]'
-          - '["macos-14"]'
+          - '["macos-15"]'
           - '["ubuntu-latest"]'
   schedule:
     - cron: "42 0 * * 2"
@@ -28,6 +28,8 @@ on:
       - 'gh-readonly-queue/**'
       # Dependabot branches are already checked by the pull_request trigger.
       - 'dependabot/**'
+      # Crowdin translations are already checked by the pull_request trigger.
+      - 'i18n_sync'
   merge_group:
 
 permissions:
@@ -38,6 +40,9 @@ concurrency:
   # ...but allow different triggers to run concurrent (push, manual flake run, scheduled flake run...)
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
+
+env:
+  JAVA_TOOL_OPTIONS: -Dkotlin.daemon.options=autoshutdownIdleSeconds=10
 
 jobs:
   # We want to generate our matrix dynamically
@@ -54,10 +59,10 @@ jobs:
         with:
           script: |
             // by default, we will include all 3 platforms we test on
-            // "latest" would be easy everywhere, but "macos-14" doesn't always happen if you choose "latest"
-            // and we want macos-14 because it has Apple Silicon and is faster
+            // "latest" would be easy everywhere, but "macos-15" doesn't always happen if you choose "latest"
+            // and we want macos-15 because it has Apple Silicon and is faster
             // if you alter this, also alter it above in the workflow_dispatch options list
-            let osArray = ["ubuntu-latest", "macos-14", "windows-latest"]
+            let osArray = ["ubuntu-latest", "macos-15", "windows-latest"]
             
             // by default, we will run one iteration on each selected system
             let iterationArray = [1]
@@ -94,7 +99,7 @@ jobs:
               // we do this work to define 'name' so we don't need to update branch protection rules
               // if the os changes, the name is used in the expanded workflow run name, which is then
               // used as a "required check" on branch protection merge rules, this keeps it stable
-              // even if "macos-14" changes to "macos-15" in the future so we just change the list here
+              // even if "macos-15" changes to "macos-26" in the future so we just change the list here
               // but don't have to go into organization settings / protection rules etc etc
               includeArray.push({"os": os, "name": os.split('-')[0]});
             }
@@ -113,8 +118,8 @@ jobs:
     # Do not run the scheduled jobs on forks
     if: (github.event_name == 'schedule' && github.repository == 'ankidroid/Anki-Android') || (github.event_name != 'schedule')
     needs: matrix_prep
-    # Windows takes 30-34 minutes when the Gradle cache misses (#21834)
-    timeout-minutes: 45
+    # Windows can take 40m+ on tests
+    timeout-minutes: 60
     env:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
     strategy:
@@ -124,6 +129,17 @@ jobs:
     #env:
     #  CODACY_TOKEN: ${{ secrets.CODACY_TOKEN }}
     steps:
+      # Work around Ubuntu 26.04's RAM-backed /tmp until the image fix rolls out.
+      # https://github.com/actions/runner-images/pull/14814
+      - name: Keep /tmp on disk
+        if: runner.os == 'Linux'
+        run: |
+          if [ "$(findmnt -n -o FSTYPE --target /tmp)" = "tmpfs" ]; then
+            sudo systemctl mask tmp.mount
+            sudo umount -l /tmp
+          fi
+          df -hT /tmp
+
       - name: Configure Windows Pagefile
         uses: al-cheb/configure-pagefile-action@9b6da52fb72a3c6147c1aad2df22d8d905681adc # v1.5
         if: contains(matrix.os, 'windows')
@@ -132,12 +148,21 @@ jobs:
           maximum-size: 12GB
           disk-root: "C:"
 
+      - name: Configure Linux Swap
+        if: runner.os == 'Linux'
+        run: |
+          sudo fallocate -l 8G /swapfile-ci
+          sudo chmod 600 /swapfile-ci
+          sudo mkswap /swapfile-ci
+          sudo swapon /swapfile-ci
+          swapon --show
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 50
 
       - name: Configure JDK
-        uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: "jetbrains"
           java-version: "21"  # also change jitpack.yml
@@ -145,7 +170,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
         timeout-minutes: 10
         with:
           # Use open source provider: https://github.com/gradle/actions/blob/main/docs/setup-gradle.md#basic-caching
@@ -177,6 +202,21 @@ jobs:
         if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && matrix.iteration == 1 && matrix.os == 'ubuntu-latest'
         run: ./gradlew testFullDebugUnitTest -PemptyApplication --daemon
 
+      # Compile the extra release variant once per scheduled run, keeping PR checks unchanged.
+      - name: Test Parallel Content Provider (scheduled run only)
+        if: github.event_name == 'schedule' && matrix.iteration == 1 && matrix.os == 'ubuntu-latest'
+        env:
+          TEST_RELEASE_BUILD: "true"
+        run: >
+          ./gradlew :AnkiDroid:testFullReleaseUnitTest
+          -PcustomSuffix=a
+          --tests 'com.ichi2.anki.provider.CardContentProviderTest'
+          --daemon
+
+      - name: Report Unit Test Results
+        if: always() && hashFiles('**/build/test-results/**/TEST-*.xml') != ''
+        run: python3 .github/report_test_failures.py . --pattern "build/test-results/**/TEST-*.xml" --title "Unit test failures"
+
       - name: Store Logcat as Artifact
         # cancelled() handles test timeouts
         # remove when test timeouts cause a failure()
@@ -199,7 +239,7 @@ jobs:
         if: contains(matrix.os, 'windows')
         run: ./gradlew --stop
 
-      - uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+      - uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           verbose: true
           fail_ci_if_error: ${{ github.repository == 'ankidroid/Anki-Android' }} # optional (default = false)

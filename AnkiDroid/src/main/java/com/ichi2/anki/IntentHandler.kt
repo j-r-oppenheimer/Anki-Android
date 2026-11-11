@@ -13,6 +13,7 @@ import androidx.annotation.VisibleForTesting
 import androidx.core.app.TaskStackBuilder
 import androidx.core.content.FileProvider
 import androidx.work.WorkManager
+import com.ichi2.anki.common.analytics.reportPotentiallyDeadCode
 import com.ichi2.anki.common.annotations.NeedsTest
 import com.ichi2.anki.common.coroutines.applicationScope
 import com.ichi2.anki.common.destinations.BrowserDestination
@@ -28,24 +29,29 @@ import com.ichi2.anki.common.utils.ext.getParcelableExtraCompat
 import com.ichi2.anki.dialogs.DialogHandler.Companion.storeMessage
 import com.ichi2.anki.dialogs.DialogHandlerMessage
 import com.ichi2.anki.dialogs.requireDeckPickerOrShowError
-import com.ichi2.anki.exception.SystemStorageException
 import com.ichi2.anki.libanki.DeckId
 import com.ichi2.anki.settings.Prefs
 import com.ichi2.anki.shareddeck.SharedDecksDownloadFragment
+import com.ichi2.anki.sync.MeteredSyncPolicy
 import com.ichi2.anki.ui.windows.reviewer.ReviewerFragment
-import com.ichi2.anki.utils.MimeTypeUtils
 import com.ichi2.anki.worker.SyncWorker
+import com.ichi2.anki.worker.UniqueWorkNames
 import com.ichi2.utils.FileUtil
+import com.ichi2.utils.ImportResolution
 import com.ichi2.utils.ImportResult
-import com.ichi2.utils.ImportUtils.handleFileImport
 import com.ichi2.utils.ImportUtils.isInvalidViewIntent
+import com.ichi2.utils.ImportUtils.prepareImport
 import com.ichi2.utils.ImportUtils.showImportUnsuccessfulDialog
 import com.ichi2.utils.IntentUtil.resolveMimeType
 import com.ichi2.utils.NetworkUtils
 import com.ichi2.utils.TruncatedString
 import com.ichi2.utils.copyToClipboard
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import timber.log.Timber
 import java.io.File
 import kotlin.math.max
@@ -59,8 +65,15 @@ import kotlin.math.min
  * @author Tim
  */
 class IntentHandler : AbstractIntentHandler() {
+    // A delayed work query must not reopen DeckPicker after this activity is dismissed.
+    private val syncIntentScope = MainScope()
+    private val importScope = MainScope()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // Note: This is our entry point from the launcher with intent: android.intent.action.MAIN
+        if (showedActivityFailedScreen(savedInstanceState)) {
+            return
+        }
         super.onCreate(savedInstanceState)
         val intent = intent
         Timber.v(intent.toString())
@@ -72,21 +85,19 @@ class IntentHandler : AbstractIntentHandler() {
         val runIfStoragePermissions = { runnable: () -> Unit -> performActionIfStorageAccessible(reloadIntent, action) { runnable() } }
         val launchType = getLaunchType(intent)
         // TODO block the UI with some kind of ProgressDialog instead of cancelling the sync work
-        if (requiresCollectionAccess(launchType)) {
-            // # 18899
+        // A sync intent must not interrupt an existing sync; handleSyncIntent ignores duplicates.
+        if (launchType != LaunchType.SYNC && requiresCollectionAccess(launchType)) {
             if (WorkManager.isInitialized()) {
                 SyncWorker.cancel(this)
+            } else {
+                // #18899: suspected dead code now that backup recovery runs first.
+                reportPotentiallyDeadCode("IntentHandler.WorkManagerNotInitialized")
             }
         }
         when (launchType) {
             LaunchType.FILE_IMPORT ->
                 runIfStoragePermissions {
                     handleFileImport(intent, reloadIntent, action)
-                }
-            LaunchType.TEXT_IMPORT ->
-                runIfStoragePermissions {
-                    onSelectedCsvForImport(intent)
-                    finish()
                 }
             LaunchType.IMAGE_IMPORT ->
                 runIfStoragePermissions {
@@ -110,6 +121,12 @@ class IntentHandler : AbstractIntentHandler() {
                 finish()
             }
         }
+    }
+
+    override fun onDestroy() {
+        importScope.cancel()
+        syncIntentScope.cancel()
+        super.onDestroy()
     }
 
     private fun copyDebugInfoToClipboard(intent: Intent) {
@@ -204,11 +221,23 @@ class IntentHandler : AbstractIntentHandler() {
         action: String?,
     ) {
         Timber.i("Handling Sync Intent")
-        sendDoSyncMsg()
-        reloadIntent.action = action
-        reloadIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-        startActivity(reloadIntent)
-        finish()
+        syncIntentScope.launch {
+            val existingSync = WorkManager.getInstance(this@IntentHandler).getWorkInfosForUniqueWorkFlow(UniqueWorkNames.SYNC).first()
+            // finish() may be called before onDestroy() cancels the query.
+            if (isFinishing) return@launch
+            val foregroundSync = CollectionManager.collectionLease?.operation?.isSync == true
+            if (foregroundSync || existingSync.any { !it.state.isFinished }) {
+                // Opening DeckPicker would also access the collection while the existing sync is using it.
+                Timber.w("Ignoring sync intent: collection sync is already pending or running")
+                finish()
+                return@launch
+            }
+            sendDoSyncMsg()
+            reloadIntent.action = action
+            reloadIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            startActivity(reloadIntent)
+            finish()
+        }
     }
 
     private fun handleFileImport(
@@ -223,25 +252,28 @@ class IntentHandler : AbstractIntentHandler() {
             finish()
             return
         }
-        val importResult = handleFileImport(this, intent)
-        // attempt to delete the downloaded deck if it is a shared deck download import
-        if (intent.hasExtra(SharedDecksDownloadFragment.EXTRA_IS_SHARED_DOWNLOAD)) {
-            deleteDownloadedDeck(intent.data)
-        }
-
-        // Start DeckPicker if we correctly processed ACTION_VIEW
-        when (importResult) {
-            is ImportResult.Success -> {
-                deleteImportedDeck(intent.data?.path)
-                reloadIntent.action = action
-                reloadIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                startActivity(reloadIntent)
-                finish()
+        importScope.launch {
+            val importResult = withContext(ioDispatcher) { prepareImport(this@IntentHandler, intent) }
+            // finish() may precede onDestroy(), which cancels the import scope.
+            if (isFinishing) return@launch
+            if (intent.hasExtra(SharedDecksDownloadFragment.EXTRA_IS_SHARED_DOWNLOAD)) {
+                deleteDownloadedDeck(intent.data)
             }
-            is ImportResult.Failure -> {
-                Timber.i("File import failed")
-                // Don't import the file if it didn't load properly or doesn't have apkg extension
-                showImportUnsuccessfulDialog(this, importResult, true)
+            when (importResult) {
+                is ImportResult.Success -> {
+                    openImport(importResult)
+                    if (importResult.file !is ImportResolution.Text) {
+                        deleteImportedDeck(intent.data?.path)
+                        reloadIntent.action = action
+                        reloadIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                        startActivity(reloadIntent)
+                    }
+                    finish()
+                }
+                is ImportResult.Failure -> {
+                    Timber.i("File import failed")
+                    showImportUnsuccessfulDialog(this@IntentHandler, importResult, true)
+                }
             }
         }
     }
@@ -331,11 +363,8 @@ class IntentHandler : AbstractIntentHandler() {
     enum class LaunchType {
         DEFAULT_START_APP_IF_NEW,
 
-        /** colpkg/apkg/unknown */
+        /** File attachment; resolved as a deck package, collection package, text, or error. */
         FILE_IMPORT,
-
-        /** csv/tsv */
-        TEXT_IMPORT,
 
         /** image */
         IMAGE_IMPORT,
@@ -352,35 +381,15 @@ class IntentHandler : AbstractIntentHandler() {
     }
 
     companion object {
+        private const val ACTION_DO_SYNC = "com.ichi2.anki.DO_SYNC"
         const val EXTRA_DECK_ID = "EXTRA_DECK_ID"
-        private const val CLIPBOARD_INTENT = "com.ichi2.anki.COPY_DEBUG_INFO"
+        private const val ACTION_COPY_DEBUG_INFO = "com.ichi2.anki.COPY_DEBUG_INFO"
         private const val EXTRA_CLIPBOARD_DATA = "clip_data"
-
-        private val textMimeTypes = MimeTypeUtils.CSV_TSV_MIME_TYPES
 
         private fun isValidViewIntent(intent: Intent): Boolean {
             // Negating a negative because we want to call specific attention to the fact that it's invalid
             // #6312 - Smart Launcher provided an empty ACTION_VIEW, no point in importing here.
             return !isInvalidViewIntent(intent)
-        }
-
-        /** Checks whether storage permissions are granted on the device. If the device is not using legacy storage,
-         *  it verifies if the app has been granted the necessary storage access permission.
-         *  @return `true`: if granted, otherwise `false` and shows a missing permission toast
-         *
-         * @throws SystemStorageException if `getExternalFilesDir` returns null
-         */
-        fun grantedStoragePermissions(
-            context: Context,
-            showToast: Boolean,
-        ): Boolean {
-            val granted = grantedStoragePermissions(context)
-
-            if (!granted && showToast) {
-                showThemedToast(context, context.getString(CommonString.intent_handler_failed_no_storage_permission), false)
-            }
-
-            return granted
         }
 
         /** Whether this is the `anki://x-callback-url/browser` deep link that opens the [CardBrowser]. */
@@ -405,14 +414,13 @@ class IntentHandler : AbstractIntentHandler() {
                     action == Intent.ACTION_SEND &&
                         intent.hasExtra(Intent.EXTRA_TEXT) &&
                         !intent.hasExtra(Intent.EXTRA_STREAM) -> LaunchType.SHARED_TEXT
-                    textMimeTypes.contains(mimeType) -> LaunchType.TEXT_IMPORT
                     else -> LaunchType.FILE_IMPORT
                 }
-            } else if ("com.ichi2.anki.DO_SYNC" == action) {
+            } else if (ACTION_DO_SYNC == action) {
                 LaunchType.SYNC
             } else if (intent.hasExtra(EXTRA_DECK_ID)) {
                 LaunchType.REVIEW
-            } else if (action == CLIPBOARD_INTENT) {
+            } else if (action == ACTION_COPY_DEBUG_INFO) {
                 LaunchType.COPY_DEBUG_INFO
             } else {
                 LaunchType.DEFAULT_START_APP_IF_NEW
@@ -433,7 +441,6 @@ class IntentHandler : AbstractIntentHandler() {
                 LaunchType.REVIEW,
                 LaunchType.DEFAULT_START_APP_IF_NEW,
                 LaunchType.FILE_IMPORT,
-                LaunchType.TEXT_IMPORT,
                 LaunchType.IMAGE_IMPORT,
                 LaunchType.SHARED_TEXT,
                 LaunchType.OPEN_BROWSER,
@@ -451,17 +458,18 @@ class IntentHandler : AbstractIntentHandler() {
                 val deckPicker = activity.requireDeckPickerOrShowError() ?: return
                 val res = deckPicker.resources
                 val hkey = Prefs.hkey
-                val millisecondsSinceLastSync = millisecondsSinceLastSync()
-                val limited = millisecondsSinceLastSync < INTENT_SYNC_MIN_INTERVAL
+                val millisecondsSinceLastSyncAttempt = millisecondsSinceLastSyncAttempt()
+                val limited = millisecondsSinceLastSyncAttempt < INTENT_SYNC_MIN_INTERVAL
                 if (!limited && !hkey.isNullOrEmpty() && NetworkUtils.isOnline) {
-                    deckPicker.sync()
+                    startBackgroundSync(deckPicker)
                 } else {
                     val err = res.getString(CommonString.sync_error)
                     if (limited) {
                         val remainingTimeInSeconds =
-                            max((INTENT_SYNC_MIN_INTERVAL - millisecondsSinceLastSync) / 1000, 1)
+                            max((INTENT_SYNC_MIN_INTERVAL - millisecondsSinceLastSyncAttempt) / 1000, 1)
                         // getQuantityString needs an int
                         val remaining = min(Int.MAX_VALUE.toLong(), remainingTimeInSeconds).toInt()
+                        Timber.i("Ignoring sync intent: rate limited for another %d seconds", remaining)
                         val message =
                             res.getQuantityString(
                                 CommonPlurals.sync_automatic_sync_needs_more_time,
@@ -470,6 +478,7 @@ class IntentHandler : AbstractIntentHandler() {
                             )
                         deckPicker.showSimpleNotification(err, message, NotificationChannel.SYNC)
                     } else {
+                        Timber.i("Ignoring sync intent: %s", if (hkey.isNullOrEmpty()) "not logged in" else "offline")
                         deckPicker.showSimpleNotification(
                             err,
                             res.getString(CommonString.youre_offline),
@@ -478,6 +487,23 @@ class IntentHandler : AbstractIntentHandler() {
                     }
                 }
                 deckPicker.finish()
+            }
+
+            private fun startBackgroundSync(deckPicker: DeckPicker) {
+                if (MeteredSyncPolicy.shouldBlock()) {
+                    Timber.i("Ignoring sync intent: metered sync is disabled")
+                    return
+                }
+                val auth = syncAuth()
+                if (auth == null) {
+                    Timber.i("Ignoring sync intent: no sync credentials")
+                    return
+                }
+
+                // Keep collection and media sync running after DeckPicker finishes.
+                val syncMedia = shouldFetchMedia()
+                Timber.i("Enqueuing background sync from intent (syncMedia=%s)", syncMedia)
+                SyncWorker.start(deckPicker, auth, syncMedia = syncMedia)
             }
 
             override fun toMessage(): Message = emptyMessage(this.what)

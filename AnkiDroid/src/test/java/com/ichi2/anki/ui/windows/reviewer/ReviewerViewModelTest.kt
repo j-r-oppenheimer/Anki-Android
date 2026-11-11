@@ -2,20 +2,29 @@
 
 package com.ichi2.anki.ui.windows.reviewer
 
+import androidx.core.content.edit
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModelStore
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import anki.scheduler.CardAnswer.Rating
 import app.cash.turbine.test
 import com.ichi2.anki.RobolectricTest
-import com.ichi2.anki.utils.ext.cardStateCustomizer
+import com.ichi2.anki.common.preferences.sharedPrefs
+import com.ichi2.anki.common.utils.ext.cardStateCustomizer
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
+import org.json.JSONTokener
+import org.jsoup.Jsoup
+import org.jsoup.nodes.Element
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 @RunWith(AndroidJUnit4::class)
@@ -36,10 +45,48 @@ class ReviewerViewModelTest : RobolectricTest() {
     }
 
     @Test
+    fun `HTML answer marks nosuggest fields and requests a Done key`() =
+        runTest {
+            val field = htmlAnswerField("nosuggest:type")
+
+            assertEquals("true", field.attr("data-ankidroid-nosuggest"))
+            assertEquals("done", field.attr("enterkeyhint"))
+        }
+
+    @Test
+    fun `ordinary HTML answers keep their keyboard defaults`() =
+        runTest {
+            val field = htmlAnswerField("type")
+
+            assertFalse(field.hasAttr("data-ankidroid-nosuggest"))
+            assertFalse(field.hasAttr("enterkeyhint"))
+        }
+
+    private suspend fun TestScope.htmlAnswerField(filter: String): Element {
+        targetContext.sharedPrefs().edit { putBoolean("useInputTag", true) }
+        val card = addBasicWithTypingNote("front", "back").firstCard()
+        val noteType = card.noteType(col)
+        noteType.templates[0].qfmt = "{{Front}}{{$filter:Back}}"
+        col.notetypes.save(noteType)
+        val viewModel = ReviewerViewModel(SavedStateHandle()).also { viewModelStore.put("reviewer", it) }
+        lateinit var html: String
+        viewModel.eval
+            .filter { it.startsWith("_showQuestion(") }
+            .test {
+                viewModel.onPageFinished(false)
+                advanceUntilIdle()
+                // The first argument is a JSON string containing the question HTML.
+                html = assertIs<String>(JSONTokener(awaitItem().removePrefix("_showQuestion(")).nextValue())
+                cancelAndIgnoreRemainingEvents()
+            }
+        return assertNotNull(Jsoup.parseBodyFragment(html).selectFirst("input#typeans"))
+    }
+
+    @Test
     fun `answering waits for the custom scheduler of the first card`() =
         runTest {
             val card = addBasicNote().firstCard()
-            col.cardStateCustomizer = "await new Promise(resolve => setTimeout(resolve, 5000));"
+            col.config.cardStateCustomizer = "await new Promise(resolve => setTimeout(resolve, 5000));"
             val viewModel = ReviewerViewModel(SavedStateHandle()).also { viewModelStore.put("reviewer", it) }
 
             viewModel.onShowAnswer()
@@ -74,7 +121,7 @@ class ReviewerViewModelTest : RobolectricTest() {
     fun `restored answer waits for the custom scheduler after process death`() =
         runTest {
             val card = addBasicNote().firstCard()
-            col.cardStateCustomizer = "await new Promise(resolve => setTimeout(resolve, 5000));"
+            col.config.cardStateCustomizer = "await new Promise(resolve => setTimeout(resolve, 5000));"
             val savedStateHandle = SavedStateHandle(mapOf("showingAnswer" to true))
             val viewModel = ReviewerViewModel(savedStateHandle).also { viewModelStore.put("reviewer", it) }
 
@@ -82,7 +129,7 @@ class ReviewerViewModelTest : RobolectricTest() {
                 viewModel.onPageFinished(true)
                 advanceUntilIdle()
                 assertTrue(viewModel.showingAnswer.value)
-                assertTrue(awaitItem().contains(col.cardStateCustomizer))
+                assertTrue(awaitItem().contains(col.config.cardStateCustomizer))
 
                 viewModel.answerCard(Rating.GOOD)
                 advanceUntilIdle()
@@ -99,7 +146,7 @@ class ReviewerViewModelTest : RobolectricTest() {
     fun `restoring answer with retained view model does not rerun custom scheduler`() =
         runTest {
             val card = addBasicNote().firstCard()
-            col.cardStateCustomizer = "await new Promise(resolve => setTimeout(resolve, 5000));"
+            col.config.cardStateCustomizer = "await new Promise(resolve => setTimeout(resolve, 5000));"
             val viewModel = ReviewerViewModel(SavedStateHandle()).also { viewModelStore.put("reviewer", it) }
 
             viewModel.statesMutationEvalFlow.test {

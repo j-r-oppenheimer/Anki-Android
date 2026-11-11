@@ -3,12 +3,17 @@
 package com.ichi2.anki.tags
 
 import anki.tags.tagTreeNode
+import com.ichi2.testutils.rules.IcuCaseFoldingRule
 import org.hamcrest.MatcherAssert
 import org.hamcrest.Matchers
+import org.junit.Rule
 import org.junit.Test
 
 /** Unit tests for [ManageTagsViewModel.flattenTree] (no collection needed) */
 class FlattenTreeTest {
+    @get:Rule
+    val caseFolding = IcuCaseFoldingRule()
+
     /** Composes flatten + filter to match the old two-arg flattenTree behavior */
     private fun flattenAndFilter(
         root: anki.tags.TagTreeNode,
@@ -355,6 +360,44 @@ class FlattenTreeTest {
         MatcherAssert.assertThat(result, Matchers.hasSize(2))
         MatcherAssert.assertThat(result[0].fullTag.value, Matchers.equalTo("a"))
         MatcherAssert.assertThat(result[1].fullTag.value, Matchers.equalTo("d"))
+    }
+
+    @Test
+    fun `search only expands ancestors needed to reach the matching component`() {
+        val items =
+            listOf(
+                tagListItem("a", "a", level = 0, hasChildren = true, collapsed = true),
+                tagListItem("a::b", "b", level = 1, hasChildren = true, collapsed = true),
+                tagListItem("a::b::c", "c", level = 2, hasChildren = true, collapsed = true),
+                tagListItem("a::b::c::d", "d", level = 3, hasChildren = false, collapsed = false),
+            )
+        for ((query, expectedNames) in listOf(
+            "a" to listOf("a"),
+            "b" to listOf("a", "a::b"),
+            "A::B" to listOf("a", "a::b"),
+            "a::" to listOf("a", "a::b"),
+            "c" to listOf("a", "a::b", "a::b::c"),
+            "::" to items.map { it.fullTagName },
+        )) {
+            val result = ManageTagsViewModel.applySearchFilter(items, query)
+            MatcherAssert.assertThat("Query: $query", result.map { it.fullTagName }, Matchers.equalTo(expectedNames))
+            MatcherAssert.assertThat(result.dropLast(1).all { !it.collapsed }, Matchers.equalTo(true))
+            MatcherAssert.assertThat(result.last().collapsed, Matchers.equalTo(result.last().hasChildren))
+        }
+    }
+
+    @Test
+    fun `a match in both parent and child names reveals the child`() {
+        val items =
+            listOf(
+                tagListItem("a", "a", level = 0, hasChildren = true, collapsed = true),
+                tagListItem("a::cat", "cat", level = 1, hasChildren = true, collapsed = true),
+                tagListItem("a::cat::dog", "dog", level = 2, hasChildren = false, collapsed = false),
+            )
+        val result = ManageTagsViewModel.applySearchFilter(items, "a")
+        MatcherAssert.assertThat(result.map { it.fullTagName }, Matchers.equalTo(listOf("a", "a::cat")))
+        MatcherAssert.assertThat(result[0].collapsed, Matchers.equalTo(false))
+        MatcherAssert.assertThat(result[1].collapsed, Matchers.equalTo(true))
     }
 
     @Test

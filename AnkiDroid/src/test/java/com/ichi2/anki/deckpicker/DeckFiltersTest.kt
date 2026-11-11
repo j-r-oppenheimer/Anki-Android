@@ -1,34 +1,20 @@
-/*
- *  Copyright (c) 2026 Arthur Milchior <arthur@milchior.fr>
- *
- *  This program is free software; you can redistribute it and/or modify it under
- *  the terms of the GNU General Public License as published by the Free Software
- *  Foundation; either version 3 of the License, or (at your option) any later
- *  version.
- *
- *  This program is distributed in the hope that it will be useful, but WITHOUT ANY
- *  WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
- *  PARTICULAR PURPOSE. See the GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along with
- *  this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: Copyright (c) 2026 Arthur Milchior <arthur@milchior.fr>
 
 package com.ichi2.anki.deckpicker
 
-import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.ichi2.anki.deckpicker.DeckFilters.DeckFilter.Companion.containsAtPosition
-import com.ichi2.testutils.AndroidTest
-import com.ichi2.testutils.EmptyApplication
+import com.ichi2.testutils.common.LocaleRule
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
-import org.junit.runner.RunWith
-import org.robolectric.annotation.Config
+import java.util.Locale
 
-@RunWith(AndroidJUnit4::class) // This is necessary, android and JVM differ on JSONObject.NULL
-@Config(application = EmptyApplication::class)
-class DeckFiltersTest : AndroidTest {
+class DeckFiltersTest {
+    @get:Rule
+    val turkishLocale = LocaleRule(Locale.forLanguageTag("tr"))
+
     // The lowercase method implementation are sometime buggy for the dotless ı, so we must test them separately.
     val upperDotlessI = "I"
     val upperDottedI = "I"
@@ -42,7 +28,6 @@ class DeckFiltersTest : AndroidTest {
     }
 
     @Test
-    @Config(qualifiers = "tr")
     fun testContainsAtPosition() {
         assertTrue(containsAtPosition("o::ba", 1, "foo::bar", 3))
         assertTrue(containsAtPosition("o::ba", 1, "foo::ba", 3))

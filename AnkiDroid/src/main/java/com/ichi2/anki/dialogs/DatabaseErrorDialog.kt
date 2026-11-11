@@ -5,6 +5,7 @@ package com.ichi2.anki.dialogs
 
 import android.annotation.SuppressLint
 import android.app.Dialog
+import android.content.Intent
 import android.os.Bundle
 import android.os.Message
 import android.os.Parcelable
@@ -29,8 +30,12 @@ import com.ichi2.anki.R
 import com.ichi2.anki.ankiActivity
 import com.ichi2.anki.backend.DatabaseCorruption
 import com.ichi2.anki.backend.getDatabaseVersion
+import com.ichi2.anki.common.destinations.PreferencesDestination
+import com.ichi2.anki.common.destinations.navigate
 import com.ichi2.anki.common.storage.CollectionHelper
 import com.ichi2.anki.common.time.TimeManager
+import com.ichi2.anki.dialogs.DatabaseErrorDialog.CustomExceptionData
+import com.ichi2.anki.dialogs.DatabaseErrorDialog.DatabaseErrorDialogType
 import com.ichi2.anki.dialogs.DatabaseErrorDialog.DatabaseErrorDialogType.DIALOG_CONFIRM_DATABASE_CHECK
 import com.ichi2.anki.dialogs.DatabaseErrorDialog.DatabaseErrorDialogType.DIALOG_CONFIRM_RESTORE_BACKUP
 import com.ichi2.anki.dialogs.DatabaseErrorDialog.DatabaseErrorDialogType.DIALOG_DB_ERROR
@@ -44,6 +49,7 @@ import com.ichi2.anki.dialogs.DatabaseErrorDialog.DatabaseErrorDialogType.DIALOG
 import com.ichi2.anki.dialogs.DatabaseErrorDialog.DatabaseErrorDialogType.DIALOG_RESTORE_BACKUP
 import com.ichi2.anki.dialogs.DatabaseErrorDialog.DatabaseErrorDialogType.DIALOG_STORAGE_UNAVAILABLE_AFTER_UNINSTALL
 import com.ichi2.anki.dialogs.DatabaseErrorDialog.DatabaseErrorDialogType.INCOMPATIBLE_DB_VERSION
+import com.ichi2.anki.dialogs.DatabaseErrorDialog.ShowDatabaseErrorDialog
 import com.ichi2.anki.dialogs.DatabaseErrorDialog.UninstallListItem.Companion.createList
 import com.ichi2.anki.dialogs.ImportFileSelectionFragment.ImportOptions
 import com.ichi2.anki.exception.SystemStorageException
@@ -102,11 +108,11 @@ class DatabaseErrorDialog : AsyncDialogFragment() {
         }
         return when (requireDialogType()) {
             DIALOG_LOAD_FAILED -> {
+                isCancelable = false
                 // Collection failed to load; give user the option of either choosing from repair options, or closing
                 // the activity
                 alertDialog.show {
                     title(CommonString.open_collection_failed_title)
-                    cancelable(false)
                     message(text = message)
                     setIcon(R.drawable.ic_warning)
                     positiveButton(CommonString.error_handling_options) {
@@ -118,11 +124,11 @@ class DatabaseErrorDialog : AsyncDialogFragment() {
                 }
             }
             DIALOG_DB_ERROR -> {
+                isCancelable = false
                 // Database Check failed to execute successfully; give user the option of either choosing from repair
                 // options, submitting an error report, or closing the activity
                 alertDialog
                     .create {
-                        cancelable(false)
                         title(CommonString.answering_error_title)
                         message(text = message)
                         setIcon(R.drawable.ic_warning)
@@ -355,17 +361,21 @@ class DatabaseErrorDialog : AsyncDialogFragment() {
                 }
             }
             DIALOG_DB_LOCKED -> {
-                // If the database is locked, all we can do is ask the user to exit.
+                isCancelable = false
                 alertDialog.show {
                     title(CommonString.database_locked_title)
                     message(text = message)
                     positiveButton(CommonString.close) {
                         closeCollectionAndFinish()
                     }
-                    cancelable(false)
+                    // the user can change the 'AnkiDroid directory' to resolve the conflict
+                    neutralButton(CommonString.settings) {
+                        navigate(PreferencesDestination.Advanced)
+                    }
                 }
             }
             INCOMPATIBLE_DB_VERSION -> {
+                isCancelable = false
                 val values: MutableList<IncompatibleDbVersionEntries> = ArrayList(2)
                 val options = mutableListOf<CharSequence>()
                 options.add(makeBold(res.getString(CommonString.backup_restore)))
@@ -375,7 +385,6 @@ class DatabaseErrorDialog : AsyncDialogFragment() {
                     values.add(IncompatibleDbVersionEntries.ONE_WAY)
                 }
                 alertDialog.show {
-                    cancelable(false)
                     title(CommonString.incompatible_database_version_title)
                     setIcon(R.drawable.ic_warning)
                     positiveButton(CommonString.close) {
@@ -405,6 +414,7 @@ class DatabaseErrorDialog : AsyncDialogFragment() {
                 }
             }
             DIALOG_STORAGE_UNAVAILABLE_AFTER_UNINSTALL -> {
+                isCancelable = false
                 val listItems = UninstallListItem.createList()
                 alertDialog.show {
                     title(CommonString.directory_inaccessible_after_uninstall)
@@ -415,7 +425,6 @@ class DatabaseErrorDialog : AsyncDialogFragment() {
                             dismiss()
                         }
                     }
-                    cancelable(false)
                 }
             }
         }
@@ -423,7 +432,7 @@ class DatabaseErrorDialog : AsyncDialogFragment() {
 
     /** @see DeckPicker.showDatabaseErrorDialog */
     private fun showDatabaseErrorDialog(errorDialogType: DatabaseErrorDialogType) {
-        requireDeckPicker().showDatabaseErrorDialog(errorDialogType, exceptionData)
+        requireAnkiActivity().showDatabaseErrorDialogInDeckPicker(errorDialogType, exceptionData)
     }
 
     /**
@@ -585,7 +594,7 @@ class DatabaseErrorDialog : AsyncDialogFragment() {
                 DIALOG_CONFIRM_DATABASE_CHECK -> res().getString(CommonString.check_db_warning)
                 DIALOG_CONFIRM_RESTORE_BACKUP -> res().getString(CommonString.restore_backup)
                 DIALOG_ONE_WAY_SYNC_FROM_SERVER -> res().getString(CommonString.backup_full_sync_from_server_question)
-                DIALOG_DB_LOCKED -> res().getString(CommonString.database_locked_summary)
+                DIALOG_DB_LOCKED -> res().getString(CommonString.database_locked_summary_new, res().getString(CommonString.col_path))
                 INCOMPATIBLE_DB_VERSION -> {
                     var databaseVersion = -1
                     try {
@@ -697,12 +706,13 @@ class DatabaseErrorDialog : AsyncDialogFragment() {
     /** Database error dialog */
     class ShowDatabaseErrorDialog(
         val dialogType: DatabaseErrorDialogType,
+        val exceptionData: CustomExceptionData? = null,
     ) : DialogHandlerMessage(
             which = WhichDialogHandler.MSG_SHOW_DATABASE_ERROR_DIALOG,
             analyticName = "DatabaseErrorDialog",
         ) {
         override fun handleAsyncMessage(activity: AnkiActivity) {
-            activity.showDatabaseErrorDialog(dialogType)
+            activity.showDatabaseErrorDialog(dialogType, exceptionData)
         }
 
         override fun toMessage(): Message =
@@ -711,13 +721,15 @@ class DatabaseErrorDialog : AsyncDialogFragment() {
                 data =
                     Bundle().apply {
                         putParcelable(ARG_DIALOG, dialogType)
+                        exceptionData?.let { putParcelable(ARG_EXCEPTION, it) }
                     }
             }
 
         companion object {
             fun fromMessage(message: Message): ShowDatabaseErrorDialog {
                 val dialogType = BundleCompat.getParcelable(message.data, ARG_DIALOG, DatabaseErrorDialogType::class.java)!!
-                return ShowDatabaseErrorDialog(dialogType)
+                val exceptionData = BundleCompat.getParcelable(message.data, ARG_EXCEPTION, CustomExceptionData::class.java)
+                return ShowDatabaseErrorDialog(dialogType, exceptionData)
             }
         }
     }
@@ -745,6 +757,19 @@ class DatabaseErrorDialog : AsyncDialogFragment() {
             }
         }
     }
+}
+
+fun AnkiActivity.showDatabaseErrorDialogInDeckPicker(
+    errorDialogType: DatabaseErrorDialogType,
+    exceptionData: CustomExceptionData? = null,
+) {
+    if (this is DeckPicker) {
+        showDatabaseErrorDialog(errorDialogType, exceptionData)
+        return
+    }
+    Timber.i("Opening the Deck Picker to show %s", errorDialogType)
+    DialogHandler.storeMessage(ShowDatabaseErrorDialog(errorDialogType, exceptionData).toMessage())
+    startActivity(DeckPicker.getIntent(this).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
 }
 
 private enum class ErrorHandlingEntries {

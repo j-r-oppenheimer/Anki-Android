@@ -3,14 +3,16 @@
 package com.ichi2.anki.browser.search
 
 import androidx.lifecycle.SavedStateHandle
-import androidx.test.ext.junit.runners.AndroidJUnit4
 import app.cash.turbine.test
-import com.ichi2.anki.RobolectricTest
 import com.ichi2.anki.browser.SearchHistory
 import com.ichi2.anki.browser.SearchHistory.SearchHistoryEntry
 import com.ichi2.anki.browser.search.CardBrowserSearchViewModel.Companion.MAX_SEARCH_HISTORY_ENTRIES
 import com.ichi2.anki.browser.search.CardBrowserSearchViewModel.UserMessage
+import com.ichi2.testutils.JvmPreferencesRule
+import com.ichi2.testutils.JvmTest
 import com.ichi2.testutils.assertFalse
+import com.ichi2.testutils.withViewModel
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import org.hamcrest.MatcherAssert.assertThat
 import org.hamcrest.Matchers.empty
@@ -18,13 +20,15 @@ import org.hamcrest.Matchers.equalTo
 import org.hamcrest.Matchers.hasSize
 import org.hamcrest.Matchers.not
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
-import org.junit.runner.RunWith
 import kotlin.test.assertEquals
 
 /** Tests for [CardBrowserSearchViewModel] */
-@RunWith(AndroidJUnit4::class) // PERF: only required for `Prefs`
-class CardBrowserSearchViewModelTest : RobolectricTest() {
+class CardBrowserSearchViewModelTest : JvmTest() {
+    @get:Rule
+    val preferences = JvmPreferencesRule()
+
     @Before
     override fun setUp() {
         SearchHistory().clear()
@@ -165,7 +169,8 @@ class CardBrowserSearchViewModelTest : RobolectricTest() {
     @Test
     fun `search history - submitted searches are trimmed and deduplicated`() =
         withViewModel {
-            searchHistoryListFlow.test {
+            // Loading and loaded states may contain the same history entries.
+            searchHistoryListFlow.distinctUntilChanged().test {
                 submitSearch("aa")
                 assertThat(expectMostRecentItem(), hasSize(1))
 
@@ -415,11 +420,7 @@ class CardBrowserSearchViewModelTest : RobolectricTest() {
         block: suspend CardBrowserSearchViewModel.() -> Unit,
     ) = runTest {
         addNotes(count = cardCount)
-        block(
-            CardBrowserSearchViewModel(
-                SavedStateHandle(),
-            ),
-        )
+        withViewModel(CardBrowserSearchViewModel(SavedStateHandle()), block)
     }
 }
 

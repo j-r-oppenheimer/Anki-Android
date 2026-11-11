@@ -45,7 +45,7 @@ class DeckPickerOnDiskTest : RobolectricTest() {
     fun before() {
         RuntimeEnvironment.setQualifiers(qualifiers)
         getPreferences().edit {
-            putBoolean(IntroductionActivity.INTRODUCTION_SLIDES_SHOWN, true)
+            putBoolean(IntroductionActivity.PREF_INTRODUCTION_SLIDES_SHOWN, true)
         }
     }
 
@@ -60,7 +60,7 @@ class DeckPickerOnDiskTest : RobolectricTest() {
                     DeckPickerEx::class.java,
                     Intent(),
                 )
-            advanceRobolectricLooper()
+            advanceRobolectricLooperUntil { deckPicker.visibleDeckCount == 1 }
             assertThat(
                 "Collection should now be open",
                 CollectionManager.isOpenUnsafe(),

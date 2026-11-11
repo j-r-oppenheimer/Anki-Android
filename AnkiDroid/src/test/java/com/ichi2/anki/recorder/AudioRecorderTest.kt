@@ -1,28 +1,11 @@
-/*
- * Copyright (c) 2025 Ashish Yadav <mailtoashish693@gmail.com>
- *
- * This program is free software; you can redistribute it and/or modify it under
- * the terms of the GNU General Public License as published by the Free Software
- * Foundation; either version 3 of the License, or (at your option) any later
- * version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
- * details.
- *
- * You should have received a copy of the GNU General Public License along with
- * this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: Copyright (c) 2025 Ashish Yadav <mailtoashish693@gmail.com>
 
 package com.ichi2.anki.recorder
 
+import android.content.Context
 import android.media.MediaRecorder
-import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.ichi2.anki.EmptyApplicationCategory
-import com.ichi2.anki.RobolectricTest
 import com.ichi2.anki.compat.CompatHelper
-import com.ichi2.testutils.EmptyApplication
 import io.mockk.clearAllMocks
 import io.mockk.every
 import io.mockk.mockk
@@ -33,25 +16,29 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
-import org.junit.experimental.categories.Category
-import org.junit.runner.RunWith
-import org.robolectric.annotation.Config
+import org.junit.rules.TemporaryFolder
 import java.io.File
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.junit5.JUnit5Asserter.assertNotNull
 
-@RunWith(AndroidJUnit4::class)
-@Config(application = EmptyApplication::class)
-@Category(EmptyApplicationCategory::class)
-class AudioRecorderTest : RobolectricTest() {
+class AudioRecorderTest {
+    @get:Rule
+    val tempFolder = TemporaryFolder()
+
+    private val context =
+        mockk<Context> {
+            every { cacheDir } answers { tempFolder.root }
+        }
+
     private val mockMediaRecorder = mockk<MediaRecorder>(relaxed = true)
 
     private fun createRecorder(): AudioRecorder {
         mockkObject(CompatHelper)
         every { CompatHelper.compat.getMediaRecorder(any()) } returns mockMediaRecorder
-        return AudioRecorder(targetContext)
+        return AudioRecorder(context)
     }
 
     @After
@@ -139,7 +126,7 @@ class AudioRecorderTest : RobolectricTest() {
 
     @Test
     fun `start should use provided file instead of temp file`() {
-        val customFile = File(targetContext.cacheDir, "custom_audio.3gp")
+        val customFile = File(tempFolder.root, "custom_audio.3gp")
 
         val audioRecorder = createRecorder()
         audioRecorder.start(customFile)

@@ -6,18 +6,20 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.ichi2.anki.Flag
-import com.ichi2.anki.browser.IdsFile
+import com.ichi2.anki.pages.PostRequestBridge
 import com.ichi2.anki.servicelayer.NoteService
 import com.ichi2.anki.utils.ext.flag
 import com.ichi2.testutils.JvmTest
+import com.ichi2.testutils.mockWebResourceRequest
 import io.mockk.coEvery
-import io.mockk.every
-import io.mockk.mockk
 import io.mockk.spyk
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -25,11 +27,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import kotlin.time.Duration.Companion.seconds
 
 @RunWith(AndroidJUnit4::class)
 class PreviewerViewModelTest : JvmTest() {
-    private val idsFile: IdsFile = mockk()
-
     private lateinit var viewModel: PreviewerViewModel
 
     private fun TestScope.onNextButtonClick() {
@@ -60,18 +61,12 @@ class PreviewerViewModelTest : JvmTest() {
                 val note = addBasicNote()
                 note.cards().map { it.id }
             }
-        every { idsFile.getIds() } returns cardIds
-
-        val savedStateHandle =
-            SavedStateHandle().apply {
-                set(PreviewerFragment.CURRENT_INDEX_ARG, 0)
-                set(PreviewerFragment.CARD_IDS_FILE_ARG, idsFile)
-            }
-
-        viewModel = spyk(PreviewerViewModel(savedStateHandle))
+        updateDeckConfig(col.decks.selected()) { autoplay = false }
+        viewModel = spyk(PreviewerViewModel(SavedStateHandle(), cardIds, initialIndex = 0))
         // the default implementation requires the Collection media directory,
         // which needs Robolectric with CollectionStorageMode.IN_MEMORY_WITH_MEDIA or ON_DISK
         coEvery { viewModel.prepareCardTextForDisplay(any()) } answers { firstArg() }
+        runBlocking { withTimeout(10.seconds) { viewModel.currentCard.await() } }
     }
 
     @After
@@ -79,6 +74,27 @@ class PreviewerViewModelTest : JvmTest() {
         viewModel.viewModelScope.cancel()
         super.tearDown()
     }
+
+    @Test
+    fun `a missing image on the previous answer does not suppress the next question warning`() =
+        runTest {
+            onNextButtonClick()
+            assertTrue(viewModel.showingAnswer.value)
+            val reportedFiles = mutableListOf<String>()
+            viewModel.mediaErrorHandler.processFailure(
+                mockWebResourceRequest("${PostRequestBridge.BASE_URL}first-missing.jpg", mainFrame = false),
+            ) { reportedFiles.add(it) }
+            assertEquals(listOf("first-missing.jpg"), reportedFiles)
+
+            onNextButtonClick()
+            assertEquals(1, viewModel.currentIndex.value)
+            assertFalse(viewModel.showingAnswer.value)
+            viewModel.mediaErrorHandler.processFailure(
+                mockWebResourceRequest("${PostRequestBridge.BASE_URL}second-missing.jpg", mainFrame = false),
+            ) { reportedFiles.add(it) }
+
+            assertEquals(listOf("first-missing.jpg", "second-missing.jpg"), reportedFiles)
+        }
 
     @Test
     fun `next button`() =
@@ -263,4 +279,52 @@ class PreviewerViewModelTest : JvmTest() {
             onSliderChange(sliderPosition = 2)
             assertEquals("Index should update for valid input", 1, viewModel.currentIndex.value)
         }
+
+    @Test
+    fun `showing the answer stops the question audio`() =
+        runTest {
+            viewModel.onPageFinished(false)
+            val audio = audioPlaying()
+
+            onNextButtonClick()
+
+            assertTrue("question audio should stop", audio.isCancelled)
+        }
+
+    @Test
+    fun `going back to the question stops the answer audio`() =
+        runTest {
+            viewModel.onPageFinished(false)
+            onNextButtonClick()
+            val audio = audioPlaying()
+
+            onPreviousButtonClick()
+
+            assertTrue("answer audio should stop", audio.isCancelled)
+        }
+
+    @Test
+    fun `showing only the back side stops the question audio`() =
+        runTest {
+            viewModel.onPageFinished(false)
+            val audio = audioPlaying()
+
+            toggleBackSideOnly()
+
+            assertTrue("question audio should stop", audio.isCancelled)
+        }
+
+    @Test
+    fun `audio keeps playing after a configuration change`() =
+        runTest {
+            viewModel.onPageFinished(false)
+            val audio = audioPlaying()
+
+            viewModel.onPageFinished(isAfterRecreation = true)
+            advanceUntilIdle()
+
+            assertFalse("audio should keep playing", audio.isCancelled)
+        }
+
+    private fun audioPlaying() = Job().also { viewModel.cardMediaPlayer.playAvTagsJob = it }
 }

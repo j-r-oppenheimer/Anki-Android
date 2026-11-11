@@ -190,4 +190,8 @@
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
         layout="@layout/view_rich_text_toolbar" />
+    <androidx.compose.ui.platform.ComposeView
+        android:id="@+id/toolbar_layout_dialog"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content" />
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

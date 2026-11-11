@@ -1,30 +1,20 @@
-/*
- * Copyright (c) 2009 Daniel Svärd <daniel.svard@gmail.com>
- * Copyright (c) 2009 Edu Zamora <edu.zasu@gmail.com>
- * Copyright (c) 2011 Norbert Nagold <norbert.nagold@gmail.com>
- * Copyright (c) 2012 Kostas Spyropoulos <inigo.aldana@gmail.com>
- *
- * This program is free software; you can redistribute it and/or modify it under
- * the terms of the GNU General Public License as published by the Free Software
- * Foundation; either version 3 of the License, or (at your option) any later
- * version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
- * PARTICULAR PURPOSE. See the GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License along with
- * this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: Copyright (c) 2009 Daniel Svärd <daniel.svard@gmail.com>
+// SPDX-FileCopyrightText: Copyright (c) 2009 Edu Zamora <edu.zasu@gmail.com>
+// SPDX-FileCopyrightText: Copyright (c) 2011 Norbert Nagold <norbert.nagold@gmail.com>
+// SPDX-FileCopyrightText: Copyright (c) 2012 Kostas Spyropoulos <inigo.aldana@gmail.com>
+
 package com.ichi2.anki.libanki
 
 import com.ichi2.anki.libanki.Consts.FIELD_SEPARATOR
-import timber.log.Timber
+import org.slf4j.LoggerFactory
 import java.io.UnsupportedEncodingException
 import java.math.BigInteger
 import java.security.MessageDigest
 import java.security.NoSuchAlgorithmException
 import java.util.Locale
+
+private val logger = LoggerFactory.getLogger(Utils::class.java)
 
 // TODO switch to standalone functions and properties and remove Utils container
 object Utils {
@@ -117,10 +107,10 @@ object Utils {
             md = MessageDigest.getInstance("SHA1")
             digest = md.digest(data.toByteArray(charset("UTF-8")))
         } catch (e: NoSuchAlgorithmException) {
-            Timber.e(e, "Utils.checksum: No such algorithm.")
+            logger.error("Utils.checksum: No such algorithm.", e)
             throw RuntimeException(e)
         } catch (e: UnsupportedEncodingException) {
-            Timber.e(e, "Utils.checksum :: UnsupportedEncodingException")
+            logger.error("Utils.checksum :: UnsupportedEncodingException", e)
         }
         val biginteger = BigInteger(1, digest)
         var result = biginteger.toString(16)

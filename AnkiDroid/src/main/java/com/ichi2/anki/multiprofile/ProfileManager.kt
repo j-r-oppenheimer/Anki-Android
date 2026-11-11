@@ -3,16 +3,19 @@
 
 package com.ichi2.anki.multiprofile
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.SharedPreferences
 import android.os.Build
 import android.webkit.CookieManager
 import android.webkit.WebView
+import androidx.annotation.CheckResult
 import androidx.annotation.VisibleForTesting
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import com.ichi2.anki.common.crashreporting.CrashReportService
 import com.ichi2.anki.common.preferences.sharedPrefs
+import com.ichi2.anki.common.storage.AnkiDroidFolder
 import com.ichi2.anki.common.storage.CollectionHelper.PREF_COLLECTION_PATH
 import com.ichi2.anki.common.time.TimeManager
 import com.ichi2.anki.common.time.getTimestamp
@@ -30,7 +33,7 @@ class ProfileManager private constructor(
 ) {
     private val profileContext = context.applicationContext ?: context
 
-    lateinit var activeProfileContext: Context
+    lateinit var activeProfileContext: ProfileContextWrapper
         private set
 
     /**
@@ -79,16 +82,18 @@ class ProfileManager private constructor(
      * @param displayName The name to be associated with the new profile.
      * @return The unique [ProfileId] assigned to the newly created profile.
      *
+     * @throws IllegalArgumentException if another profile already uses [displayName], ignoring case.
      * @throws Exception if profile creation or persistence fails.
      */
     fun createNewProfile(displayName: ProfileName): ProfileId {
+        require(!isNameTaken(displayName)) { "Profile name is already in use" }
         val newProfileId = generateUniqueProfileId()
 
         val metadata = ProfileMetadata(displayName = displayName)
 
         profileRegistry.saveProfile(newProfileId, metadata)
 
-        Timber.i("Created new profile: ${displayName.value} (${newProfileId.value})")
+        Timber.i("Created new profile: ${newProfileId.value}")
         return newProfileId
     }
 
@@ -100,6 +105,13 @@ class ProfileManager private constructor(
      * @see ProfileRegistry.getAllProfiles
      */
     fun getAllProfiles(): Map<ProfileId, ProfileMetadata> = profileRegistry.getAllProfiles()
+
+    fun wrap(context: Context): Context = activeProfileContext.wrap(context)
+
+    private fun isNameTaken(
+        name: ProfileName,
+        ignoring: ProfileId? = null,
+    ): Boolean = name.existsIn(getAllProfiles().filterKeys { it != ignoring }.values.map { it.displayName.value })
 
     /**
      * Generates a unique [ProfileId] that does not collide with existing profiles.
@@ -145,12 +157,11 @@ class ProfileManager private constructor(
     context(_: ProfileSwitchContext)
     fun switchActiveProfile(newProfileId: ProfileId) {
         Timber.i("Switching profile to ID: $newProfileId")
-        profileRegistry.setLastActiveProfileId(newProfileId)
+        // commit, not apply: the app restarts straight after a switch, and a pending apply() would be lost
+        profileRegistry.setLastActiveProfileId(newProfileId, commit = true)
     }
 
     private fun loadProfileData(profileId: ProfileId) {
-        configureWebView(profileId)
-
         val profileBaseDir = resolveProfileDirectory(profileId)
 
         try {
@@ -164,8 +175,11 @@ class ProfileManager private constructor(
             ensureProfileCollectionPath(wrapper)
         } catch (e: Exception) {
             Timber.w(e, "Failed to load profile context for $profileId")
+            configureWebView(ProfileId.DEFAULT)
             throw RuntimeException("Failed to load profile environment", e)
         }
+
+        configureWebView(profileId)
 
         Timber.d("Profile loaded: $profileId at ${profileBaseDir.file.absolutePath}")
     }
@@ -193,7 +207,11 @@ class ProfileManager private constructor(
         if (prefs.getString(PREF_COLLECTION_PATH, null) != null) return
 
         val profileCollectionDir =
-            getDefaultAnkiDroidDirectory(profileContext, directoryName = profileId.value).apply { mkdirs() }
+            getDefaultAnkiDroidDirectory(
+                profileContext,
+                directoryName = profileId.value,
+                folder = AnkiDroidFolder.APP_PRIVATE,
+            ).apply { mkdirs() }
 
         prefs.edit { putString(PREF_COLLECTION_PATH, profileCollectionDir.absolutePath) }
     }
@@ -292,7 +310,8 @@ class ProfileManager private constructor(
      * @param newDisplayName  The new user-facing name.
      *
      * @throws IllegalArgumentException if [profileId] does not
-     *   exist in the registry.
+     *   exist in the registry, or another profile already uses
+     *   [newDisplayName], ignoring case.
      */
     fun renameProfile(
         profileId: ProfileId,
@@ -308,6 +327,8 @@ class ProfileManager private constructor(
             Timber.d("Rename skipped: New name matches existing name for $profileId")
             return
         }
+
+        require(!isNameTaken(newDisplayName, ignoring = profileId)) { "Profile name is already in use" }
 
         val updated = existing.copy(displayName = newDisplayName)
         profileRegistry.saveProfile(profileId, updated)
@@ -576,21 +597,24 @@ class ProfileManager private constructor(
         private val globalPrefs: SharedPreferences,
     ) {
         fun getLastActiveProfileId(): ProfileId? {
-            val id = globalPrefs.getString(KEY_LAST_ACTIVE_PROFILE_ID, null)
+            val id = globalPrefs.getString(PREF_LAST_ACTIVE_PROFILE_ID, null)
             return id?.let { ProfileId(it) }
         }
 
-        fun setLastActiveProfileId(id: ProfileId) {
-            globalPrefs.edit { putString(KEY_LAST_ACTIVE_PROFILE_ID, id.value) }
+        fun setLastActiveProfileId(
+            id: ProfileId,
+            commit: Boolean = false,
+        ) {
+            globalPrefs.edit(commit = commit) { putString(PREF_LAST_ACTIVE_PROFILE_ID, id.value) }
         }
 
         fun getWebViewProfileId(): ProfileId? {
-            val id = globalPrefs.getString(KEY_WEBVIEW_PROFILE_ID, null)
+            val id = globalPrefs.getString(PREF_WEBVIEW_PROFILE_ID, null)
             return id?.let { ProfileId(it) }
         }
 
         fun setWebViewProfileId(id: ProfileId) {
-            globalPrefs.edit { putString(KEY_WEBVIEW_PROFILE_ID, id.value) }
+            globalPrefs.edit { putString(PREF_WEBVIEW_PROFILE_ID, id.value) }
         }
 
         /**
@@ -612,7 +636,7 @@ class ProfileManager private constructor(
             globalPrefs.edit {
                 putString(id.value, metadata.toJson())
                 if (isActive) {
-                    putString(KEY_LAST_ACTIVE_PROFILE_ID, id.value)
+                    putString(PREF_LAST_ACTIVE_PROFILE_ID, id.value)
                 }
             }
         }
@@ -631,7 +655,7 @@ class ProfileManager private constructor(
          * Retrieves all registered profiles from the global SharedPreferences.
          *
          * Iterates over all stored entries, skipping the
-         * [KEY_LAST_ACTIVE_PROFILE_ID] metadata key, and deserializes each
+         * [PREF_LAST_ACTIVE_PROFILE_ID] metadata key, and deserializes each
          * value into a [ProfileMetadata] instance. Entries that fail to parse
          * are logged and silently skipped.
          *
@@ -683,16 +707,21 @@ class ProfileManager private constructor(
      */
     object ProfileSwitchContext
 
+    data class LoadFailure(
+        val profileName: ProfileName,
+        val defaultProfileName: ProfileName,
+    )
+
     companion object {
         private const val MAX_ATTEMPTS = 10
         const val PROFILE_REGISTRY_FILENAME = "profiles_prefs"
-        const val KEY_LAST_ACTIVE_PROFILE_ID = "last_active_profile_id"
+        const val PREF_LAST_ACTIVE_PROFILE_ID = "last_active_profile_id"
 
         /** Profile whose data the shared WebView storage currently holds. Pre-API 28 only. */
-        const val KEY_WEBVIEW_PROFILE_ID = "webview_profile_id"
+        const val PREF_WEBVIEW_PROFILE_ID = "webview_profile_id"
 
         /** Registry keys that are not profile entries. */
-        private val BOOKKEEPING_KEYS = setOf(KEY_LAST_ACTIVE_PROFILE_ID, KEY_WEBVIEW_PROFILE_ID)
+        private val BOOKKEEPING_KEYS = setOf(PREF_LAST_ACTIVE_PROFILE_ID, PREF_WEBVIEW_PROFILE_ID)
 
         const val DEFAULT_PROFILE_DISPLAY_NAME = "Default"
 
@@ -728,6 +757,22 @@ class ProfileManager private constructor(
         var attachError: Throwable? = null
             private set
 
+        var loadFailure: LoadFailure? = null
+            private set
+
+        private var unreportedLoadFailure: LoadFailure? = null
+
+        fun consumeLoadFailure(): LoadFailure? = unreportedLoadFailure.also { unreportedLoadFailure = null }
+
+        @CheckResult
+        @SuppressLint("UseKtx") // edit {} drops the commit result, which tells the dialog whether it can close
+        fun selectDefaultProfile(context: Context): Boolean =
+            context
+                .getSharedPreferences(PROFILE_REGISTRY_FILENAME, Context.MODE_PRIVATE)
+                .edit()
+                .putString(PREF_LAST_ACTIVE_PROFILE_ID, ProfileId.DEFAULT.value)
+                .commit()
+
         /**
          * Loads the active profile, or returns null when its environment cannot be
          * loaded.
@@ -740,16 +785,37 @@ class ProfileManager private constructor(
         fun createOrNull(base: Context): ProfileManager? =
             try {
                 attachError = null
+                loadFailure = null
+                unreportedLoadFailure = null
                 create(base)
             } catch (e: Exception) {
-                // TODO: show this to the user instead of silently falling back to the Default profile
                 attachError = e
+                loadFailure = readLoadFailure(base)
+                unreportedLoadFailure = loadFailure
                 null
             }
+
+        private fun readLoadFailure(base: Context): LoadFailure? {
+            try {
+                val registryPrefs = (base.applicationContext ?: base).getSharedPreferences(PROFILE_REGISTRY_FILENAME, Context.MODE_PRIVATE)
+                val registry = ProfileRegistry(registryPrefs)
+                val failedId = registry.getLastActiveProfileId()?.takeUnless { it.isDefault() } ?: return null
+                return LoadFailure(
+                    profileName = registry.getProfileMetadata(failedId)?.displayName ?: ProfileName.fromTrustedSource(failedId.value),
+                    defaultProfileName =
+                        registry.getProfileMetadata(ProfileId.DEFAULT)?.displayName
+                            ?: ProfileName.fromTrustedSource(DEFAULT_PROFILE_DISPLAY_NAME),
+                )
+            } catch (e: Exception) {
+                return null
+            }
+        }
 
         @VisibleForTesting
         fun resetForTesting() {
             attachError = null
+            loadFailure = null
+            unreportedLoadFailure = null
         }
 
         /**

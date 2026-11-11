@@ -1,18 +1,6 @@
-/*
- * Copyright (c) 2015 Timothy Rae <perceptualchaos2@gmail.com>
- *
- * This program is free software; you can redistribute it and/or modify it under
- * the terms of the GNU General Public License as published by the Free Software
- * Foundation; either version 3 of the License, or (at your option) any later
- * version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
- * PARTICULAR PURPOSE. See the GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License along with
- * this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: Copyright (c) 2015 Timothy Rae <perceptualchaos2@gmail.com>
+
 package com.ichi2.anki.dialogs
 
 import android.app.Dialog
@@ -146,19 +134,19 @@ data class DeckPickerContextMenuResult(
 ) {
     fun toBundle(): Bundle =
         Bundle().apply {
-            putLong(ARG_DECK_ID, deckId)
-            putSerializable(ARG_OPTION, option)
+            putLong(RESULT_DECK_ID, deckId)
+            putSerializable(RESULT_CONTEXT_MENU_OPTION, option)
         }
 
     companion object {
         const val REQUEST_KEY = "request_key_deck_picker_context_menu"
-        private const val ARG_DECK_ID = "deck_id"
-        private const val ARG_OPTION = "option"
+        private const val RESULT_DECK_ID = "deck_id"
+        private const val RESULT_CONTEXT_MENU_OPTION = "option"
 
         fun fromBundle(bundle: Bundle) =
             DeckPickerContextMenuResult(
-                deckId = bundle.requireLong(ARG_DECK_ID),
-                option = bundle.requireSerializableCompat<DeckPickerContextMenuOption>(ARG_OPTION),
+                deckId = bundle.requireLong(RESULT_DECK_ID),
+                option = bundle.requireSerializableCompat<DeckPickerContextMenuOption>(RESULT_CONTEXT_MENU_OPTION),
             )
     }
 }

@@ -37,6 +37,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import timber.log.Timber
+import kotlin.time.Duration.Companion.seconds
 
 interface PostRequestHandler {
     suspend fun handlePostRequest(
@@ -51,29 +52,36 @@ value class PostRequestUri(
 ) {
     val ankidroidMethodName: String?
         get() =
-            if (uri.startsWith(AnkiServer.ANKIDROID_PREFIX)) {
-                uri.substring(AnkiServer.ANKIDROID_PREFIX.length)
+            if (uri.startsWith(ANKIDROID_PREFIX)) {
+                uri.substring(ANKIDROID_PREFIX.length)
             } else {
                 null
             }
 
     val backendMethodName: String?
         get() =
-            if (uri.startsWith(AnkiServer.ANKI_PREFIX)) {
-                uri.substring(AnkiServer.ANKI_PREFIX.length)
+            if (uri.startsWith(ANKI_PREFIX)) {
+                uri.substring(ANKI_PREFIX.length)
             } else {
                 null
             }
 
     val jsApiMethodName: String?
         get() =
-            if (uri.startsWith(AnkiServer.ANKIDROID_JS_PREFIX)) {
-                uri.substring(AnkiServer.ANKIDROID_JS_PREFIX.length)
+            if (uri.startsWith(ANKIDROID_JS_PREFIX)) {
+                uri.substring(ANKIDROID_JS_PREFIX.length)
             } else {
                 null
             }
 
     override fun toString() = uri
+
+    companion object {
+        /** Common prefix used on Anki requests */
+        const val ANKI_PREFIX = "/_anki/"
+        const val ANKIDROID_PREFIX = "/ankidroid/"
+        const val ANKIDROID_JS_PREFIX = "/jsapi/"
+    }
 }
 
 fun <ByteArray> backendIdentity(bytes: ByteArray): ByteArray = bytes
@@ -216,7 +224,7 @@ suspend fun FragmentActivity?.handleUiPostRequest(
             undoableOp { OpChanges.parseFrom(data) }
             launchCatchingTask {
                 // Allow time for toast message to appear before closing editor
-                delay(1000)
+                delay(1.seconds)
                 setResult(Activity.RESULT_OK)
                 finish()
             }
@@ -226,7 +234,7 @@ suspend fun FragmentActivity?.handleUiPostRequest(
             undoableOp { OpChanges.parseFrom(data) }
             launchCatchingTask {
                 // Allow time for toast message to appear before closing editor
-                delay(1000)
+                delay(1.seconds)
                 setResult(NoteEditorFragment.RESULT_UPDATED_IO_NOTE)
                 finish()
             }

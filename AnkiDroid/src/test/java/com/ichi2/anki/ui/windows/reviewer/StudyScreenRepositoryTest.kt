@@ -14,12 +14,11 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.net.ServerSocket
 import kotlin.test.assertNotSame
+import kotlin.time.Duration.Companion.milliseconds
 
 class StudyScreenRepositoryTest {
     private val sharedPrefs: SharedPreferences = SPMockBuilder().createSharedPreferences()
@@ -84,51 +83,11 @@ class StudyScreenRepositoryTest {
     }
 
     @Test
-    fun `getServerPort returns 0 when useFixedPortInReviewer is false`() {
-        prefs.useFixedPortInReviewer = false
-
-        val repository = StudyScreenRepository(prefs)
-        val port = repository.getServerPort()
-
-        assertEquals(0, port)
-    }
-
-    @Test
-    fun `getServerPort returns valid port when configured and available`() {
-        prefs.useFixedPortInReviewer = true
-        prefs.reviewerPort = 0
-
-        val repository = StudyScreenRepository(prefs)
-        val port = repository.getServerPort()
-
-        assertTrue(port > 0)
-        assertEquals(prefs.reviewerPort, port)
-    }
-
-    @Test
-    fun `getServerPort returns 0 when specific port is already in use`() {
-        val blockerSocket = ServerSocket(0)
-        val busyPort = blockerSocket.localPort
-
-        try {
-            prefs.useFixedPortInReviewer = true
-            prefs.reviewerPort = busyPort
-
-            val repository = StudyScreenRepository(prefs)
-            val resultPort = repository.getServerPort()
-
-            assertEquals(0, resultPort)
-        } finally {
-            blockerSocket.close()
-        }
-    }
-
-    @Test
     fun `generateStateMutationKey generates unique keys`() =
         runTest {
             val repository = StudyScreenRepository(prefs)
             val first = repository.generateStateMutationKey()
-            delay(10)
+            delay(10.milliseconds)
             val second = repository.generateStateMutationKey()
             assertNotSame(first, second)
         }

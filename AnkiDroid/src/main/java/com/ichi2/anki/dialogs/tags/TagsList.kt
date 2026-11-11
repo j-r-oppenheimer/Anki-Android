@@ -1,25 +1,13 @@
-/*
- Copyright (c) 2021 Tarek Mohamed Abdalla <tarekkma@gmail.com>
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: Copyright (c) 2021 Tarek Mohamed Abdalla <tarekkma@gmail.com>
 
- This program is free software; you can redistribute it and/or modify it under
- the terms of the GNU General Public License as published by the Free Software
- Foundation; either version 3 of the License, or (at your option) any later
- version.
-
- This program is distributed in the hope that it will be useful, but WITHOUT ANY
- WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
- PARTICULAR PURPOSE. See the GNU General Public License for more details.
-
- You should have received a copy of the GNU General Public License along with
- this program.  If not, see <http://www.gnu.org/licenses/>.
- */
 package com.ichi2.anki.dialogs.tags
 
+import com.ichi2.anki.common.utils.UniqueArrayList
+import com.ichi2.anki.common.utils.UniqueArrayList.Companion.from
 import com.ichi2.utils.TagsUtil.compareTag
 import com.ichi2.utils.TagsUtil.getTagAncestors
 import com.ichi2.utils.TagsUtil.getTagRoot
-import com.ichi2.utils.UniqueArrayList
-import com.ichi2.utils.UniqueArrayList.Companion.from
 import java.util.ArrayList
 import java.util.TreeSet
 
@@ -42,13 +30,15 @@ class TagsList(
     /**
      * A Set containing the currently selected tags
      */
-    private val checkedTags: MutableSet<String> = TreeSet(java.lang.String.CASE_INSENSITIVE_ORDER)
+    private val checkedTags = TreeSet(java.lang.String.CASE_INSENSITIVE_ORDER)
 
     /**
-     * A Set containing the tags with indeterminate state.
-     * For a tag to be in indeterminate state it should be present in checkedTags and also in uncheckedTags.
+     * Tags present on some notes, plus unchecked ancestors of selected tags.
      */
     private val indeterminateTags: MutableSet<String>
+
+    /** Tags present on some notes whose own selection has not been changed by the user. */
+    private val partiallySelectedTags = TreeSet(java.lang.String.CASE_INSENSITIVE_ORDER)
 
     /**
      * List of all available tags
@@ -65,14 +55,21 @@ class TagsList(
         indeterminateTags = TreeSet(java.lang.String.CASE_INSENSITIVE_ORDER)
         if (uncheckedTags != null) {
             this.allTags.addAll(uncheckedTags)
-            // intersection between mCheckedTags and uncheckedTags
-            indeterminateTags.addAll(this.checkedTags)
-            val uncheckedSet: MutableSet<String> = TreeSet(java.lang.String.CASE_INSENSITIVE_ORDER)
-            uncheckedSet.addAll(uncheckedTags)
-            indeterminateTags.retainAll(uncheckedSet)
+            for (tag in uncheckedTags) {
+                val checkedTag = findCheckedTagIgnoringCase(tag) ?: continue
+                indeterminateTags.add(checkedTag)
+            }
             this.checkedTags.removeAll(indeterminateTags)
         }
+        partiallySelectedTags.addAll(indeterminateTags)
         prepareTagHierarchy()
+    }
+
+    /** Returns the matching checked tag with its stored spelling, or `null` if absent. */
+    private fun findCheckedTagIgnoringCase(tag: String): String? {
+        // O(log n); returns "Biology" for a "biology" search or vice versa
+        val candidate = checkedTags.ceiling(tag) ?: return null
+        return candidate.takeIf { it.equals(tag, ignoreCase = true) }
     }
 
     /**
@@ -111,6 +108,17 @@ class TagsList(
      */
     fun isIndeterminate(tag: String): Boolean = indeterminateTags.contains(tag)
 
+    /** Whether the tag itself is partially selected, independently of its descendants. */
+    internal fun isPartiallySelected(tag: String): Boolean = partiallySelectedTags.contains(tag)
+
+    /** Checks the complete selection, including descendants hidden by the dialog's filter. */
+    internal fun hasSelectedDescendants(tag: String): Boolean {
+        val prefix = "$tag::"
+        // Descendants are contiguous in these case-insensitive sets; only the first candidate is needed.
+        return checkedTags.ceiling(prefix)?.startsWith(prefix, ignoreCase = true) == true ||
+            partiallySelectedTags.ceiling(prefix)?.startsWith(prefix, ignoreCase = true) == true
+    }
+
     /**
      * Adds a tag to the list if it is not already present.
      * If the tag is hierarchical, its ancestors will also be added temporarily.
@@ -144,6 +152,7 @@ class TagsList(
             return false
         }
         indeterminateTags.remove(tag)
+        partiallySelectedTags.remove(tag)
         if (!checkedTags.add(tag)) {
             return false
         }
@@ -162,6 +171,7 @@ class TagsList(
      * false if the tag was already unchecked or not in the list
      */
     fun uncheck(tag: String): Boolean {
+        partiallySelectedTags.remove(tag)
         val changed = indeterminateTags.remove(tag) || checkedTags.remove(tag)
         if (changed) {
             needsSort = true
@@ -198,6 +208,7 @@ class TagsList(
     fun toggleAllCheckedStatuses(): Boolean {
         needsSort = true
         indeterminateTags.clear()
+        partiallySelectedTags.clear()
         if (allTags.size == checkedTags.size) {
             checkedTags.clear()
             return true
@@ -236,6 +247,9 @@ class TagsList(
      */
     fun copyOfIndeterminateTagList(): List<String> = ArrayList(indeterminateTags)
 
+    /** Tags whose original per-note selection must be preserved when saving, excluding display-only ancestors. */
+    internal fun copyOfPartiallySelectedTagList(): List<String> = ArrayList(partiallySelectedTags)
+
     /**
      * @return return a copy of all tags list
      */
@@ -249,7 +263,9 @@ class TagsList(
         for (tag in allTags) {
             addAncestors(tag)
         }
-        for (tag in checkedTags) {
+        // Partially selected descendants also need their ancestors prioritized and expanded.
+        // Take a snapshot because marking ancestors modifies indeterminateTags.
+        for (tag in checkedTags + indeterminateTags) {
             markAncestorsIndeterminate(tag)
         }
     }

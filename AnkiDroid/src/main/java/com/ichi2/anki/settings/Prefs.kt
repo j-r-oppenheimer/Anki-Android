@@ -10,11 +10,16 @@ import androidx.annotation.VisibleForTesting
 import androidx.core.content.edit
 import com.ichi2.anki.AnkiDroidApp
 import com.ichi2.anki.BuildConfig
+import com.ichi2.anki.CommonPreferenceKey
 import com.ichi2.anki.R
 import com.ichi2.anki.cardviewer.TapGestureMode
 import com.ichi2.anki.common.preferences.AnimationPreferences
+import com.ichi2.anki.common.preferences.NotificationPreferences
 import com.ichi2.anki.common.preferences.sharedPrefs
 import com.ichi2.anki.common.utils.isRunningAsUnitTest
+import com.ichi2.anki.libanki.DeckId
+import com.ichi2.anki.preferences.SharedPreferencesProvider
+import com.ichi2.anki.preferences.TimeboxTimeLimit
 import com.ichi2.anki.settings.enums.AppTheme
 import com.ichi2.anki.settings.enums.DayTheme
 import com.ichi2.anki.settings.enums.FrameStyle
@@ -28,14 +33,23 @@ import kotlin.reflect.KProperty
 
 // TODO move this to `com.ichi2.anki.preferences`
 //  after the UI classes of that package are moved to `com.ichi2.anki.ui.preferences`
-object Prefs : PrefsRepository(AnkiDroidApp.sharedPrefs(), AnkiDroidApp.appResources)
+// Resolve both dependencies from the current application rather than retaining a previous instance.
+object Prefs : PrefsRepository(AnkiDroidApp.sharedPreferencesProvider, { AnkiDroidApp.appResources })
 
 // TODO: enforce that `preferences.xml` is used
-open class PrefsRepository(
-    val sharedPrefs: SharedPreferences,
-    private val resources: Resources,
-) : AnimationPreferences {
+open class PrefsRepository protected constructor(
+    private val preferences: SharedPreferencesProvider,
+    private val resourcesProvider: () -> Resources,
+) : AnimationPreferences,
+    NotificationPreferences {
+    constructor(sharedPrefs: SharedPreferences, resources: Resources) : this(SharedPreferencesProvider { sharedPrefs }, { resources })
+
     constructor(context: Context) : this(context.sharedPrefs(), context.resources)
+
+    private val resources: Resources get() = resourcesProvider()
+
+    val sharedPrefs: SharedPreferences
+        get() = preferences.sharedPrefs()
 
     @VisibleForTesting
     fun key(
@@ -229,6 +243,14 @@ open class PrefsRepository(
 
     val exitViaDoubleTapBack by booleanPref(R.string.exit_via_double_tap_back_key, false)
 
+    // ****************************************** Editing ****************************************** //
+
+    /**
+     * Last deck successfully used when saving note data from a 'share' intent,
+     * or zero if no destination has been saved.
+     */
+    var lastSharedDeckId: DeckId by longPref(R.string.last_shared_deck_id_key, defaultValue = 0L)
+
     // ****************************************** Sync ****************************************** //
 
     val isAutoSyncEnabled by booleanPref(R.string.automatic_sync_choice_key, false)
@@ -239,6 +261,13 @@ open class PrefsRepository(
     var hkey by stringPref(R.string.hkey_key)
     var currentSyncUri by stringPref(R.string.current_sync_uri_key)
 
+    /**
+     * End time of the last manual or automatic sync attempt, in epoch milliseconds.
+     * Rate-limits foreground auto-sync and sync intents, including failed, canceled and no-change attempts.
+     *
+     * If a request is blocked before starting (rate limit; metered connection etc...) do not update it,
+     * so it can try again once the block is lifted.
+     */
     var lastSyncTime by longPref(R.string.last_sync_time_key, defaultValue = 0L)
 
     val shouldFetchMedia: ShouldFetchMedia
@@ -269,7 +298,12 @@ open class PrefsRepository(
     /**
      * Whether to enable the new review reminders notification system.
      */
-    var newReviewRemindersEnabled by booleanPref(R.string.pref_new_review_reminders, false)
+    override var newReviewRemindersEnabled by booleanPref(CommonPreferenceKey.pref_new_review_reminders, defaultValue = false)
+
+    private val minimumCardsDueForNotification by stringPref(CommonPreferenceKey.pref_notifications_minimum_cards_due_key, "1000000")
+
+    override val legacyNotificationsEnabled: Boolean
+        get() = minimumCardsDueForNotification!!.toInt() < 1000000
 
     /**
      * Review reminder IDs are unique, starting at 0 and climbing upwards by one each time a new one is created.
@@ -343,8 +377,6 @@ open class PrefsRepository(
      */
     var recordAudioPermissionRequested by booleanPref(R.string.record_audio_permission_requested_key, false)
 
-    var internetPermissionRequested by booleanPref(R.string.internet_permission_requested_key, false)
-
     // **************************************** Reviewer **************************************** //
 
     val ignoreDisplayCutout by booleanPref(R.string.ignore_display_cutout_key, false)
@@ -356,6 +388,10 @@ open class PrefsRepository(
 
     val doubleTapInterval by intPref(R.string.double_tap_timeout_pref_key, defaultValue = 200)
     val newStudyScreenAnswerButtonSize by intPref(R.string.answer_button_size_pref_key, defaultValue = 100)
+    var customTimeboxLimit by intPref(
+        R.string.custom_timebox_limit_key,
+        defaultValue = TimeboxTimeLimit.DEFAULT_TIMEBOX_MINUTES,
+    )
 
     val swipeSensitivity: Float
         get() = getInt(R.string.pref_swipe_sensitivity_key, 100) / 100F
@@ -393,10 +429,7 @@ open class PrefsRepository(
 
     var useSoftwareRendering by booleanPref(R.string.disable_hardware_render_key, defaultValue = false)
     val isHtmlTypeAnswerEnabled by booleanPref(R.string.use_input_tag_key, defaultValue = false)
-    var useFixedPortInReviewer by booleanPref(R.string.use_fixed_port_pref_key, false)
     var allowTemplatesToRecordAudio by booleanPref(R.string.pref_allow_template_audio_recording, false)
-
-    var reviewerPort by intPref(R.string.reviewer_port_pref_key, defaultValue = 0)
 
     // ************************************* Developer options ********************************** //
 

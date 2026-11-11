@@ -11,18 +11,19 @@ import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
 import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.ichi2.anki.common.preferences.sharedPrefs
+import com.ichi2.anki.common.utils.ext.cardStateCustomizer
 import com.ichi2.anki.libanki.Card
 import com.ichi2.anki.libanki.DeckId
 import com.ichi2.anki.previewer.CardViewerActivity
 import com.ichi2.anki.tests.InstrumentedTest
 import com.ichi2.anki.tests.checkWithTimeout
+import com.ichi2.anki.testutil.AvoidDayRolloverRule
 import com.ichi2.anki.testutil.GrantStoragePermission.storagePermission
 import com.ichi2.anki.testutil.ensureWebViewIsSupported
 import com.ichi2.anki.testutil.grantPermissions
 import com.ichi2.anki.testutil.notificationPermission
 import com.ichi2.anki.testutil.waitUntil
 import com.ichi2.anki.ui.windows.reviewer.ReviewerFragment
-import com.ichi2.anki.utils.ext.cardStateCustomizer
 import org.hamcrest.MatcherAssert.assertThat
 import org.hamcrest.Matchers.equalTo
 import org.junit.After
@@ -36,6 +37,9 @@ import java.util.concurrent.TimeUnit
 
 @RunWith(AndroidJUnit4::class)
 class ReviewerFragmentTest : InstrumentedTest() {
+    @get:Rule(order = 0)
+    val avoidDayRollover = AvoidDayRolloverRule()
+
     @get:Rule
     val runtimePermissionRule = grantPermissions(storagePermission, notificationPermission)
 
@@ -55,7 +59,7 @@ class ReviewerFragmentTest : InstrumentedTest() {
     @After
     fun tearDown() {
         col.decks.remove(listOf(testDeckId))
-        col.cardStateCustomizer = ""
+        col.config.cardStateCustomizer = ""
     }
 
     @Test
@@ -75,7 +79,7 @@ class ReviewerFragmentTest : InstrumentedTest() {
             } else {
                 ""
             }
-        col.cardStateCustomizer =
+        col.config.cardStateCustomizer =
             """
             $delayJs
             states.good.normal.review.easeFactor = 3.0;
@@ -117,7 +121,7 @@ class ReviewerFragmentTest : InstrumentedTest() {
     @Test
     fun testCustomSchedulerWithRuntimeError() {
         // Issue 15035 - runtime errors weren't handled
-        col.cardStateCustomizer = "states.this_is_not_defined.normal.review = 12;"
+        col.config.cardStateCustomizer = "states.this_is_not_defined.normal.review = 12;"
         addCardToTestDeck()
 
         withReviewer {

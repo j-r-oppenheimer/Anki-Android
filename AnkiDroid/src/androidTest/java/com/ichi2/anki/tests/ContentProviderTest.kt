@@ -54,6 +54,8 @@ import org.hamcrest.Matchers.equalTo
 import org.hamcrest.Matchers.greaterThan
 import org.hamcrest.Matchers.greaterThanOrEqualTo
 import org.hamcrest.Matchers.hasItem
+import org.hamcrest.Matchers.hasSize
+import org.hamcrest.Matchers.notNullValue
 import org.json.JSONObject.NULL
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -78,7 +80,7 @@ import kotlin.test.junit.JUnitAsserter.assertNotNull
  */
 class ContentProviderTest : InstrumentedTest() {
     @get:Rule
-    var runtimePermissionRule = grantPermissions(storagePermission, FlashCardsContract.READ_WRITE_PERMISSION)
+    var runtimePermissionRule = grantPermissions(storagePermission, FlashCardsContract.getPermission())
 
     // Whether tear down should be executed. I.e. if set up was not cancelled.
     private var tearDown = false
@@ -364,6 +366,88 @@ class ContentProviderTest : InstrumentedTest() {
 
             it.moveToFirst()
             assertEquals("correct card id", card.id, it.getLong(0))
+        }
+    }
+
+    @Test
+    fun testSearchCards_fillWindowCopiesAllRows() {
+        val note = addTempClozeNote("{{c1::A}} {{c2::B}}")
+        val cursor =
+            contentResolver.query(FlashCardsContract.Card.CONTENT_URI, null, "nid:${note.id}", null, null)
+        assertThat(cursor, notNullValue())
+        cursor!!.use {
+            val initialPosition = it.position
+            CursorWindow("test").use { window ->
+                cursorFillWindow(it, 0, window)
+                assertThat(it.position, equalTo(initialPosition))
+                assertThat(window.numRows, equalTo(2))
+                val noteIdColumn = it.getColumnIndexOrThrow(FlashCardsContract.Card.NOTE_ID)
+                assertThat(window.getLong(0, noteIdColumn), equalTo(note.id))
+                assertThat(window.getLong(1, noteIdColumn), equalTo(note.id))
+            }
+        }
+    }
+
+    @Test
+    fun testSearchCards_randomAccessIsStable() {
+        val note = addTempClozeNote("{{c1::A}} {{c2::B}}")
+        val cursor =
+            contentResolver.query(FlashCardsContract.Card.CONTENT_URI, null, "nid:${note.id}", null, null)
+        assertThat(cursor, notNullValue())
+        cursor!!.use {
+            fun rowAt(position: Int): List<String?> {
+                assertThat(it.moveToPosition(position), equalTo(true))
+                return (0 until it.columnCount).map { column -> it.getString(column) }
+            }
+
+            val forwards = (0 until it.count).map { position -> rowAt(position) }
+            assertThat(forwards, hasSize(2))
+            for (position in it.count - 1 downTo 0) {
+                assertThat(rowAt(position), equalTo(forwards[position]))
+            }
+            assertThat(rowAt(0), equalTo(forwards[0]))
+        }
+    }
+
+    @Test
+    fun testSearchCards_deletedCardRetainsIdWithNullFields() {
+        val note = addTempClozeNote("{{c1::A}} {{c2::B}}")
+        val cardIds = col.findCards("nid:${note.id}")
+        val cursor =
+            contentResolver.query(FlashCardsContract.Card.CONTENT_URI, null, "nid:${note.id}", null, null)
+        assertThat(cursor, notNullValue())
+        cursor!!.use {
+            col.removeNotes(noteIds = listOf(note.id))
+            assertThat(it.count, equalTo(cardIds.size))
+            val idColumn = it.getColumnIndexOrThrow(FlashCardsContract.Card._ID)
+            val returnedIds = mutableListOf<Long>()
+            while (it.moveToNext()) {
+                returnedIds.add(it.getLong(idColumn))
+                for (column in 0 until it.columnCount) {
+                    if (column == idColumn) continue
+                    assertThat("${it.getColumnName(column)} should be null", it.isNull(column), equalTo(true))
+                }
+            }
+            assertThat(returnedIds.toSet(), equalTo(cardIds.toSet()))
+        }
+    }
+
+    @Test
+    fun testSearchCards_unknownColumnThrowsFromQuery() {
+        // Validate the projection even when the search has no results.
+        for (query in listOf("", "cid:0")) {
+            val exception =
+                assertThrows<UnsupportedOperationException> {
+                    contentResolver
+                        .query(
+                            FlashCardsContract.Card.CONTENT_URI,
+                            arrayOf(FlashCardsContract.Card._ID, "not_a_column"),
+                            query,
+                            null,
+                            null,
+                        )?.close()
+                }
+            assertThat(exception.message, containsString("not_a_column"))
         }
     }
 
@@ -978,7 +1062,7 @@ class ContentProviderTest : InstrumentedTest() {
         val filteredDeckId = col.decks.newFiltered("Raw due filtered deck")
         testDeckIds.add(filteredDeckId)
         val filteredDeck = checkNotNull(col.decks.getLegacy(filteredDeckId))
-        filteredDeck.getJSONArray("terms").getJSONArray(0).put(0, "cid:${card.id}")
+        filteredDeck.firstFilter.search = "cid:${card.id}"
         col.decks.save(filteredDeck)
         col.sched.rebuildFilteredDeck(filteredDeckId)
         card.load(col)
@@ -1776,7 +1860,7 @@ class ContentProviderTest : InstrumentedTest() {
                 assertNotNull("Check that the deck we received actually exists", deck)
                 assertEquals(
                     "Check that the received deck has the correct name",
-                    deck.getString("name"),
+                    deck.name,
                     deckName,
                 )
             }
@@ -1810,7 +1894,7 @@ class ContentProviderTest : InstrumentedTest() {
                 )
                 assertEquals(
                     "Check that received deck name equals real deck name",
-                    realDeck.getString("name"),
+                    realDeck.name,
                     returnedDeckName,
                 )
             }

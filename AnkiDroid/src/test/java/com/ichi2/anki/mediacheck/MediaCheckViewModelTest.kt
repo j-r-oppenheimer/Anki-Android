@@ -2,29 +2,23 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 Ashish Yadav <mailtoashish693@gmail.com>
 package com.ichi2.anki.mediacheck
 
-import androidx.test.ext.junit.runners.AndroidJUnit4
 import app.cash.turbine.test
-import com.ichi2.anki.RobolectricTest
 import com.ichi2.anki.progress.ViewModelProgress
+import com.ichi2.testutils.OnDiskJvmTest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.setMain
 import org.junit.Test
-import org.junit.runner.RunWith
 import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
-@RunWith(AndroidJUnit4::class)
-class MediaCheckViewModelTest : RobolectricTest() {
+class MediaCheckViewModelTest : OnDiskJvmTest() {
     private val viewModel = MediaCheckViewModel()
-
-    // backend media operations need a real collection folder
-    override fun getCollectionStorageMode() = CollectionStorageMode.ON_DISK
 
     @Test
     fun `checkMedia reports progress and publishes the result`() =
@@ -45,7 +39,7 @@ class MediaCheckViewModelTest : RobolectricTest() {
 
             viewModel.assertProgressAround(MediaCheckProgress.DELETING_MEDIA) { viewModel.deleteUnusedMedia() }
 
-            assertEquals(1, viewModel.deletedFiles)
+            assertEquals(MediaCheckMessage.MediaDeleted(1), viewModel.pendingMessage)
             assertTrue(!file.exists(), "unused file should have been moved to the trash")
         }
 
@@ -57,7 +51,7 @@ class MediaCheckViewModelTest : RobolectricTest() {
 
             viewModel.assertProgressAround(MediaCheckProgress.ADDING_TAGS) { viewModel.tagMissing("missing") }
 
-            assertEquals(1, viewModel.taggedFiles)
+            assertEquals(MediaCheckMessage.TagsAdded(1), viewModel.pendingMessage)
             assertEquals(listOf("missing"), col.getNote(note.id).tags)
         }
 
@@ -74,6 +68,9 @@ class MediaCheckViewModelTest : RobolectricTest() {
             expectNoEvents()
         }
     }
+
+    private val MediaCheckViewModel.pendingMessage
+        get() = pendingMessages.value.single().message
 
     private fun addUnusedMediaFile(name: String): File = File(col.media.dir, name).apply { writeText("not an image") }
 
